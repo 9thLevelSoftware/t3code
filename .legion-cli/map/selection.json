@@ -1,0 +1,6 @@
+{
+  "schemaVersion": "legion-cli-discovery-selection/v1",
+  "goal": "Add additional coding provider options to T3 Code, starting with Xiaomi MiMo Token Plan through its API.",
+  "affectedArea": "Provider configuration and model discovery in packages/provider-*, apps/server/src/provider and packages/contracts; shared client integration in packages/client-runtime; provider setup and selection in apps/web and apps/mobile, with desktop using the web client. Determine the smallest existing harness integration during specification.",
+  "sourceFingerprint": "31dba453b0f8d67a615f6799af670be2b8224ede1b4ce66862f67c3285516f82"
+}

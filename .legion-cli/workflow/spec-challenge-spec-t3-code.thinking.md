@@ -1,0 +1,30 @@
+# Specification challenge: spec-t3-code
+
+Round: 1
+Status: complete
+
+## Automation
+
+analysis automation unavailable: hardened sandbox required (bwrap or seatbelt); copy jail refused without allowNoSandbox or sandbox.allowCopyJail
+
+## Manual review
+
+Measurable success: Focused fixtures must demonstrate both the MiMo Token Plan preset and a separately configured non-preset Chat Completions endpoint with its own model ID and credential, using the same reusable setup path. Verify independent configuration and secrets for two instances, catalog refresh, streamed tool-capable turns, approval round-trips, completed cancellation and saved-session continuation. Web, desktop and mobile must address the selected destination environment with server-side authorization. Treat saved settings, runtime/model availability and live coding verification as distinct states; later authorized live qualification is required before claiming MiMo interoperability.
+Failure handling: Missing or unsupported MiMo-Code versions, invalid credentials or regions, unsupported models, quota exhaustion and network failures must produce actionable redacted status without starting coding or login during background checks. Never change provider, model, account, region or billing route automatically. Reject disruptive settings, credential, disable and removal mutations while work is active, serialize them with work admission, and require cancellation to settle before rebuilding only the owning instance. Preserve saved threads and truthful run state; report unavailable continuation without silent reassignment or credential leakage.
+Compatibility and scope: Use a distinct MiMo-Code provider with a user-installed CLI on the destination server host and no separate OpenCode installation. Preserve existing providers, Codex managed authentication, external OpenCode connections, T3 orchestration, permissions, checkpoints and local/remote behavior. Qualify MiMo's own release, headless protocol and per-instance/thread isolation before sharing adapter code. Reuse typed environment-owned secret settings and guarded service/RPC boundaries; never write live T3 userdata or user-global provider configuration. V0 covers API-key Chat Completions setup only: no new agent loop, native OAuth UX, runtime redistribution, desktop embedding or automatic external-server configuration. Keep sandbox policy unchanged, tests focused and live-provider/browser/device qualification separately authorized. Specification review does not authorize implementation, publishing or spec approval.
+Acknowledgement: I acknowledge
+
+## Resulting specification changes
+
+- mustBeTrue: Focused fixtures must demonstrate both the MiMo Token Plan preset and a separately configured non-preset Chat Completions endpoint with its own model ID and credential, using the same reusable setup path. Verify independent configuration and secrets for two instances, catalog refresh, streamed tool-capable turns, approval round-trips, completed cancellation and saved-session continuation. Web, desktop and mobile must address the selected destination environment with server-side authorization. Treat saved settings, runtime/model availability and live coding verification as distinct states; later authorized live qualification is required before claiming MiMo interoperability.
+  - Concerns: MANUAL-SUCCESS
+  - Rationale: Recorded by the human during the fixed measurable-success review.
+- acceptance AC-CH-01: Focused fixtures must demonstrate both the MiMo Token Plan preset and a separately configured non-preset Chat Completions endpoint with its own model ID and credential, using the same reusable setup path. Verify independent configuration and secrets for two instances, catalog refresh, streamed tool-capable turns, approval round-trips, completed cancellation and saved-session continuation. Web, desktop and mobile must address the selected destination environment with server-side authorization. Treat saved settings, runtime/model availability and live coding verification as distinct states; later authorized live qualification is required before claiming MiMo interoperability.
+  - Concerns: MANUAL-SUCCESS
+  - Rationale: Turns the human's measurable-success answer into acceptance evidence.
+- failureCases: Missing or unsupported MiMo-Code versions, invalid credentials or regions, unsupported models, quota exhaustion and network failures must produce actionable redacted status without starting coding or login during background checks. Never change provider, model, account, region or billing route automatically. Reject disruptive settings, credential, disable and removal mutations while work is active, serialize them with work admission, and require cancellation to settle before rebuilding only the owning instance. Preserve saved threads and truthful run state; report unavailable continuation without silent reassignment or credential leakage.
+  - Concerns: MANUAL-FAILURE
+  - Rationale: Recorded by the human during the fixed failure-handling review.
+- mustNotChange: Use a distinct MiMo-Code provider with a user-installed CLI on the destination server host and no separate OpenCode installation. Preserve existing providers, Codex managed authentication, external OpenCode connections, T3 orchestration, permissions, checkpoints and local/remote behavior. Qualify MiMo's own release, headless protocol and per-instance/thread isolation before sharing adapter code. Reuse typed environment-owned secret settings and guarded service/RPC boundaries; never write live T3 userdata or user-global provider configuration. V0 covers API-key Chat Completions setup only: no new agent loop, native OAuth UX, runtime redistribution, desktop embedding or automatic external-server configuration. Keep sandbox policy unchanged, tests focused and live-provider/browser/device qualification separately authorized. Specification review does not authorize implementation, publishing or spec approval.
+  - Concerns: MANUAL-COMPATIBILITY
+  - Rationale: Recorded by the human during the fixed compatibility and scope review.

@@ -1,0 +1,35 @@
+schemaVersion: legion-cli-plan-approval/v1
+specId: spec-t3-code
+approvedAt: 2026-10-22T01:30:41.084Z
+approvedBy: user
+planFingerprint: 4c3e1f11ddef9e1ba730e42ef53679444548010731e0180fd0ad242c2282b2d0
+approvalId: d3d4deaf-4fb5-4457-92e6-7e6e2e30c310
+specFingerprint: 369644bae62c9b4b270fdd2104ad47d669e757f25810b8c11c1b8c972a77d28c
+taskFingerprint: fb3767a2f8235e1b46dda3aaa2463889fcdf2ea7c81e8d066945e308466894fa
+configFingerprint: 4edb4b4f8c8ea7dac1c8db92bdcef44d9701e763c3a321ddc9aa260ae7656ff4
+taskIds:
+  - TSK-0001
+  - TSK-0002
+  - TSK-0003
+  - TSK-0004
+  - TSK-0005
+  - TSK-0006
+  - TSK-0007
+  - TSK-0008
+acceptanceIds:
+  - AC-P0-01
+  - AC-P0-02
+  - AC-P0-03
+  - AC-P0-04
+  - AC-P0-05
+  - AC-P1-01
+  - AC-P1-02
+  - AC-P1-03
+  - AC-P1-04
+  - AC-P1-05
+  - AC-P1-06
+  - AC-P1-07
+  - AC-P1-08
+  - AC-P1-09
+  - AC-CH-01
+verificationCommands: []

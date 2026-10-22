@@ -1,0 +1,52 @@
+schemaVersion: legion-cli-config/v1
+adapter:
+  default: codex
+ingest:
+  autoCommit: false
+control_mode: guarded
+qa:
+  mode: full
+  passScore: 85
+dashboard:
+  port: 7420
+  bind: 127.0.0.1
+flags:
+  mcpApps: false
+  webmcp: false
+  parallelExecute: false
+sandbox:
+  requireHardened: true
+  allowCopyJail: false
+  backend: auto
+  skills:
+    - execute
+skills:
+  trustKeys: []
+map:
+  roots:
+    - apps
+    - packages
+    - infra
+    - native
+    - scripts
+    - oxlint-plugin-t3code
+    - packaging
+    - .vite-hooks
+    - .github
+  ignore:
+    - "**/.generated/**"
+    - "**/.astro/**"
+    - "**/.android-cache/**"
+    - "**/.tanstack/**"
+    - "**/target/**"
+    - "**/dist-exe/**"
+    - "**/playwright-report/**"
+workflow:
+  profile: focused
+  verificationCommands: []
+search:
+  mode: lexical
+execution:
+  maxWorkers: 1
+telemetry: {}
+mcpHttpToolAllowlist: []
