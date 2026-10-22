@@ -1,0 +1,73 @@
+schemaVersion: legion-cli-intent-answers/v1
+rounds:
+  - n: 1
+    questions:
+      - Who is this for, in one sentence?
+      - What are they stuck doing today?
+    answers:
+      - T3 Code users who want additional coding model providers, including API-accessible subscriptions such as Xiaomi MiMo Token Plan.
+      - They want to select and use those providers within T3 Code; the existing configuration and integration gaps are being checked against the repository before choosing an implementation.
+  - n: 2
+    questions:
+      - What must be true when this is done?
+      - What must we not change, and what will we not build?
+    answers:
+      - Provide reusable API-provider setup with Xiaomi MiMo Token Plan as the first preset, as explicitly selected by the user. A user can configure a named provider with a supported API protocol, base URL, secret credential and model choices, select it for coding work, and use the existing thread/tool/approval lifecycle through a compatible agent harness. MiMo setup must select the correct Token Plan region and credentials, with clear configuration and failure feedback. Web, desktop and mobile must use the destination environment's provider configuration. Exact protocol and harness coverage must be evidence-backed in the draft.
+      - "Preserve existing providers, authentication, saved threads, model selection, permissions, cancellation, checkpoints and local/remote behavior. Keep credentials environment-owned and out of client projections and logs. Reuse existing provider/runtime boundaries where feasible. This increment does not build a new agent runtime, replace orchestration, promise compatibility with every API, add non-coding audio/video services, or silently fall back from Token Plan to pay-as-you-go billing. Follow AGENTS.md: no live userdata writes, repo-wide checks, browser verification or publishing without the required authorization. Additional product-specific exclusions remain open for review."
+  - n: 3
+    questions:
+      - Walk through the happy path in 3–5 steps.
+      - What failures, security concerns, or integration risks must be handled?
+    answers:
+      - 1) In the destination environment's provider settings, choose the MiMo Token Plan preset or supported custom API setup. 2) Supply the region/base URL, secret API credential and model selection or discovery settings, and receive clear validation feedback. 3) Select the configured provider and model in a new coding thread. 4) Submit a coding request and interact with streamed progress, tools and approvals using the compatible existing harness. 5) Return to the thread or reconnect from another client, then edit, disable or remove the configuration using existing provider lifecycle rules without corrupting saved work.
+      - "Handle invalid or expired keys, mismatched regional endpoints, unsupported models/protocols, missing harness prerequisites, rate/quota exhaustion, network loss and cancellation without leaking credentials or leaving misleading run state. Preserve credentials and authorization per destination environment; provider secrets must not enter logs, exports or public state. Never automatically change Token Plan billing to pay-as-you-go. Xiaomi docs require distinct Token Plan credentials/endpoints and document compatible Codex/OpenCode routes: https://mimo.mi.com/docs/en-US/tokenplan/Token%20Plan/quick-access and https://mimo.mi.com/docs/en-US/tokenplan/integration/codex-configuration and https://mimo.mi.com/docs/en-US/tokenplan/integration/opencode . Verify tool-call/reasoning metadata, streaming, resume and cancellation for the chosen harness; do not equate API text completion with working coding-agent integration. Automated local contract tests and later explicitly authorized live provider/client qualification are separate evidence gates; no credential or paid API call is needed to write this spec."
+  - n: 4
+    questions:
+      - What interfaces or touchpoints must exist in v0? (use `none` for a service or library)
+      - What runtime or deployment environment matters, if any? (for example CLI, service, browser, mobile, Python, Rust; or `none`)
+    answers:
+      - Extend existing provider settings/onboarding on web and desktop, equivalent remote environment setup on mobile, and the shared provider/model picker. Include preset/custom setup, secret entry/update/removal, validation status, edit/disable/remove behavior, and actionable auth/quota/connection errors. Use server-owned provider services and typed, permission-guarded RPC; expose configured providers/models through the existing agent orchestration catalog. Add concise user setup documentation. Preserve existing command palette, keybinding and scheduled/delegated execution paths wherever they consume the same provider catalog. Avoid creating a separate configuration system when existing provider-instance settings suffice.
+      - T3 Code's Node/Effect server owns credentials, provider processes and API connections on Windows, macOS and Linux. Web/desktop/mobile clients may connect locally, over LAN/Tailscale/SSH, or through T3 Connect. Local development and initial verification are Windows-first in D:\t3code, with focused automated checks and separate cross-platform/live-provider qualification. Use an existing compatible coding harness; the initial source review favors OpenCode, subject to comparing Pi and confirming external versus T3-managed runtime configuration ownership. Do not modify live T3 state, global user provider configuration or unrelated default providers while implementing or validating the feature.
+  - n: 5
+    questions:
+      - Any existing constraints or design inputs we must follow? (path, link, or `none`)
+      - Which unknowns or external integrations could block building?
+    answers:
+      - Follow AGENTS.md, docs/internals/overview.md, docs/internals/providers.md, docs/internals/remote.md and docs/internals/effect-services.md. Source review identifies packages/provider-opencode/src/settings.ts and server/driver.ts/status.ts as the smallest existing harness path; current customModels only enrich the picker and do not configure an API backend. Reuse existing secret settings (packages/contracts/src/settings.ts; apps/server/src/settingsSecrets.ts) and provider-instance ownership. Proposed v0 supports OpenAI-compatible API services via T3-managed OpenCode, isolated per instance, with MiMo Token Plan regional presets and current documented coding models. Preserve externally hosted OpenCode connections but require configuration on their host; do not imply local environment variables reconfigure an external server. Existing Codex managed configuration remains unchanged. Product-facing setup should make the runtime prerequisite and supported API type clear without exposing internal implementation details.
+      - "Confirm OpenCode 1.x/2.x configuration mechanisms, supported version floor, per-instance isolation, secret injection/redaction, dynamic model/catalog refresh and restart/resume behavior before implementation. Xiaomi's OpenCode guide requires the OpenAI-compatible route; its Anthropic route has a documented tool-call reasoning-content issue. MiMo catalog metadata, streaming/tool results and quota errors need fixture coverage plus a later authorized live coding run; credentials, Token Plan entitlement and network access are external prerequisites still unverified. Proposed v0 excludes automatic configuration of independently hosted OpenCode services and other API protocol families; remote T3 clients remain supported. Existing providers and OpenCode external connections must continue working. Focused candidate checks: vp test run packages/provider-opencode/src/server/driver.test.ts packages/provider-opencode/src/server/status.test.ts packages/provider-opencode/src/server/openCode2Catalog.test.ts; secret/settings and client tests as affected. Never use the discovery report's repo-wide test command. Evidence paths and official Xiaomi links should be carried into the spec; no live calls, browsers, app edits or spec approval are authorized by this interview."
+  - n: 6
+    questions:
+      - Should the spec require MiMo and custom API providers to work without an OpenCode installation?
+    answers:
+      - Mimo actually has their own app that we could use since it's open source? https://github.com/XiaomiMiMo/MiMo-Code
+mapped:
+  personas:
+    - T3 Code users who want additional coding model providers, including API-accessible subscriptions such as Xiaomi MiMo Token Plan.
+  problem: They want to select and use those providers within T3 Code; the existing configuration and integration gaps are being checked against the repository before choosing an implementation.
+  mustBeTrue:
+    - Provide reusable OpenAI-compatible API-provider setup with Xiaomi MiMo Token Plan as the first preset; propose the existing MiMo-Code runtime as the first integration, with no separate OpenCode installation requirement and compatibility qualified before implementation.
+    - Configure a named provider instance with an endpoint or region, secret credential and supported model choices; validate setup and expose the provider in the existing coding-thread model picker.
+    - Support setup and use from web, desktop and mobile while the destination environment owns configuration, credentials and execution.
+    - Preserve streamed coding work, tool use, approvals, cancellation, reconnection and saved-thread behavior through the integrated coding-agent runtime.
+    - Provide edit, disable and removal behavior plus actionable authentication, quota, network and configuration errors.
+  mustNotChange:
+    - Preserve existing providers, authentication, saved threads, model selection, permissions, cancellation, checkpoints and local/remote behavior.
+    - Keep credentials environment-owned, isolated per provider instance and absent from logs, exports and client projections.
+    - Preserve the existing Codex managed configuration and externally hosted OpenCode connection behavior.
+    - Follow AGENTS.md; preserve live T3 userdata and unrelated global provider configuration.
+    - Use focused verification. Browser verification, live provider calls, implementation and publishing require their separate authorization.
+  outOfScope:
+    - Writing a new coding-agent loop or replacing T3 orchestration; integrating the existing MiMo-Code runtime through a provider adapter is in the proposed scope.
+    - Compatibility with every API or support for additional API protocol families in v0.
+    - Automatic reconfiguration of independently hosted runtime services; preserve existing external OpenCode connections and their host-owned setup.
+    - Non-coding audio or video services.
+    - Automatic fallback from Token Plan billing to pay-as-you-go billing.
+    - Bundling or forking MiMo-Code source, embedding its desktop UI, or implementing its unrelated memory, workflow and multimedia features in T3.
+  happyPath: 1) In the destination environment's provider settings, choose the MiMo Token Plan preset or supported custom API setup. 2) Supply the region/base URL, secret API credential and model selection or discovery settings, and receive clear validation feedback. 3) Select the configured provider and model in a new coding thread. 4) Submit a coding request and interact with streamed progress, tools and approvals using the compatible existing harness. 5) Return to the thread or reconnect from another client, then edit, disable or remove the configuration using existing provider lifecycle rules without corrupting saved work.
+  screens:
+    - Existing provider settings/onboarding on web and desktop.
+    - Equivalent destination-environment provider setup on mobile.
+    - MiMo preset and custom API setup with secret entry, validation feedback and edit/disable/remove controls.
+    - Existing shared provider/model picker and coding-thread status/error surfaces.
+    - Existing agent orchestration catalog and scheduled/delegated execution integrations.
+    - Concise user setup documentation.

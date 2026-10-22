@@ -1,0 +1,12 @@
+schemaVersion: legion-cli-workflow-evidence/v1
+specId: spec-t3-code
+planFingerprint: 4c3e1f11ddef9e1ba730e42ef53679444548010731e0180fd0ad242c2282b2d0
+approvalId: d3d4deaf-4fb5-4457-92e6-7e6e2e30c310
+productFingerprint: 60a7deabdf19eb18bcffb525fca4bb6a55859f7f3908be5cb03efab483c8afa7
+environmentFingerprint: ccd5a9e8a9168b7bb8bf73c9203e9a21b77b9d07d106fcc4ba9a50ed9691414e
+status: blocked
+completedTaskIds: []
+integration: []
+review: null
+blocker: "verification command failed with exit 1: node --test packages/provider-mimo/qualification/cli.test.mjs (log: .legion-cli/cache/runs/execute-mviwmzlq-24861406/verify-1.log)"
+updatedAt: 2026-10-22T02:28:41.128Z

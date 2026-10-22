@@ -1,0 +1,3990 @@
+# T3 Code repository guide
+
+Start with [AGENTS.md](../../AGENTS.md) and the [architecture overview](../../docs/internals/overview.md).
+Use this guide to locate ownership boundaries and constraints before planning changes.
+The generated region records the module inventory; the notes explain cross-component decisions.
+
+## Where to start
+
+| Area | Location and entry points | Responsibility |
+| --- | --- | --- |
+| Server | [apps/server](../../apps/server), [bin.ts](../../apps/server/src/bin.ts), [ws.ts](../../apps/server/src/ws.ts) | Environment-owned execution, RPC, durable orchestration, provider processes, Git and checkpoints |
+| Web | [apps/web](../../apps/web), [main.tsx](../../apps/web/src/main.tsx) | Hosted and locally served React/Vite client |
+| Desktop | [apps/desktop](../../apps/desktop), [main.ts](../../apps/desktop/src/main.ts) | Electron shell around web; can run a bundled server |
+| Mobile | [apps/mobile](../../apps/mobile), [App.tsx](../../apps/mobile/src/App.tsx) | React Native client with separate navigation |
+| Shared clients | [packages/client-runtime](../../packages/client-runtime) | Connections, authorization, state, RPC and platform abstractions |
+| Protocol | [packages/contracts](../../packages/contracts) | Wire schemas and shared contracts for independently upgraded clients and environments |
+| Providers | [packages](../../packages), [server/provider](../../apps/server/src/provider) | Provider-specific packages and server integration; preserve adapter boundaries |
+| Remote access | [infra/relay](../../infra/relay), [packages/ssh](../../packages/ssh), [packages/tailscale](../../packages/tailscale) | T3 Connect relay and remote connection routes |
+| Host integration | [native](../../native) | Platform-specific native helpers |
+| Product site | [apps/marketing](../../apps/marketing) | Public-facing site |
+| Development and CI | [scripts](../../scripts), [oxlint-plugin-t3code](../../oxlint-plugin-t3code), [.github](../../.github) | Dev runner, focused checks, repository lint rules, CI and release automation |
+| Build and references | [pnpm-workspace.yaml](../../pnpm-workspace.yaml), [patches](../../patches), [packaging](../../packaging), [docs](../../docs) | Workspace and dependency configuration, patched integrations, packaging and documentation |
+
+## Mapping coverage
+
+[config.yaml](../config.yaml) defines explicit map roots so `apps/` and CI utilities
+are included alongside `packages/`. The generated inventory below and
+[fingerprints.json](fingerprints.json) index supported TypeScript, JavaScript,
+Python, Go and Rust source with Legion's fallback import/export parser.
+Fingerprints describe module interfaces, not complete file contents or runtime behavior.
+Test files, dependency/build directories and vendored `.repos/` references are excluded.
+Generated source within the configured roots may still be indexed. Files larger
+than the parser's 1 MiB limit are skipped. Other source languages, manifests,
+workflow YAML, patches and documentation are
+orientation context rather than parser-indexed modules. This is a repository map,
+not test, security, provider or production qualification.
+
+## Development and verification
+
+Use `vp run dev` for the server/web development loop and `vp test run <files>` for
+focused tests. `vp run check:changed` runs the repository's affected-file checks
+before a push; do not run repo-wide checks without authorization. Follow
+[development guidance](../../docs/operations/development.md) for setup, isolated
+state and remote pairing. Browser/device verification requires explicit authorization.
+Never point a development server at live T3 userdata or set `VITE_HTTP_URL` /
+`VITE_WS_URL` for development.
+
+The detailed architectural constraints follow the generated inventory under **Notes**.
+
+<!-- legion-cli:generated:start -->
+# Architecture
+backend: fallback
+rootHash: fa098aa9eb89c10f65eaa4623c3e5a7f801d53494ccd9e80925d6d4127da5a77
+## Modules
+- `.github/scripts/check-nightly-release.cjs` — exports: assertCommitOnDefaultBranch, assertReleaseSource, module.exports, resolveLatestNightlyCommit, shouldReleaseNightly
+- `.github/scripts/ci-changes.cjs` — exports: decide, module.exports, readWorkspace
+- `.github/scripts/ci-changes.d.cts` — exports: decide, readWorkspace
+- `.github/scripts/mirror-play-apk.cjs` — exports: 
+- `.github/scripts/stage-preview-bundle.py` — exports: stage_bundle
+- `.github/scripts/thread-transfer-report.cjs` — exports: module.exports, publish, readResult, renderComment, resolve, upsertCommentForCurrentHead, validateResult
+- `apps/desktop/gnome-extension/captureFeedback.js` — exports: CaptureFeedback
+- `apps/desktop/gnome-extension/captureService.js` — exports: CLIENT_NAMES, CaptureService, isWaylandSession
+- `apps/desktop/gnome-extension/extension.js` — exports: T3SnapShotExtension, default
+- `apps/desktop/gnome-extension/feedbackGeometry.js` — exports: captureDestinationFrame, findCaptureDestination
+- `apps/desktop/scripts/build-browser-secret.mjs` — exports: 
+- `apps/desktop/scripts/build-preview-annotation-css.mjs` — exports: 
+- `apps/desktop/scripts/dev-electron.mjs` — exports: 
+- `apps/desktop/scripts/electron-launcher.mjs` — exports: desktopDir, makeDevelopmentEnvironmentScript, makeDevelopmentLauncherScript, resolveDevProtocolClient, resolveElectronBinaryPath, resolveElectronLaunchCommand, resolveMacLauncherPaths, writeDevelopmentLauncherScript
+- `apps/desktop/scripts/ensure-electron-runtime.mjs` — exports: ensureElectronRuntime
+- `apps/desktop/scripts/smoke-test.mjs` — exports: 
+- `apps/desktop/scripts/start-electron.mjs` — exports: 
+- `apps/desktop/scripts/verify-preload-bundle.mjs` — exports: 
+- `apps/desktop/scripts/wait-for-resources.mjs` — exports: waitForResources
+- `apps/desktop/src/app/CodexAuthCallback.ts` — exports: CodexAuthCallbackError, cancelCodexAuthCallback, receiveCodexAuthCallback
+- `apps/desktop/src/app/DesktopApp.ts` — exports: DesktopBackendPortUnavailableError, DesktopDevelopmentBackendPortRequiredError, program
+- `apps/desktop/src/app/DesktopAppActivation.ts` — exports: DesktopAppActivation, DesktopAppActivationStartError, layer, startDesktopAppControlServer
+- `apps/desktop/src/app/DesktopAppActivationBroker.ts` — exports: DesktopAppActivationBroker
+- `apps/desktop/src/app/DesktopAppIdentity.ts` — exports: DesktopAppIdentity, layer
+- `apps/desktop/src/app/DesktopAssets.ts` — exports: DesktopAssetProbeError, DesktopAssets, DesktopIconPaths, layer
+- `apps/desktop/src/app/DesktopClerk.ts` — exports: DesktopClerk, DesktopClerkBridgeCleanupError, DesktopClerkBridgeInitializationError, desktopClerkFrontendApiHostname, layer
+- `apps/desktop/src/app/DesktopCliCommand.ts` — exports: DesktopCliCommand, DesktopCliCommandError, layer
+- `apps/desktop/src/app/DesktopCliShim.ts` — exports: CliShimTarget, MARKER, launcherPath
+- `apps/desktop/src/app/DesktopConfig.ts` — exports: DesktopConfig, layerTest
+- `apps/desktop/src/app/DesktopConnectionCatalogStore.ts` — exports: DesktopConnectionCatalogStore, DesktopConnectionCatalogStoreDecodeError, DesktopConnectionCatalogStoreDocumentDecodeError, DesktopConnectionCatalogStoreMigrationError, DesktopConnectionCatalogStoreProtectionError, DesktopConnectionCatalogStoreReadError, DesktopConnectionCatalogStoreWriteError, layer
+- `apps/desktop/src/app/DesktopEarlyElectronStartup.ts` — exports: EarlyLinuxElectronOptions, resolveEarlyLinuxElectronOptions, resolveEarlyLinuxPasswordStorePreference, resolveLinuxDesktopEntryName, resolveLinuxDisableFeaturesSwitch, restoreEarlyLinuxDeviceScaleFactor
+- `apps/desktop/src/app/DesktopEnvironment.ts` — exports: DesktopEnvironment, MakeDesktopEnvironmentInput, layer, resolveDesktopAppBranding
+- `apps/desktop/src/app/DesktopLegacyLocalStorage.ts` — exports: DesktopLegacyLocalStorage, layer
+- `apps/desktop/src/app/DesktopLifecycle.ts` — exports: DesktopLifecycle, DesktopLifecycleRelaunchError, DesktopLifecycleRuntimeServices, layer
+- `apps/desktop/src/app/DesktopLinuxUrlHandler.ts` — exports: DesktopLinuxUrlHandler, DesktopLinuxUrlHandlerCacheRefreshError, DesktopLinuxUrlHandlerRegistrationError, escapeDesktopEntryExecArgument, layer, renderUrlHandlerDesktopEntry
+- `apps/desktop/src/app/DesktopObservability.ts` — exports: DesktopBackendOutputLogFactory, DesktopBackendOutputLogShape, DesktopComponentLogger, DesktopLogAnnotations, RotatingLogFileWriter, layer, makeComponentLogger
+- `apps/desktop/src/app/DesktopPreReadyFileSystem.ts` — exports: layer
+- `apps/desktop/src/app/DesktopPreReadyPlatform.ts` — exports: DesktopPreReadyCommandLineReader, DesktopPreReadyElectronOptions, layer, resolveEarlyLinuxElectronOptionsFromProcess
+- `apps/desktop/src/app/DesktopShutdown.ts` — exports: DesktopShutdown, layer
+- `apps/desktop/src/app/DesktopState.ts` — exports: DesktopState, layer
+- `apps/desktop/src/app/DesktopStatePaths.ts` — exports: JoinPath, resolveDesktopBaseDir, resolveDesktopStateDir
+- `apps/desktop/src/app/DesktopUserData.ts` — exports: DesktopUserDataInitializationError
+- `apps/desktop/src/app/DesktopWebLinks.ts` — exports: DesktopWebLinks, isWebPageFile, layer
+- `apps/desktop/src/app/chromiumLocalStorage.ts` — exports: ChromiumLocalStorageReadError
+- `apps/desktop/src/backend/DesktopBackendConfiguration.ts` — exports: DesktopBackendConfiguration, DesktopBackendObservabilitySettingsReadError, layer
+- `apps/desktop/src/backend/DesktopBackendManager.ts` — exports: BackendInstanceId, BackendInstanceSpec, BackendProcessBootstrapEncodeError, BackendProcessContext, BackendProcessError, BackendProcessExitStatusError, BackendProcessOutputError, BackendProcessOutputHandlingError, BackendProcessOutputReadError, BackendProcessOutputStream, BackendProcessSpawnError, BackendReadinessTimeoutError, DesktopBackendBootstrapDelivery, DesktopBackendInstance, DesktopBackendSnapshot, DesktopBackendStartConfig, PRIMARY_INSTANCE_IDBackendInstanceId, PreflightFailure
+- `apps/desktop/src/backend/DesktopBackendPool.ts` — exports: BackendInstanceFactoryRequirements, BackendInstanceId, BackendInstanceSpec, DesktopBackendInstance, DesktopBackendPool, DesktopBackendPoolCannotUnregisterPrimaryError, DesktopBackendPoolInstanceAlreadyRegisteredError, PRIMARY_INSTANCE_ID
+- `apps/desktop/src/backend/DesktopLocalEnvironmentAuth.ts` — exports: DesktopLocalEnvironmentAuth, DesktopLocalEnvironmentAuthBackendNotConfiguredError, DesktopLocalEnvironmentAuthError, DesktopLocalEnvironmentAuthSessionBootstrapError, layer
+- `apps/desktop/src/backend/DesktopNetworkInterfaces.ts` — exports: DesktopNetworkInterfaceInfo, DesktopNetworkInterfaces, DesktopNetworkInterfacesReadError, NetworkInterfaces, layer
+- `apps/desktop/src/backend/DesktopServerExposure.ts` — exports: DesktopServerExposure, DesktopServerExposureBackendConfig, DesktopServerExposureChange, DesktopServerExposureError, DesktopServerExposureModePersistenceError, DesktopServerExposureNoNetworkAddressError, DesktopServerExposureSetModeError, DesktopTailscaleServePersistenceError, layer
+- `apps/desktop/src/backend/tailscaleEndpointProvider.ts` — exports: 
+- `apps/desktop/src/boot.ts` — exports: 
+- `apps/desktop/src/compileCache.ts` — exports: 
+- `apps/desktop/src/electron/ElectronApp.ts` — exports: ElectronApp, ElectronAppMetadata, ElectronAppMetadataReadError, ElectronAppWhenReadyError, layer
+- `apps/desktop/src/electron/ElectronDialog.ts` — exports: ElectronDialog, ElectronDialogError, ElectronDialogPickFilesError, ElectronDialogPickFilesInput, ElectronDialogPickFolderError, ElectronDialogPickFolderInput, ElectronDialogShowErrorBoxError, ElectronDialogShowMessageBoxError, layer
+- `apps/desktop/src/electron/ElectronMenu.ts` — exports: ElectronMenu, ElectronMenuContextInput, ElectronMenuOperationError, ElectronMenuPosition, ElectronMenuTemplateInput, layer
+- `apps/desktop/src/electron/ElectronPowerMonitor.ts` — exports: ElectronIdleState, ElectronPowerMonitor, ElectronThermalState, layer, make
+- `apps/desktop/src/electron/ElectronProtocol.ts` — exports: DESKTOP_HOST, DesktopProtocolRegistrationInput, ElectronProtocol, ElectronProtocolRegistrationError, ElectronProtocolUnregistrationError, getDesktopScheme, getDesktopUrl, layer, layerSchemePrivileges
+- `apps/desktop/src/electron/ElectronSafeStorage.ts` — exports: ElectronSafeStorage, ElectronSafeStorageAvailabilityError, ElectronSafeStorageDecryptError, ElectronSafeStorageEncryptError, ElectronSafeStorageError, layer
+- `apps/desktop/src/electron/ElectronShell.ts` — exports: ElectronShell, layer, make, parseSafeExternalUrl
+- `apps/desktop/src/electron/ElectronTheme.ts` — exports: ElectronTheme, ElectronThemeSetSourceError, layer
+- `apps/desktop/src/electron/ElectronUpdater.ts` — exports: ElectronUpdater, ElectronUpdaterCheckForUpdatesError, ElectronUpdaterDownloadUpdateError, ElectronUpdaterError, ElectronUpdaterFeedUrl, ElectronUpdaterQuitAndInstallError, layer
+- `apps/desktop/src/electron/ElectronWindow.ts` — exports: ElectronWindow, ElectronWindowCreateError, ElectronWindowOperationError, layer
+- `apps/desktop/src/electron/WindowsForeground.ts` — exports: WindowsForegroundApi, activateWindowsForeground, activateWindowsForegroundWithApi, isWindowsShellHostedForeground, loadWindowsForegroundApi
+- `apps/desktop/src/electron/WindowsForegroundFocusThread.ts` — exports: WindowsForegroundFocusTarget, WindowsForegroundFocusThread, startWindowsForegroundFocusThread
+- `apps/desktop/src/electron/WindowsForegroundFocusWorker.ts` — exports: 
+- `apps/desktop/src/ipc/DesktopIpc.ts` — exports: DesktopIpc, DesktopIpcError, DesktopIpcHandleListener, DesktopIpcInvokeEvent, DesktopIpcMain, DesktopIpcMethod, DesktopIpcMethodESchemaSchemaError, DesktopIpcMethodRegistration, DesktopIpcRegistrationError, DesktopIpcSyncEvent, DesktopIpcSyncListener, DesktopIpcUnregistrationError, DesktopSyncIpcMethod, DesktopSyncIpcMethodESchemaSchemaError, DesktopSyncIpcMethodRegistration, E, EncodedPayload, EncodedResult, PayloadDecodingServices, PayloadEncodingServices, R, Result, ResultDecodingServices, ResultEncodingServices, layer, makeIpcMethod, makeSyncIpcMethod
+- `apps/desktop/src/ipc/DesktopIpcHandlers.ts` — exports: 
+- `apps/desktop/src/ipc/channels.ts` — exports: ACKNOWLEDGE_SNAP_SHOT_CHANNEL, APPLY_SNAP_SHOT_CONFIG_CHANNEL, BOOTSTRAP_SSH_BEARER_SESSION_CHANNEL, CANCEL_PROVIDER_AUTH_CALLBACK_CHANNEL, CHECK_SNAP_SHOT_SHORTCUT_CHANNEL, CHECK_SYSTEM_PERMISSION_CHANNEL, CLEAR_CONNECTION_CATALOG_CHANNEL, CLI_COMMAND_GET_STATE_CHANNEL, CLI_COMMAND_INSTALL_CHANNEL, CLI_COMMAND_UNINSTALL_CHANNEL, COMPLETE_LEGACY_LOCAL_STORAGE_CHANNEL, CONTEXT_MENU_CHANNEL, DESKTOP_APP_ACTIVATION_COMPLETE_CHANNEL, DESKTOP_APP_ACTIVATION_READY_CHANNEL, DESKTOP_APP_ACTIVATION_REQUEST_CHANNEL, DISCONNECT_SSH_ENVIRONMENT_CHANNEL, DISCOVER_SSH_HOSTS_CHANNEL, DISMISS_SNAP_SHOT_ANIMATION_CHANNEL, ENSURE_SSH_ENVIRONMENT_CHANNEL, FETCH_SSH_ENVIRONMENT_DESCRIPTOR_CHANNEL, FETCH_SSH_SESSION_STATE_CHANNEL, GET_ADVERTISED_ENDPOINTS_CHANNEL, GET_APP_BRANDING_CHANNEL, GET_CLIENT_SETTINGS_CHANNEL, GET_CONNECTION_CATALOG_CHANNEL, GET_LOCAL_ENVIRONMENT_BEARER_TOKEN_CHANNEL, GET_LOCAL_ENVIRONMENT_BOOTSTRAPS_CHANNEL, GET_LOCAL_ENVIRONMENT_ENABLED_CHANNEL, GET_RELAY_TELEMETRY_ENABLED_CHANNEL, GET_SERVER_EXPOSURE_STATE_CHANNEL, GET_SNAP_SHOT_STATE_CHANNEL, GET_SYSTEM_LOCALE_CHANNEL, GET_WINDOW_FULLSCREEN_STATE_CHANNEL, GET_WSL_STATE_CHANNEL, ISSUE_SSH_WEBSOCKET_TOKEN_CHANNEL, LIST_PENDING_SNAP_SHOTS_CHANNEL, MAC_PERMISSION_HELPER_CHANNEL, MENU_ACTION_CHANNEL, OPEN_EXTERNAL_CHANNEL, OPEN_SYSTEM_SETTINGS_CHANNEL, PASTE_AS_TEXT_CHANNEL, PICK_FOLDER_CHANNEL, PICK_PROJECT_FAVICON_CHANNEL, PICK_THEME_FILES_CHANNEL, PREVIEW_CANCEL_PICK_ELEMENT_CHANNEL, PREVIEW_CAPTURE_SCREENSHOT_CHANNEL, PREVIEW_CLEAR_CACHE_CHANNEL, PREVIEW_CLEAR_COOKIES_CHANNEL, PREVIEW_CLOSE_TAB_CHANNEL, PREVIEW_COPY_ARTIFACT_CHANNEL, PREVIEW_CREATE_TAB_CHANNEL, PREVIEW_GET_CONFIG_CHANNEL, PREVIEW_GO_BACK_CHANNEL, PREVIEW_GO_FORWARD_CHANNEL, PREVIEW_HARD_RELOAD_CHANNEL, PREVIEW_IMPORT_COOKIES_CHANNEL, PREVIEW_IMPORT_SOURCES_CHANNEL, PREVIEW_NAVIGATE_CHANNEL, PREVIEW_OPEN_DEVTOOLS_CHANNEL, PREVIEW_OPEN_LINK_CHANNEL, PREVIEW_PICK_ELEMENT_CHANNEL, PREVIEW_PICTURE_IN_PICTURE_CLOSE_CHANNEL, PREVIEW_PICTURE_IN_PICTURE_FRAME_CHANNEL, PREVIEW_PICTURE_IN_PICTURE_OPEN_CHANNEL, PREVIEW_POINTER_EVENT_CHANNEL, PREVIEW_RECORDING_FRAME_CHANNEL, PREVIEW_RECORDING_INPUT_CHANNEL, PREVIEW_RECORDING_SAVE_CHANNEL, PREVIEW_RECORDING_START_CHANNEL, PREVIEW_RECORDING_STOP_CHANNEL, PREVIEW_REFRESH_CHANNEL, PREVIEW_REGISTER_WEBVIEW_CHANNEL, PREVIEW_RESET_ZOOM_CHANNEL, PREVIEW_REVEAL_ARTIFACT_CHANNEL, PREVIEW_SET_ANNOTATION_SEND_ENABLED_CHANNEL, PREVIEW_SET_ANNOTATION_THEME_CHANNEL, PREVIEW_SET_AUDIO_MUTED_CHANNEL, PREVIEW_SET_COLOR_SCHEME_CHANNEL, PREVIEW_SET_FORWARDED_SHORTCUTS_CHANNEL, PREVIEW_SET_ZOOM_FACTOR_CHANNEL, PREVIEW_SNAP_SHOT_CONFIG_CHANNEL, PREVIEW_STATE_CHANGE_CHANNEL, PREVIEW_ZOOM_IN_CHANNEL, PREVIEW_ZOOM_OUT_CHANNEL, PROBE_REMOTE_EDITORS_CHANNEL, QUIT_SHORTCUT_CHANNEL, READ_SNAP_SHOT_CHANNEL, RECEIVE_PROVIDER_AUTH_CALLBACK_CHANNEL, REQUEST_SNAP_SHOT_PERMISSIONS_CHANNEL, RESOLVE_SSH_HOST_CHANNEL, RESOLVE_SSH_PASSWORD_PROMPT_CHANNEL, REVEAL_WINDOW_CHANNEL, SETUP_SNAP_SHOT_CHANNEL, SET_CLIENT_SETTINGS_CHANNEL, SET_CONNECTION_CATALOG_CHANNEL, SET_LOCAL_ENVIRONMENT_ENABLED_CHANNEL, SET_NOTIFICATION_BADGE_CHANNEL, SET_SERVER_EXPOSURE_MODE_CHANNEL, SET_SNAP_SHOT_ANIMATION_DESTINATION_CHANNEL, SET_SNAP_SHOT_SHORTCUT_SUPPRESSED_CHANNEL, SET_TAILSCALE_SERVE_ENABLED_CHANNEL, SET_THEME_CHANNEL, SET_WSL_BACKEND_ENABLED_CHANNEL, SET_WSL_DISTRO_CHANNEL, SET_WSL_ONLY_CHANNEL, SNAP_SHOT_EVENT_CHANNEL, SSH_PASSWORD_PROMPT_CANCELLED_RESULT, SSH_PASSWORD_PROMPT_CHANNEL, TAKE_LEGACY_LOCAL_STORAGE_CHANNEL, TRACKPAD_SCROLL_END_CHANNEL, UPDATE_CHECK_CHANNEL, UPDATE_DOWNLOAD_CHANNEL, UPDATE_GET_STATE_CHANNEL, UPDATE_INSTALL_CHANNEL, UPDATE_SET_CHANNEL_CHANNEL, UPDATE_STATE_CHANNEL, WEB_LINK_OPEN_CHANNEL, WEB_LINK_READY_CHANNEL, WINDOW_FULLSCREEN_STATE_CHANNEL
+- `apps/desktop/src/ipc/methods/appActivation.ts` — exports: 
+- `apps/desktop/src/ipc/methods/cliCommand.ts` — exports: 
+- `apps/desktop/src/ipc/methods/clientSettings.ts` — exports: 
+- `apps/desktop/src/ipc/methods/connectionCatalog.ts` — exports: 
+- `apps/desktop/src/ipc/methods/legacyLocalStorage.ts` — exports: 
+- `apps/desktop/src/ipc/methods/localEnvironment.ts` — exports: 
+- `apps/desktop/src/ipc/methods/notificationBadge.ts` — exports: 
+- `apps/desktop/src/ipc/methods/preview.ts` — exports: methods, resolvePartitionScope
+- `apps/desktop/src/ipc/methods/providerAuth.ts` — exports: cancelProviderAuthCallback
+- `apps/desktop/src/ipc/methods/serverExposure.ts` — exports: 
+- `apps/desktop/src/ipc/methods/snapShot.ts` — exports: snapShotRelativeFrame
+- `apps/desktop/src/ipc/methods/sshEnvironment.ts` — exports: DesktopSshEnvironmentRequestError
+- `apps/desktop/src/ipc/methods/updates.ts` — exports: 
+- `apps/desktop/src/ipc/methods/webLinks.ts` — exports: 
+- `apps/desktop/src/ipc/methods/window.ts` — exports: 
+- `apps/desktop/src/ipc/methods/wsl.ts` — exports: 
+- `apps/desktop/src/legacyLocalStorageMerge.ts` — exports: mergeLegacyLocalStorage
+- `apps/desktop/src/linuxSecretStorage.ts` — exports: DEFAULT_LINUX_PASSWORD_STORELinuxPasswordStorePreference, LinuxPasswordStorePreference, LinuxPasswordStoreSwitch, normalizeLinuxPasswordStorePreference, resolveLinuxPasswordStoreSwitch
+- `apps/desktop/src/mac-permission-preload.ts` — exports: 
+- `apps/desktop/src/main.ts` — exports: 
+- `apps/desktop/src/permissions/MacPermission.ts` — exports: MAC_PERMISSION_SETTINGS_URLS, MAC_PERMISSION_TITLESRecordMacPermission, MacPermission, string
+- `apps/desktop/src/permissions/MacPermissionHelper.ts` — exports: MacPermissionHelper
+- `apps/desktop/src/permissions/MacPermissions.ts` — exports: MacPermissions
+- `apps/desktop/src/permissions/MacSettingsWindow.ts` — exports: SettingsWindow, settingsHelperBounds, watchMacSettingsWindow
+- `apps/desktop/src/preload.ts` — exports: 
+- `apps/desktop/src/preview-pick-preload.ts` — exports: 
+- `apps/desktop/src/preview-pip-preload.ts` — exports: 
+- `apps/desktop/src/preview/AnnotationIds.ts` — exports: createAnnotationIdSource
+- `apps/desktop/src/preview/AnnotationKeyboard.ts` — exports: resolveAnnotationSubmission
+- `apps/desktop/src/preview/AnnotationStyles.generated.ts` — exports: previewAnnotationStyles
+- `apps/desktop/src/preview/BrowserImport/BrowserImport.ts` — exports: BrowserCookieWriteError, BrowserImport, BrowserImportFailedError, layer
+- `apps/desktop/src/preview/BrowserImport/ChromiumCookies.ts` — exports: ChromiumCookieReadError, ChromiumCookieReadReason, ChromiumCookieSource, decryptChromiumValue
+- `apps/desktop/src/preview/BrowserImport/ChromiumKeys.ts` — exports: ChromiumKeyError, ChromiumKeyFailure, ChromiumKeyMaterial, ChromiumKeyRequest
+- `apps/desktop/src/preview/BrowserImport/CookieDatabase.ts` — exports: CookieReadResult, ImportedCookie, bareHost
+- `apps/desktop/src/preview/BrowserImport/FirefoxCookies.ts` — exports: FirefoxCookieReadError
+- `apps/desktop/src/preview/BrowserImport/LinuxBrowserSecret.ts` — exports: LinuxBrowserSecretPath
+- `apps/desktop/src/preview/BrowserImport/SafariCookies.ts` — exports: SafariCookieReadError, SafariCookieReadFailure, parseBinaryCookies
+- `apps/desktop/src/preview/BrowserImport/SafariPermission.ts` — exports: 
+- `apps/desktop/src/preview/BrowserImport/Sources.ts` — exports: BrowserImportEngine, BrowserImportPathContext, BrowserImportSourceDefinition, parseFirefoxProfiles
+- `apps/desktop/src/preview/BrowserSession.ts` — exports: BrowserSession, BrowserSessionCacheClearError, BrowserSessionCreationError, BrowserSessionError, BrowserSessionGetSessionError, BrowserSessionPartitionDerivationError, BrowserSessionPartitionNamespace, BrowserSessionStorageClearError, layer
+- `apps/desktop/src/preview/CdpRelay.ts` — exports: CdpRelayConnection, CdpRelayTarget, createCdpRelayConnection
+- `apps/desktop/src/preview/DesktopBrowserHost.ts` — exports: DesktopBrowserHost, DesktopBrowserTabDebugger, DesktopBrowserTabKey, layer
+- `apps/desktop/src/preview/FaviconCapture.ts` — exports: FaviconCaptureResult, MAX_FAVICON_CANDIDATES, MAX_FAVICON_RESPONSE_BYTES, captureFavicon, safeHttpOrigin, selectFaviconCandidates, sourceDimensions
+- `apps/desktop/src/preview/GuestInput.ts` — exports: 
+- `apps/desktop/src/preview/GuestProtocol.ts` — exports: ANNOTATION_CAPTURED_CHANNEL, ANNOTATION_SEND_ENABLED_CHANNEL, ANNOTATION_THEME_CHANNEL, CANCEL_PICK_CHANNEL, ELEMENT_PICKED_CHANNEL, HUMAN_INPUT_CHANNEL, MOUSE_NAVIGATE_CHANNEL, PASSKEY_BRIDGE_ARGUMENT, PASSKEY_CREATE_CHANNEL, PASSKEY_GET_CHANNEL, RECORDING_CONTROLLER_CHANNEL, RECORDING_CURSOR_CHANNEL, RECORDING_INPUT_CHANNEL, RECORDING_KEY_CHANNEL, RECORDING_POINTER_CHANNEL, START_PICK_CHANNEL
+- `apps/desktop/src/preview/Manager.ts` — exports: PreviewArtifactImageLoadError, PreviewArtifactPathOutsideDirectoryError, PreviewAutomationDebuggerAttachedError, PreviewAutomationDevToolsOpenError, PreviewAutomationEvaluationDetailKind, PreviewAutomationSelectorKind, PreviewMainWindowClosedError, PreviewManager, PreviewManagerError, PreviewNavStatus, PreviewOperationError, PreviewRecordingArmConflictError, PreviewRecordingCaptureUnavailableError, PreviewTabNotFoundError, PreviewTabState, PreviewWebContentsNotFoundError, PreviewWebviewNotInitializedError, layer
+- `apps/desktop/src/preview/PasskeyAttestation.ts` — exports: 
+- `apps/desktop/src/preview/PasskeyBackend.ts` — exports: PasskeyBackend, PasskeyCeremonyContext
+- `apps/desktop/src/preview/PasskeyBackendMac.ts` — exports: 
+- `apps/desktop/src/preview/PasskeyBridge.ts` — exports: PasskeyCeremonyResult, installPasskeyBridge
+- `apps/desktop/src/preview/Passkeys.ts` — exports: PreviewPasskeys, PreviewPasskeysConfigureError, layer
+- `apps/desktop/src/preview/PickPreload.ts` — exports: 
+- `apps/desktop/src/preview/PickedElementPayload.ts` — exports: isPickedElementPayload, isPreviewAnnotationPayload
+- `apps/desktop/src/preview/RecordingCursor.ts` — exports: installRecordingCursor
+- `apps/desktop/src/preview/RecordingInput.ts` — exports: DEFAULT_RECORDING_INPUT_OPTIONSRecordingInputOptions, RecordingInputOptions, RecordingKeyPress, recordingKeyLabel, recordingKeysAreSensitive
+- `apps/desktop/src/preview/WebviewPreferences.ts` — exports: PREVIEW_WEBVIEW_PREFERENCES, nodeIntegration, sandbox
+- `apps/desktop/src/preview/captureErrors.ts` — exports: normalizeCaptureFailure
+- `apps/desktop/src/settings/DesktopAppSettings.ts` — exports: DEFAULT_DESKTOP_SETTINGSDesktopSettings, DEFAULT_MAIN_WINDOW_SIZE, DesktopAppSettings, DesktopSettings, DesktopSettingsChange, DesktopSettingsWriteError, DesktopWindowBounds, DesktopWindowBoundsSchema, layer, normalizeMainWindowBounds, resolveDefaultDesktopSettings
+- `apps/desktop/src/settings/DesktopClientSettings.ts` — exports: DesktopClientSettings, DesktopClientSettingsReadError, DesktopClientSettingsWriteError, layer
+- `apps/desktop/src/settings/DesktopSavedEnvironments.ts` — exports: DesktopSavedEnvironmentSecretDecodeError, DesktopSavedEnvironmentSecretProtectionError, DesktopSavedEnvironments, DesktopSavedEnvironmentsDocumentDecodeError, DesktopSavedEnvironmentsGetSecretError, DesktopSavedEnvironmentsReadError, DesktopSavedEnvironmentsReadRegistryError, layer
+- `apps/desktop/src/shell/DesktopShellEnvironment.ts` — exports: DesktopShellEnvironment, DesktopShellEnvironmentCommandError, DesktopShellEnvironmentCommandTimeoutError, layer
+- `apps/desktop/src/snapShot/ActiveWindow.ts` — exports: ActiveWindow, activeWindow
+- `apps/desktop/src/snapShot/CaptureShortcutConfig.ts` — exports: CaptureShortcutConfig, niriCaptureConfigPath
+- `apps/desktop/src/snapShot/DesktopSnapShot.ts` — exports: DesktopSnapShot, DesktopSnapShotError, DesktopSnapShotSetupError, SnapShotFlash, layer
+- `apps/desktop/src/snapShot/GlobalShiftShortcutProcess.ts` — exports: startGlobalShiftShortcutProcess
+- `apps/desktop/src/snapShot/GlobalShiftShortcutWorker.ts` — exports: 
+- `apps/desktop/src/snapShot/GnomeCaptureSetup.ts` — exports: GnomeCaptureSetup, installGnomeCaptureBundle
+- `apps/desktop/src/snapShot/HyprlandSnapShot.ts` — exports: HYPRLAND_CAPTURE_EXECUTABLE, HyprlandCapturePaths, HyprlandCaptureSetup, captureHyprlandWindow, hyprlandCaptureExecutable, hyprlandCaptureShortcut, isHyprlandCaptureSession
+- `apps/desktop/src/snapShot/KdeSnapShot.ts` — exports: KDE_CAPTURE_EXECUTABLE, KdeCapturePaths, KdeCaptureSetup, captureKdeWindow, isKdeCaptureSession, kdeCapturePaths
+- `apps/desktop/src/snapShot/LinuxSnapShot.ts` — exports: LinuxCaptureBackend, LinuxCaptureFeedback, LinuxWindowMetadata, LinuxWindowSnapshot, captureLinuxWindow, getLinuxCaptureSupport, readPortalPng
+- `apps/desktop/src/snapShot/MacModifierPairShortcutProcess.ts` — exports: startMacModifierPairShortcutProcess
+- `apps/desktop/src/snapShot/MacSnapShot.ts` — exports: MacSnapShotSource, captureMacWindowSnapshot
+- `apps/desktop/src/snapShot/NativeCaptureFeedback.ts` — exports: startNativeCaptureFeedback
+- `apps/desktop/src/snapShot/NiriCaptureShortcut.ts` — exports: startNiriCaptureShortcut
+- `apps/desktop/src/snapShot/NiriSnapShot.ts` — exports: captureNiriWindow, checkNiriCaptureSupport, niriSocketPath
+- `apps/desktop/src/snapShot/PortalCaptureShortcut.ts` — exports: PortalCaptureShortcut, PortalShortcutState, portalShortcutTrigger
+- `apps/desktop/src/snapShot/RegionSnapShot.ts` — exports: RegionSnapShotChild, RegionSnapShotPool, RegionSnapShotProcess, RegionSnapShotRequest, RegionSnapShotResult, RegionSnapShotSource, captureRegionWindowSnapshot, makeRegionSnapShotPool, startRegionSnapShotProcess
+- `apps/desktop/src/snapShot/RegionSnapShotWorker.ts` — exports: 
+- `apps/desktop/src/snapShot/SnapShotAccessibility.ts` — exports: AccessibleWindowIdentity, CapturedWindowAccessibilityContext, SnapShotAccessibilityRequest, readAccessibleWindowContextWithApp
+- `apps/desktop/src/snapShot/SnapShotAccessibilityProcess.ts` — exports: AccessibilityProcess, AccessibilityProcessPool, AccessibilityRead, makeSnapShotAccessibilityProcessPool, startSnapShotAccessibilityProcess
+- `apps/desktop/src/snapShot/SnapShotAccessibilityWorker.ts` — exports: 
+- `apps/desktop/src/snapShot/SnapShotTransition.ts` — exports: SnapShotAnimationDestination, SnapShotTransition, snapShotAnimationDisplayBounds
+- `apps/desktop/src/snapShot/WindowsCaptureFeedback.ts` — exports: showWindowsCaptureOverlay
+- `apps/desktop/src/snapShot/captureConfigEdit.ts` — exports: CaptureConfigFormat, captureConfigBinding, captureConfigKeys, editCaptureConfig, niriConfigConflict, niriConfigIncludes
+- `apps/desktop/src/snapShot/captureConfigKdl.ts` — exports: KdlNode, readKdlNodes
+- `apps/desktop/src/snapShot/gnomeCaptureBundle.ts` — exports: GNOME_CAPTURE_FILES, GNOME_CAPTURE_UUID
+- `apps/desktop/src/snapShot/linuxCaptureSession.ts` — exports: HYPRLAND_CAPTURE_ACTION, NIRI_CAPTURE_INTERFACE, NIRI_CAPTURE_PATH, isGnomeCaptureSession, isHyprlandCaptureSession, isKdeCaptureSession, niriCaptureBinding, portalShortcutTrigger, readPortalPng, resizeLinuxCapture
+- `apps/desktop/src/snapShot/snapShot.ts` — exports: WINDOWS_MODIFIER_PAIR_VIRTUAL_KEYSRecordSnapShotModifier, accessibleWindowElementTree, accessibleWindowText, boundedSnapShotString, compactAccessibilityTree, findAccessibleWindow, findCaptureSource, hideAndWaitForBlur, isWaylandSession, readonly, sameSnapShotShortcut, snapShotShortcutRegistrationFailureMessage, snapShotShortcutSystemConflict, toElectronAccelerator
+- `apps/desktop/src/ssh/DesktopSshEnvironment.ts` — exports: DesktopSshEnvironment, DesktopSshEnvironmentDiscoverError, DesktopSshEnvironmentLayerOptions, DesktopSshEnvironmentOperationError, DesktopSshEnvironmentRuntimeServices, isDesktopSshPasswordPromptCancellation, layer
+- `apps/desktop/src/ssh/DesktopSshPasswordPrompts.ts` — exports: DesktopSshPasswordPromptCancellation, DesktopSshPasswordPromptRequestError, DesktopSshPasswordPromptResolveError, DesktopSshPasswordPrompts, DesktopSshPasswordPromptsOptions, DesktopSshPromptCancelledError, DesktopSshPromptExpiredError, DesktopSshPromptInvalidRequestIdError, DesktopSshPromptPresentationError, DesktopSshPromptRequestIdGenerationError, DesktopSshPromptServiceStoppedError, DesktopSshPromptTimedOutError, DesktopSshPromptWindowClosedError, DesktopSshPromptWindowUnavailableError, isDesktopSshPasswordPromptCancellation, layer
+- `apps/desktop/src/telemetry/DesktopRendererHistory.ts` — exports: DesktopRendererHistory, RendererIdentity, layer
+- `apps/desktop/src/telemetry/DesktopTelemetryPublisher.ts` — exports: DesktopTelemetryPublisher, layer
+- `apps/desktop/src/updates/DesktopRemoteUpdates.ts` — exports: listenEffectEffectvoid, never
+- `apps/desktop/src/updates/DesktopUpdates.ts` — exports: DESKTOP_UPDATE_INSTALL_RECORD_FILE, DesktopUpdateActionInProgressError, DesktopUpdateChannelPersistenceError, DesktopUpdateConfigureError, DesktopUpdateEventHandlingError, DesktopUpdatePollerError, DesktopUpdateSetChannelError, DesktopUpdateUnexpectedActionError, DesktopUpdaterReportedError, DesktopUpdates, describeUpdateErrorCause, layer
+- `apps/desktop/src/updates/releaseNotes.ts` — exports: normalizeDesktopUpdateReleaseNotes
+- `apps/desktop/src/updates/remoteUpdateFlow.ts` — exports: MAX_REMOTE_UPDATE_DOWNLOADS, RemoteDesktopUpdateAttempts, RemoteDesktopUpdateStep, nextRemoteDesktopUpdateStep, normalizeRemoteUpdateReason
+- `apps/desktop/src/updates/updateChannels.ts` — exports: isNightlyDesktopVersion, resolveDefaultDesktopUpdateChannel
+- `apps/desktop/src/updates/updateMachine.ts` — exports: DesktopUpdateInstallRecord, createInitialDesktopUpdateState, reduceDesktopUpdateStateOnCheckFailure, reduceDesktopUpdateStateOnCheckStart, reduceDesktopUpdateStateOnDownloadComplete, reduceDesktopUpdateStateOnDownloadFailure, reduceDesktopUpdateStateOnDownloadProgress, reduceDesktopUpdateStateOnDownloadStart, reduceDesktopUpdateStateOnInstallFailure, reduceDesktopUpdateStateOnNoUpdate, reduceDesktopUpdateStateOnUpdateAvailable, resolveNotAppliedInstallVersion
+- `apps/desktop/src/updates/updatesTestHarness.ts` — exports: UpdatesHarnessOptions, flushCallbacks, makeHarness
+- `apps/desktop/src/window/ContextMenuImage.ts` — exports: copyContextMenuImage
+- `apps/desktop/src/window/DesktopApplicationMenu.ts` — exports: DesktopApplicationMenu, DesktopApplicationMenuActionError, layer
+- `apps/desktop/src/window/DesktopWindow.ts` — exports: DesktopWindow, DesktopWindowError, MainWindowContentsCommand, MainWindowZoomDirection, layer, resolveInitialMainWindowBounds
+- `apps/desktop/src/window/QuitHold.ts` — exports: QUIT_DOUBLE_PRESS_MS, QUIT_HOLD_DURATION_MS, QuitHoldKeyInput, QuitShortcutOptions, makeQuitShortcutHandler
+- `apps/desktop/src/wsl/DesktopWslBackend.ts` — exports: DesktopWslBackend, WSL_INSTANCE_ID_PREFIX
+- `apps/desktop/src/wsl/DesktopWslEnvironment.ts` — exports: DesktopWslDistroListError, DesktopWslEnvironment, DesktopWslEnvironmentTestStub, EnsureWslNodePtyOptions, EnsureWslNodePtyResult, PrepareWslRuntimeResult, ProbeWslRuntimeResult, ToolchainReport, WslRuntimeArchive, buildWslRuntimeProbeScript
+- `apps/desktop/src/wsl/DesktopWslServerTree.ts` — exports: DesktopWslServerTree, DesktopWslServerTreeExtractError, DesktopWslServerTreeTestStub, WslServerTreeResult, layer
+- `apps/desktop/src/wsl/wslPathParsing.ts` — exports: WslConfig, WslDistro, extractDistroFromUncPath, isValidDistroName, parseWslDistroList, resolveWslPickFolderDefaultPath, wslUncPathToLinuxPath
+- `apps/desktop/vite.config.ts` — exports: default
+- `apps/marketing/astro.config.mjs` — exports: default
+- `apps/marketing/scripts/stage-install-scripts.mjs` — exports: 
+- `apps/marketing/src/env.d.ts` — exports: 
+- `apps/marketing/src/lib/homeMotion.ts` — exports: startHomeMotion
+- `apps/marketing/src/lib/releases.ts` — exports: NIGHTLY_RELEASES_URL, RELEASES_URL, Release, ReleaseAsset, ReleaseChannel, fetchLatestRelease
+- `apps/marketing/src/lib/site.ts` — exports: ANDROID_PLAY_STORE_URL, GITHUB_REPOSITORY_URL, IOS_APP_STORE_URL, MARKETING_STATS
+- `apps/marketing/src/lib/tweets.ts` — exports: Tweet
+- `apps/marketing/src/pages/schema/t3.json.ts` — exports: GETAPIRoute
+- `apps/marketing/vercel.ts` — exports: 
+- `apps/marketing/vite.config.ts` — exports: default
+- `apps/mobile/app.config.ts` — exports: default
+- `apps/mobile/assets.d.ts` — exports: 
+- `apps/mobile/babel.config.js` — exports: module.exports
+- `apps/mobile/fingerprint.config.js` — exports: contents, extraSources, id, module.exports, nativeModuleSourceType
+- `apps/mobile/index.ts` — exports: 
+- `apps/mobile/metro.config.js` — exports: module.exports
+- `apps/mobile/modules/t3-source-text/index.ts` — exports: SourceText
+- `apps/mobile/modules/t3-source-text/react-native.config.js` — exports: dependency, module.exports
+- `apps/mobile/modules/t3-source-text/src/SourceText.tsx` — exports: SourceText, SourceTextProps
+- `apps/mobile/modules/t3-source-text/src/T3SourceTextNativeComponent.ts` — exports: default
+- `apps/mobile/modules/t3-source-text/src/T3SourceTextRunNativeComponent.ts` — exports: NativeFontWeight, default
+- `apps/mobile/modules/t3-source-text/src/util.ts` — exports: flattenStyles
+- `apps/mobile/plugins/lib/addWidgetAssetCatalog.cjs` — exports: addWidgetAssetCatalog, module.exports
+- `apps/mobile/plugins/withAndroidCleartextTraffic.cjs` — exports: module.exports
+- `apps/mobile/plugins/withAndroidFbjniVersion.cjs` — exports: module.exports
+- `apps/mobile/plugins/withAndroidGradleHeap.cjs` — exports: module.exports
+- `apps/mobile/plugins/withAndroidInputBackground.cjs` — exports: module.exports
+- `apps/mobile/plugins/withAndroidModernAlertDialog.cjs` — exports: module.exports
+- `apps/mobile/plugins/withAndroidModernPopupMenu.cjs` — exports: module.exports
+- `apps/mobile/plugins/withAndroidPredictiveBackCompat.cjs` — exports: module.exports
+- `apps/mobile/plugins/withAndroidTabletOrientation.cjs` — exports: module.exports
+- `apps/mobile/plugins/withIosCocoaPodsUuidCache.cjs` — exports: module.exports
+- `apps/mobile/plugins/withShareExtensionDisplayName.cjs` — exports: module.exports
+- `apps/mobile/plugins/withWidgetLogoAsset.cjs` — exports: module.exports
+- `apps/mobile/plugins/withoutIosPersonalTeamCapabilities.cjs` — exports: module.exports
+- `apps/mobile/scripts/generate-device-stream.mts` — exports: generateDeviceStreamScript, generatePreviewStreamScript, module.exports
+- `apps/mobile/scripts/generate-uniwind-themes.mts` — exports: customThemeNames, getGeneratedUniwindThemeOutputs, renderDefaultThemeVariablesJSON
+- `apps/mobile/scripts/measure-renders.mts` — exports: 
+- `apps/mobile/scripts/sync-context-chip-icons.mjs` — exports: 
+- `apps/mobile/scripts/sync-pierre-file-icons.mjs` — exports: 
+- `apps/mobile/src/App.tsx` — exports: App, default
+- `apps/mobile/src/Stack.tsx` — exports: 
+- `apps/mobile/src/components/BrandMark.tsx` — exports: BrandMark
+- `apps/mobile/src/components/CompactBrandTitle.tsx` — exports: CompactBrandTitle, brandTitleOffset, getCompactBrandHeaderOptions, renderCompactBrandTitle
+- `apps/mobile/src/components/ComposerAttachmentStrip.tsx` — exports: ComposerAttachmentStrip, ComposerAttachmentStripProps, ComposerAttachmentThumbnail
+- `apps/mobile/src/components/ComposerContextAttachment.tsx` — exports: ComposerContextAttachment
+- `apps/mobile/src/components/ComposerContextSheet.tsx` — exports: ComposerContextSheet
+- `apps/mobile/src/components/ComposerEditor.tsx` — exports: ComposerEditor, ComposerEditorHandle, ComposerEditorProps, ComposerEditorSelection, ComposerTextPaste
+- `apps/mobile/src/components/ComposerModelControl.tsx` — exports: ComposerModelControl
+- `apps/mobile/src/components/ComposerToolbar.tsx` — exports: ComposerActionButton, ComposerInlineControl, ComposerToolbarButton, ComposerToolbarRow, ComposerToolbarScroller
+- `apps/mobile/src/components/EnvironmentMachineSymbol.tsx` — exports: AppSymbolName, ENVIRONMENT_MACHINE_KIND_LABELSRecordEnvironmentMachineKind, ENVIRONMENT_MACHINE_SYMBOLS, EnvironmentMachineSymbol, string
+- `apps/mobile/src/components/FilePreview.ios.tsx` — exports: FilePreview
+- `apps/mobile/src/components/FilePreview.tsx` — exports: FilePreview
+- `apps/mobile/src/components/FilePreviewGallery.tsx` — exports: FilePreviewGallery, useFilePreviewGallery
+- `apps/mobile/src/components/FilePreviewModal.tsx` — exports: FilePreviewItem, FilePreviewModal, FilePreviewSource, ResolvedFilePreviewSource
+- `apps/mobile/src/components/FilePreviewModal.types.ts` — exports: FilePreviewItem, FilePreviewSource, ResolvedFilePreviewSource
+- `apps/mobile/src/components/LoadingScreen.tsx` — exports: LoadingScreen
+- `apps/mobile/src/components/MediaActionsMenu.tsx` — exports: MediaActionsMenu
+- `apps/mobile/src/components/MediaImagePreview.tsx` — exports: MediaImagePreview
+- `apps/mobile/src/components/MediaSourceCaption.tsx` — exports: MediaSourceCaption
+- `apps/mobile/src/components/MediaVideoPlayer.tsx` — exports: MediaVideoPlayer
+- `apps/mobile/src/components/NewThreadButton.android.tsx` — exports: NewThreadButton
+- `apps/mobile/src/components/NewThreadButton.shared.tsx` — exports: NewThreadButton
+- `apps/mobile/src/components/NewThreadButton.tsx` — exports: NewThreadButton
+- `apps/mobile/src/components/PdfPreview.android.tsx` — exports: PdfPreview
+- `apps/mobile/src/components/PdfPreview.tsx` — exports: PdfPreview
+- `apps/mobile/src/components/PierreEntryIcon.tsx` — exports: PierreEntryIcon
+- `apps/mobile/src/components/ProjectFavicon.tsx` — exports: 
+- `apps/mobile/src/components/ProviderIcon.tsx` — exports: ProviderIcon, ProviderInstanceIcon
+- `apps/mobile/src/components/RenderErrorBoundary.tsx` — exports: RenderErrorBoundary, RenderFailureProps, RenderFailureView
+- `apps/mobile/src/components/ScrollComposeButton.android.tsx` — exports: ScrollComposeButton
+- `apps/mobile/src/components/StatusPill.tsx` — exports: StatusPill, StatusTone
+- `apps/mobile/src/components/T3Wordmark.tsx` — exports: T3Wordmark
+- `apps/mobile/src/components/VideoAttachmentTile.tsx` — exports: VideoAttachmentTile
+- `apps/mobile/src/components/VideoPreviewModal.ios.tsx` — exports: VideoPreviewModal, VideoPreviewSource
+- `apps/mobile/src/components/VideoPreviewModal.tsx` — exports: VideoPreviewModal, VideoPreviewSource
+- `apps/mobile/src/components/VideoThumbnailImage.tsx` — exports: VideoThumbnailImage
+- `apps/mobile/src/components/brandAssets.ts` — exports: T3_CODE_BRAND_MARK_SOURCE
+- `apps/mobile/src/components/ui/AndroidAnchoredMenu.tsx` — exports: AndroidAnchoredMenu, AndroidAnchoredMenuProps
+- `apps/mobile/src/components/ui/AndroidScreenHeader.tsx` — exports: AndroidHeaderAction, AndroidHeaderIconButton, AndroidScreenHeader, AndroidSheetHeader
+- `apps/mobile/src/components/ui/AppActivityIndicator.android.tsx` — exports: AppActivityIndicator
+- `apps/mobile/src/components/ui/AppActivityIndicator.tsx` — exports: AppActivityIndicator
+- `apps/mobile/src/components/ui/AppBar.android.tsx` — exports: AppBar
+- `apps/mobile/src/components/ui/AppBar.tsx` — exports: AppBar, AppBarAction, AppBarMenu, AppBarMenuItem, AppBarProps, AppBarSearch
+- `apps/mobile/src/components/ui/AppBar.types.ts` — exports: AppBarAction, AppBarMenu, AppBarMenuItem, AppBarProps, AppBarSearch
+- `apps/mobile/src/components/ui/AppSymbol.ios.tsx` — exports: AppSymbolName, SFSymbol, SymbolView
+- `apps/mobile/src/components/ui/AppSymbol.tabler.d.ts` — exports: default
+- `apps/mobile/src/components/ui/AppSymbol.tsx` — exports: AppSymbolName, AppSymbolViewProps, SFSymbol, SymbolView, isAppSymbolName
+- `apps/mobile/src/components/ui/AppText.tsx` — exports: AppText, AppTextInput, AppTextInputProps, AppTextProps
+- `apps/mobile/src/components/ui/Button.android.tsx` — exports: Button
+- `apps/mobile/src/components/ui/Button.tsx` — exports: Button, ButtonProps
+- `apps/mobile/src/components/ui/Chip.tsx` — exports: Chip
+- `apps/mobile/src/components/ui/ControlPill.tsx` — exports: ControlPill
+- `apps/mobile/src/components/ui/Dialog.android.tsx` — exports: ConfirmDialogRequest, Host, TextInputDialogRequest, alert, confirm, prompt
+- `apps/mobile/src/components/ui/Dialog.tsx` — exports: ConfirmDialogRequest, Host, TextInputDialogRequest, alert, confirm, prompt
+- `apps/mobile/src/components/ui/Dialog.types.ts` — exports: ConfirmDialogRequest, TextInputDialogRequest
+- `apps/mobile/src/components/ui/EmptyState.tsx` — exports: EmptyState
+- `apps/mobile/src/components/ui/ErrorBanner.tsx` — exports: ErrorBanner
+- `apps/mobile/src/components/ui/FloatingActionButton.android.tsx` — exports: FloatingActionButton
+- `apps/mobile/src/components/ui/FloatingActionButton.tsx` — exports: FloatingActionButton
+- `apps/mobile/src/components/ui/FloatingActionButton.types.ts` — exports: FloatingActionButtonProps
+- `apps/mobile/src/components/ui/FrostedCutout.ios.tsx` — exports: FrostedCutout
+- `apps/mobile/src/components/ui/FrostedCutout.tsx` — exports: FrostedCutout
+- `apps/mobile/src/components/ui/FrostedCutout.types.ts` — exports: FrostedCutoutProps
+- `apps/mobile/src/components/ui/GlassBackdrop.tsx` — exports: GlassBackdrop
+- `apps/mobile/src/components/ui/GlassSurface.tsx` — exports: GlassSurface
+- `apps/mobile/src/components/ui/IconButton.android.tsx` — exports: IconButton
+- `apps/mobile/src/components/ui/IconButton.tsx` — exports: IconButton
+- `apps/mobile/src/components/ui/IconButton.types.ts` — exports: IconButtonProps
+- `apps/mobile/src/components/ui/ListActionRow.tsx` — exports: ListActionRow
+- `apps/mobile/src/components/ui/ListChoiceRow.tsx` — exports: ListChoiceRow
+- `apps/mobile/src/components/ui/ListRow.tsx` — exports: ListRow
+- `apps/mobile/src/components/ui/ListRowLayout.tsx` — exports: ListRowContentProps, ListRowLayout
+- `apps/mobile/src/components/ui/ListSection.tsx` — exports: ListSection
+- `apps/mobile/src/components/ui/ListToggleRow.tsx` — exports: ListToggleRow
+- `apps/mobile/src/components/ui/LoadingStrip.tsx` — exports: LoadingStrip
+- `apps/mobile/src/components/ui/Menu.android.tsx` — exports: Menu
+- `apps/mobile/src/components/ui/Menu.tsx` — exports: Menu
+- `apps/mobile/src/components/ui/Menu.types.ts` — exports: MenuProps
+- `apps/mobile/src/components/ui/MenuPopup.android.tsx` — exports: MenuPopup
+- `apps/mobile/src/components/ui/MenuPopup.tsx` — exports: MenuPopup, MenuPopupProps
+- `apps/mobile/src/components/ui/NativeAppBar.android.tsx` — exports: NativeAppBar
+- `apps/mobile/src/components/ui/NativePresentation.ios.tsx` — exports: PresentationSource
+- `apps/mobile/src/components/ui/NativePresentation.tsx` — exports: PresentationSource, PresentationSourceProps
+- `apps/mobile/src/components/ui/NativeSwitch.android.tsx` — exports: NativeSwitch
+- `apps/mobile/src/components/ui/NativeSwitch.tsx` — exports: NativeSwitch
+- `apps/mobile/src/components/ui/NativeSwitch.types.ts` — exports: ThemedSwitchProps
+- `apps/mobile/src/components/ui/NativeThemeHost.android.tsx` — exports: NativeThemeHost
+- `apps/mobile/src/components/ui/NativeThemeHost.tsx` — exports: NativeThemeHost
+- `apps/mobile/src/components/ui/NavigationRow.tsx` — exports: NavigationRow
+- `apps/mobile/src/components/ui/Notice.tsx` — exports: Notice
+- `apps/mobile/src/components/ui/NumberField.android.tsx` — exports: NumberField
+- `apps/mobile/src/components/ui/NumberField.tsx` — exports: NumberField, NumberFieldProps
+- `apps/mobile/src/components/ui/NumberField.types.ts` — exports: NumberFieldProps
+- `apps/mobile/src/components/ui/OverlayPortal.tsx` — exports: OverlayPortal, OverlayPortalHost
+- `apps/mobile/src/components/ui/Progress.android.tsx` — exports: Progress
+- `apps/mobile/src/components/ui/Progress.tsx` — exports: Progress, ProgressProps
+- `apps/mobile/src/components/ui/Progress.types.ts` — exports: ProgressProps, clampProgress
+- `apps/mobile/src/components/ui/RadioIndicator.android.tsx` — exports: RadioIndicator
+- `apps/mobile/src/components/ui/RadioIndicator.tsx` — exports: RadioIndicator
+- `apps/mobile/src/components/ui/RowPressable.tsx` — exports: RowPressable
+- `apps/mobile/src/components/ui/ScreenContent.tsx` — exports: ScreenContent
+- `apps/mobile/src/components/ui/ScreenHeaderButton.android.tsx` — exports: ScreenHeaderButton
+- `apps/mobile/src/components/ui/ScreenHeaderButton.tsx` — exports: ScreenHeaderButton
+- `apps/mobile/src/components/ui/ScreenScrollView.tsx` — exports: ScreenScrollView
+- `apps/mobile/src/components/ui/SearchField.tsx` — exports: SearchField, SearchFieldProps
+- `apps/mobile/src/components/ui/SegmentedControl.ios.tsx` — exports: SegmentedControl, SegmentedControlProps
+- `apps/mobile/src/components/ui/SegmentedControl.tsx` — exports: SegmentedControl, SegmentedControlProps
+- `apps/mobile/src/components/ui/SegmentedControl.types.ts` — exports: SegmentedControlProps
+- `apps/mobile/src/components/ui/Sheet.android.tsx` — exports: Sheet, SheetProps
+- `apps/mobile/src/components/ui/Sheet.tsx` — exports: Sheet, SheetProps
+- `apps/mobile/src/components/ui/Sheet.types.ts` — exports: SheetProps
+- `apps/mobile/src/components/ui/SheetHeader.android.tsx` — exports: SheetCloseButton, SheetHeader
+- `apps/mobile/src/components/ui/SheetHeader.tsx` — exports: SheetCloseButton, SheetHeader
+- `apps/mobile/src/components/ui/SheetHeader.types.ts` — exports: SheetCloseButtonProps, SheetHeaderProps
+- `apps/mobile/src/components/ui/SliderRow.android.tsx` — exports: SliderRow
+- `apps/mobile/src/components/ui/SliderRow.tsx` — exports: SliderRow, SliderRowProps
+- `apps/mobile/src/components/ui/SliderRow.types.ts` — exports: SliderRowProps
+- `apps/mobile/src/components/ui/ThemedSwitch.tsx` — exports: ThemedSwitch, ThemedSwitchProps
+- `apps/mobile/src/components/ui/Toast.tsx` — exports: Toast, ToastProps
+- `apps/mobile/src/components/ui/Toolbar.android.tsx` — exports: Toolbar
+- `apps/mobile/src/components/ui/Toolbar.tsx` — exports: Toolbar
+- `apps/mobile/src/components/ui/Toolbar.types.ts` — exports: ToolbarProps
+- `apps/mobile/src/components/ui/headerMenu.android.ts` — exports: androidHeaderMenuActions, findHeaderMenuAction, splitAndroidHeaderActions
+- `apps/mobile/src/components/ui/nativeHeaderMenu.ios.tsx` — exports: createNativeHeaderMenu
+- `apps/mobile/src/components/ui/useAndroidControlSizing.ts` — exports: useAndroidControlSizing
+- `apps/mobile/src/components/ui/useControlTheme.ts` — exports: useControlTheme
+- `apps/mobile/src/components/ui/useToolbarLayout.ts` — exports: useToolbarLayout
+- `apps/mobile/src/connection/app-state-wakeups.ts` — exports: MOBILE_BACKGROUND_RECONNECT_AFTER_MS, MobileApplicationActiveWakeup, mobileApplicationActiveWakeup
+- `apps/mobile/src/connection/background-activity-scopes.ts` — exports: observeMobileBackgroundActivitySubscription, onRetainedMobileBackgroundScopesChange, retainedMobileBackgroundScopes
+- `apps/mobile/src/connection/background-activity.ts` — exports: layerObserver
+- `apps/mobile/src/connection/catalog-store.ts` — exports: CONNECTION_CATALOG_KEY, LEGACY_CONNECTIONS_KEY
+- `apps/mobile/src/connection/catalog.ts` — exports: environmentCatalog
+- `apps/mobile/src/connection/environment-cache-store.ts` — exports: layer
+- `apps/mobile/src/connection/migration.ts` — exports: LegacyConnectionMigrationError
+- `apps/mobile/src/connection/onboarding.ts` — exports: 
+- `apps/mobile/src/connection/platform.ts` — exports: LayerErrorConnectionPlatformLayerSource, LayerServicesConnectionPlatformLayerSource, layerLayerLayerLayerSuccessConnectionPlatformLayerSource
+- `apps/mobile/src/connection/pull-request-cache-store.ts` — exports: 
+- `apps/mobile/src/connection/runtime.ts` — exports: LayerErrorConnectionLayerSource, connectionAtomRuntimeAtomAtomRuntimeLayerSuccessConnectionLayerSource
+- `apps/mobile/src/connection/shell-cache-decoding.ts` — exports: 
+- `apps/mobile/src/connection/storage.ts` — exports: 
+- `apps/mobile/src/features/agent-awareness/agentLiveActivity.ios.ts` — exports: dismissEndedAgentLiveActivities, getAgentLiveActivities, startAgentLiveActivity
+- `apps/mobile/src/features/agent-awareness/agentLiveActivity.ts` — exports: dismissEndedAgentLiveActivities, getAgentLiveActivities, startAgentLiveActivity
+- `apps/mobile/src/features/agent-awareness/androidNotifications.ts` — exports: clearAndroidAgentNotifications, configureAndroidAgentNotifications, openAndroidLiveUpdateSettings, setAndroidThreadOnScreen, showAndroidShowcaseAgentActivity, supportsAndroidAgentNotifications, supportsAndroidLiveUpdateSettings
+- `apps/mobile/src/features/agent-awareness/capabilities.ts` — exports: supportsAgentAwarenessPush
+- `apps/mobile/src/features/agent-awareness/foregroundNotificationBehavior.ts` — exports: foregroundNotificationBehavior
+- `apps/mobile/src/features/agent-awareness/liveActivityPreferences.ts` — exports: 
+- `apps/mobile/src/features/agent-awareness/notificationNavigation.ts` — exports: useAgentNotificationNavigation
+- `apps/mobile/src/features/agent-awareness/notificationPayload.ts` — exports: extractAgentNotificationDeepLink, routeAgentNotificationResponseOnce, threadDeepLinkOnScreen
+- `apps/mobile/src/features/agent-awareness/notificationPermissions.ts` — exports: NotificationPermissionReadError, NotificationPermissionRequestError, NotificationPermissionResult, requestAgentNotificationPermissionEffectEffectNotificationPermissionResult
+- `apps/mobile/src/features/agent-awareness/notificationResponseConsumer.ts` — exports: NotificationNavigationError, consumeLastAgentNotificationResponse
+- `apps/mobile/src/features/agent-awareness/registrationPayload.ts` — exports: makeRelayDeviceRegistrationRequest, resolveApsEnvironment
+- `apps/mobile/src/features/agent-awareness/remoteRegistration.ts` — exports: AgentAwarenessOperationError, AgentAwarenessRegistrationStatus, __resetAgentAwarenessRemoteRegistrationForTest, armAgentAwarenessLiveActivityForLocalWork, getAgentAwarenessRegistrationStatus, mergeAgentAwarenessRegistrationPreferences, never, refreshAgentAwarenessRegistration, registerAgentAwarenessConnection, releaseAgentAwarenessRelayTokenProvider, setAgentAwarenessRelayTokenProvider, shouldRegisterAgentAwarenessDeviceForProvider, subscribeAgentAwarenessRegistrationStatus, unregisterAgentAwarenessConnection, unregisterAgentAwarenessDeviceForCurrentUser, updateAgentAwarenessRegistrationPreferences
+- `apps/mobile/src/features/archive/ArchivedThreadsRouteScreen.tsx` — exports: ArchivedThreadsRouteScreen
+- `apps/mobile/src/features/archive/ArchivedThreadsScreen.tsx` — exports: ArchivedThreadsHeaderEnvironment, ArchivedThreadsScreen
+- `apps/mobile/src/features/archive/archivedThreadList.ts` — exports: ArchivedThreadGroup, ArchivedThreadSortOrder, buildArchivedThreadGroups
+- `apps/mobile/src/features/archive/useArchivedThreadSnapshots.ts` — exports: refreshArchivedThreadsForEnvironment, useArchivedThreadSnapshots
+- `apps/mobile/src/features/browser/BrowserPreviewRouteScreen.tsx` — exports: BrowserPreviewRouteScreen
+- `apps/mobile/src/features/browser/BrowserTabMenu.tsx` — exports: BrowserTabMenu
+- `apps/mobile/src/features/browser/PreviewStreamWebView.tsx` — exports: PreviewPictureInPictureState, PreviewStreamRef, PreviewStreamWebView
+- `apps/mobile/src/features/browser/ThreadBrowserFloat.tsx` — exports: ThreadBrowserFloat
+- `apps/mobile/src/features/browser/browser-preview-button.tsx` — exports: BrowserPreviewButton
+- `apps/mobile/src/features/browser/browserTabs.ts` — exports: browserTabTitle, browserTabUrl, latestBrowserTab
+- `apps/mobile/src/features/browser/preview-stream-document.ts` — exports: PreviewStreamConfiguration, PreviewStreamMessage, previewStreamDocument, previewStreamMessage
+- `apps/mobile/src/features/browser/preview-stream.browser.ts` — exports: command, pictureInPicture, start, stop
+- `apps/mobile/src/features/browser/previewPromptText.ts` — exports: previewPromptText
+- `apps/mobile/src/features/cloud/CloudAuthProvider.tsx` — exports: CloudAuthProvider, activateCloudRelayAccount, deactivateCloudRelayAccount
+- `apps/mobile/src/features/cloud/ConnectOnboardingRouteScreen.tsx` — exports: ConnectOnboardingRouteScreen
+- `apps/mobile/src/features/cloud/T3ConnectProfilePage.tsx` — exports: T3ConnectProfilePage
+- `apps/mobile/src/features/cloud/cloud-drafts.ts` — exports: CloudDraftArchiveError
+- `apps/mobile/src/features/cloud/cloudDebugLog.ts` — exports: cloudDebugLog
+- `apps/mobile/src/features/cloud/cloudEnvironmentPresentation.ts` — exports: AvailableCloudEnvironmentPresentation, availableCloudEnvironmentPresentation
+- `apps/mobile/src/features/cloud/connectOnboarding.ts` — exports: clearConnectOnboardingRequest, connectOnboardingRequestAtom, requestConnectOnboarding
+- `apps/mobile/src/features/cloud/connectOnboardingNavigation.ts` — exports: useConnectOnboardingNavigation
+- `apps/mobile/src/features/cloud/connectOnboardingOptOut.ts` — exports: isConnectOnboardingOptedOut, optOutOfConnectOnboarding
+- `apps/mobile/src/features/cloud/dpop.ts` — exports: CloudDpopError, DpopProofKeyPair
+- `apps/mobile/src/features/cloud/linkEnvironment.ts` — exports: CloudEnvironmentLinkError
+- `apps/mobile/src/features/cloud/managedRelayLayer.ts` — exports: layer
+- `apps/mobile/src/features/cloud/managedRelayState.ts` — exports: managedRelayQueryManager, refreshManagedRelayEnvironments, useManagedRelayEnvironments
+- `apps/mobile/src/features/cloud/managedRelayTokenStore.ts` — exports: ManagedRelayTokenStoreError, managedRelayAccessTokenStoreManagedRelayManagedRelayAccessTokenStore
+- `apps/mobile/src/features/cloud/publicConfig.ts` — exports: CloudPublicConfig, CloudPublicConfigMissingError, hasCloudPublicConfig, hasTracingPublicConfig, resolveCloudPublicConfig, resolveRelayClerkTokenOptions
+- `apps/mobile/src/features/connection/CloudEnvironmentRows.tsx` — exports: CloudEnvironmentRows
+- `apps/mobile/src/features/connection/ConnectionDiagnosisDetails.tsx` — exports: ConnectionDiagnosisDetails, useConnectionDiagnosis
+- `apps/mobile/src/features/connection/ConnectionEnvironmentRow.tsx` — exports: ConnectionEnvironmentRow
+- `apps/mobile/src/features/connection/ConnectionFormField.tsx` — exports: ConnectionFormField
+- `apps/mobile/src/features/connection/ConnectionStatusDot.tsx` — exports: ConnectionStatusDot, ConnectionStatusDotState
+- `apps/mobile/src/features/connection/ConnectionTraceId.tsx` — exports: ConnectionTraceId
+- `apps/mobile/src/features/connection/ConnectionsNewRouteScreen.tsx` — exports: ConnectionsNewRouteScreen
+- `apps/mobile/src/features/connection/ConnectionsRouteScreen.tsx` — exports: ConnectionsRouteScreen
+- `apps/mobile/src/features/connection/EnvironmentConnectionNotice.tsx` — exports: EnvironmentConnectionNotice
+- `apps/mobile/src/features/connection/GitHubRoutingSettings.tsx` — exports: GitHubRoutingSettings
+- `apps/mobile/src/features/connection/LocalEnvironmentList.tsx` — exports: LocalEnvironmentList
+- `apps/mobile/src/features/connection/PermissionUpdateNotice.tsx` — exports: PermissionUpdateNotice
+- `apps/mobile/src/features/connection/connectionTone.ts` — exports: connectionTone
+- `apps/mobile/src/features/connection/environmentSections.ts` — exports: EnvironmentSections, EnvironmentSectionsInput, relayManagedEnvironmentIds, splitEnvironmentSections
+- `apps/mobile/src/features/connection/environmentStatusText.ts` — exports: environmentStatusText
+- `apps/mobile/src/features/connection/pairing.ts` — exports: PairingQrPayloadEmptyError, buildPairingUrl, extractPairingUrlFromQrPayload, parsePairingUrl
+- `apps/mobile/src/features/connection/useConnectionController.ts` — exports: RelayEnvironmentView, useConnectionController
+- `apps/mobile/src/features/development/ComponentCatalogScreen.tsx` — exports: ComponentCatalogScreen
+- `apps/mobile/src/features/development/NativeAppBarExample.android.tsx` — exports: NativeAppBarExample
+- `apps/mobile/src/features/development/NativeAppBarExample.tsx` — exports: NativeAppBarExample
+- `apps/mobile/src/features/development/render-counter-entry.ts` — exports: 
+- `apps/mobile/src/features/development/render-counter.ts` — exports: RenderCounterReport
+- `apps/mobile/src/features/devices/DevicePreviewRouteScreen.tsx` — exports: DevicePreviewRouteScreen
+- `apps/mobile/src/features/devices/DeviceStreamWebView.tsx` — exports: DeviceStreamRef, DeviceStreamWebView
+- `apps/mobile/src/features/devices/device-preview-button.tsx` — exports: DevicePreviewButton
+- `apps/mobile/src/features/devices/device-stream-document.ts` — exports: DeviceStreamConfiguration, deviceStreamBaseUrl, deviceStreamDocument, deviceStreamMessage
+- `apps/mobile/src/features/devices/device-stream.browser.ts` — exports: command, start, stop
+- `apps/mobile/src/features/devices/shakeDetector.ts` — exports: AccelerationSample, createShakeDetector
+- `apps/mobile/src/features/devices/threadDevicePreviews.ts` — exports: ThreadDevicePreview, selectedThreadDevicePreview, threadDevicePreviews
+- `apps/mobile/src/features/diagnostics/SettingsDiagnosticsRouteScreen.tsx` — exports: SettingsDiagnosticsRouteScreen
+- `apps/mobile/src/features/diagnostics/crash-log-model.ts` — exports: StartupCrashRecord, UpdatesLogEntryLike, formatStartupCrashReport, parseStartupCrashRecords
+- `apps/mobile/src/features/diffs/nativeReviewDiffHighlighter.ts` — exports: HighlightNativeReviewDiffVisibleRowsInput, NativeReviewDiffHighlightEngine, NativeReviewDiffHighlightScheme, NativeReviewDiffHighlighterHandle, NativeReviewDiffHighlighterInitializationError, NativeReviewDiffHighlighterUnavailableError, getNativeReviewDiffHighlighter, highlightNativeReviewDiffVisibleRows, isNativeReviewDiffHighlighterUnavailableError
+- `apps/mobile/src/features/diffs/nativeReviewDiffSurface.ts` — exports: NativeReviewDiffRow, NativeReviewDiffStyle, NativeReviewDiffTheme, NativeReviewDiffToken, NativeReviewDiffViewHandle, NativeReviewDiffViewProps, NativeReviewDiffWordDiffRange, isNativeReviewDiffDrawEvent, isPendingNativeViewRegistration, resolveNativeReviewDiffView
+- `apps/mobile/src/features/diffs/nativeReviewDiffTypes.ts` — exports: NativeReviewDiffFile, NativeReviewDiffLanguage
+- `apps/mobile/src/features/files/AttachmentFileScreen.tsx` — exports: AttachmentFileRouteParams, AttachmentFileScreen
+- `apps/mobile/src/features/files/AudioFilePreview.tsx` — exports: AudioFilePreview
+- `apps/mobile/src/features/files/FileMarkdownPreview.tsx` — exports: FileMarkdownPreview, useMarkdownPreviewStyles
+- `apps/mobile/src/features/files/FilePreviewFeedback.tsx` — exports: FilePreviewLoading, FilePreviewNotice
+- `apps/mobile/src/features/files/FileTreeBrowser.tsx` — exports: FileTreeBrowser
+- `apps/mobile/src/features/files/FilesHeader.tsx` — exports: FilesHeader
+- `apps/mobile/src/features/files/SourceFileSurface.tsx` — exports: SourceFileSurface
+- `apps/mobile/src/features/files/ThreadFilesRouteScreen.tsx` — exports: ThreadFileScreen, ThreadFilesTreeScreen
+- `apps/mobile/src/features/files/WorkspaceFileImagePreview.tsx` — exports: WorkspaceFileImagePreview
+- `apps/mobile/src/features/files/WorkspaceFilePreviewError.tsx` — exports: WorkspaceFilePreviewError
+- `apps/mobile/src/features/files/WorkspaceFileVideoPreview.tsx` — exports: WorkspaceFileVideoPreview
+- `apps/mobile/src/features/files/WorkspaceFileWebPreview.tsx` — exports: WorkspaceFileWebPreview
+- `apps/mobile/src/features/files/filePath.ts` — exports: FileBreadcrumb, basename, fileBreadcrumbs, fileHeaderSubtitle, fileRoutePathSegments, isAbsolutePath, isAudioPreviewFile, isMarkdownPreviewFile, isSvgImagePreviewFile, isVideoPreviewFile, resolveFileLinkPath, resolveWorkspaceFilePath, resolveWorkspaceRelativeFilePath
+- `apps/mobile/src/features/files/fileTree.ts` — exports: FileTreeNode, VisibleFileTreeNode, buildFileTree, defaultExpandedTreePaths, flattenFileTree
+- `apps/mobile/src/features/files/nativeSourceFileAdapter.ts` — exports: NATIVE_SOURCE_CONTENT_WIDTH, buildNativeSourceRows, buildNativeSourceTokens, createNativeSourceStyle, nativeSourceRowId
+- `apps/mobile/src/features/files/preload-workspace-file.ts` — exports: preloadWorkspaceFileContents
+- `apps/mobile/src/features/files/source-file-document.ts` — exports: SourceFileDocument, boundedSelectableSourceTokens, prepareSourceFileDocument
+- `apps/mobile/src/features/files/sourceHighlightingState.ts` — exports: SourceHighlightInput, SourceHighlightTokens, createSourceHighlightAtomFamily, sourceHighlightAtom
+- `apps/mobile/src/features/files/thread-file-navigator-pane.tsx` — exports: ThreadFileNavigatorPane
+- `apps/mobile/src/features/files/useFileTreeEntries.ts` — exports: useFileTreeEntries
+- `apps/mobile/src/features/files/workspaceFileAssetUrl.ts` — exports: useWorkspaceFileAssetUrlState
+- `apps/mobile/src/features/home/AndroidHomeFab.android.tsx` — exports: AndroidHomeFabLayout
+- `apps/mobile/src/features/home/AndroidHomeFab.shared.tsx` — exports: AndroidHomeFabLayout, androidHomeFabPosition
+- `apps/mobile/src/features/home/AndroidHomeFab.tsx` — exports: AndroidHomeFabLayout
+- `apps/mobile/src/features/home/FabScrollContext.ts` — exports: FabScrollContext, useFabScroll
+- `apps/mobile/src/features/home/HomeHeader.android.tsx` — exports: HomeHeader, HomeHeaderEnvironment
+- `apps/mobile/src/features/home/HomeHeader.tsx` — exports: HomeHeader, HomeHeaderEnvironment
+- `apps/mobile/src/features/home/HomeHeader.types.ts` — exports: HomeHeaderEnvironment, HomeHeaderProps
+- `apps/mobile/src/features/home/HomeRouteScreen.tsx` — exports: HomeRouteScreen
+- `apps/mobile/src/features/home/HomeScreen.tsx` — exports: HomeScreen
+- `apps/mobile/src/features/home/ThreadListFilters.tsx` — exports: ThreadListFilters
+- `apps/mobile/src/features/home/ThreadListToolbar.tsx` — exports: ThreadListToolbar
+- `apps/mobile/src/features/home/ThreadUndoNotice.tsx` — exports: ThreadUndoNotice
+- `apps/mobile/src/features/home/WorkspaceConnectionTitle.tsx` — exports: WorkspaceConnectionStatusProvider, WorkspaceConnectionTitle, getConnectionAwareBrandHeaderOptions
+- `apps/mobile/src/features/home/fab-scroll.ts` — exports: FabScrollState, updateFabScroll
+- `apps/mobile/src/features/home/home-list-filter-menu.ts` — exports: HomeListFilterMenu, HomeListFilterMenuEnvironment, HomeListFilterMenuProject, buildHomeListFilterMenu
+- `apps/mobile/src/features/home/home-list-options.ts` — exports: HomeListOptions, HomeListOptionsProvider, ResolvedHomeListOptions, useHomeListOptions
+- `apps/mobile/src/features/home/home-route-visibility.ts` — exports: useAtomValueWhileVisible, useHomeRouteVisible
+- `apps/mobile/src/features/home/home-thread-navigation.ts` — exports: createHomeThreadNavigationAction, useHomeThreadSelection
+- `apps/mobile/src/features/home/homeThreadList.ts` — exports: HomeProjectScope, HomeProjectSortOrder, buildHomeProjectScopes, findHomeProjectScope, sortHomeProjectScopes
+- `apps/mobile/src/features/home/swipe-row-activation.ts` — exports: SwipeRowActivation, SwipeRowActivationContext, createSwipeRowActivation, useSwipeRowDormant
+- `apps/mobile/src/features/home/thread-dismissal.ts` — exports: registerThreadDismissal, withThreadDismissal
+- `apps/mobile/src/features/home/thread-swipe-actions.tsx` — exports: SwipeableScrollGateProvider, THREAD_SWIPE_ACTIONS_WIDTH, THREAD_SWIPE_SPRING, ThreadSwipeActions, ThreadSwipeable, useSwipeableScrollGate
+- `apps/mobile/src/features/home/thread-undo-notice.ts` — exports: dismissThreadUndoNotice, readThreadUndoNotice, showThreadUndoNotice, useThreadUndoNotice
+- `apps/mobile/src/features/home/threadArchive.ts` — exports: threadCanArchive
+- `apps/mobile/src/features/home/usePendingTaskListActions.ts` — exports: usePendingTaskListActions
+- `apps/mobile/src/features/home/useThreadListActions.ts` — exports: useArchivedThreadListActions, useThreadListActions
+- `apps/mobile/src/features/home/workspace-connection-status.ts` — exports: WorkspaceConnectionStatusPresentation, workspaceConnectionStatusPresentation
+- `apps/mobile/src/features/keyboard/CommandPalette.tsx` — exports: CommandPalette
+- `apps/mobile/src/features/keyboard/HardwareKeyboardCommandProvider.tsx` — exports: HardwareKeyboardCommandOverlay, HardwareKeyboardCommandProvider
+- `apps/mobile/src/features/keyboard/commandPaletteItems.ts` — exports: CommandPaletteItem, filterCommandPaletteItems, nextPaletteIndex
+- `apps/mobile/src/features/keyboard/hardwareKeyboardCommands.ts` — exports: HardwareKeyboardCommand, dispatchHardwareKeyboardCommand, getHardwareKeyboardCommandRegistrationVersion, getRegisteredHardwareKeyboardCommands, nextEnvironmentId, parseActiveThreadPath, subscribeToHardwareKeyboardCommandRegistrations, useHardwareKeyboardCommand
+- `apps/mobile/src/features/keyboard/threadKeyboardShortcuts.ts` — exports: threadJumpIndex, threadJumpTarget, useThreadJumpShortcuts
+- `apps/mobile/src/features/layout/AdaptiveWorkspaceLayout.tsx` — exports: AdaptiveWorkspaceLayout, useAdaptiveWorkspaceLayout, useAdaptiveWorkspacePaneRole, useRegisterWorkspaceInspector
+- `apps/mobile/src/features/layout/WorkspaceEmptyDetail.tsx` — exports: WorkspaceEmptyDetail
+- `apps/mobile/src/features/layout/createWorkspaceStackNavigator.ios.tsx` — exports: createWorkspaceStackNavigator
+- `apps/mobile/src/features/layout/createWorkspaceStackNavigator.tsx` — exports: createWorkspaceStackNavigator
+- `apps/mobile/src/features/layout/native-glass-header-items.ts` — exports: withNativeGlassHeaderItem
+- `apps/mobile/src/features/layout/native-mail-search-toolbar.ts` — exports: NATIVE_MAIL_SEARCH_TOOLBAR_CONTENT_INSET, NATIVE_MAIL_SEARCH_TOOLBAR_SUPPORTED, createNativeMailSearchToolbarItem
+- `apps/mobile/src/features/layout/workspace-content-width.ts` — exports: WorkspaceContentWidthContext, WorkspaceSettledContentWidthContext, useWorkspaceContentWidth, useWorkspaceSettledContentWidth
+- `apps/mobile/src/features/layout/workspace-inspector-pane.tsx` — exports: WorkspaceInspectorPane
+- `apps/mobile/src/features/layout/workspace-pane-animation.ts` — exports: WORKSPACE_PANE_TIMING
+- `apps/mobile/src/features/layout/workspace-pane-divider.tsx` — exports: WorkspacePaneDivider
+- `apps/mobile/src/features/layout/workspace-sidebar-toolbar.tsx` — exports: AndroidWorkspaceSidebarButton
+- `apps/mobile/src/features/observability/tracing.ts` — exports: TracingConfig, TracingResource, layer, layerFromConfig, resolveTracingConfig
+- `apps/mobile/src/features/projects/AddProjectDestinationRoute.tsx` — exports: AddProjectDestinationRoute
+- `apps/mobile/src/features/projects/AddProjectLocalRoute.tsx` — exports: AddProjectLocalRoute
+- `apps/mobile/src/features/projects/AddProjectNewRoute.tsx` — exports: AddProjectNewRoute
+- `apps/mobile/src/features/projects/AddProjectRepositoryRoute.tsx` — exports: AddProjectRepositoryRoute
+- `apps/mobile/src/features/projects/AddProjectScreen.logic.ts` — exports: resolveAddProjectEnvironment
+- `apps/mobile/src/features/projects/AddProjectScreen.tsx` — exports: AddProjectDestinationScreen, AddProjectLocalFolderScreen, AddProjectNewScreen, AddProjectRepositoryScreen, AddProjectSourceScreen
+- `apps/mobile/src/features/projects/AddProjectSourceRoute.tsx` — exports: AddProjectSourceRoute
+- `apps/mobile/src/features/projects/SourceControlIcon.tsx` — exports: SourceControlIcon
+- `apps/mobile/src/features/prompt-links/prompt-link-actions.ts` — exports: applyLinkedPromptToThreadDraft, copyPromptLink, showPromptLinkNotice
+- `apps/mobile/src/features/prompt-links/prompt-link-model.ts` — exports: PROMPT_LINK_PARAM_KEYS, clearedPromptLinkParams, latestThreadEnvironmentIds, linkedThreadDraftAction, promptLinkNotice, promptLinkRepositoryName, promptLinkScratchEnvironmentId, promptLinkSearchFromParams
+- `apps/mobile/src/features/prompt-links/usePromptLinkResolver.ts` — exports: usePromptLinkResolver
+- `apps/mobile/src/features/prompt-links/useThreadPromptLink.ts` — exports: useThreadPromptLink
+- `apps/mobile/src/features/pull-requests/PullRequestActivityFilters.tsx` — exports: PullRequestActivityFilters
+- `apps/mobile/src/features/pull-requests/PullRequestAgentRow.tsx` — exports: PullRequestAgentRow
+- `apps/mobile/src/features/pull-requests/PullRequestControls.tsx` — exports: PullRequestActionToolbar, PullRequestCardGroup, PullRequestCardRow
+- `apps/mobile/src/features/pull-requests/PullRequestDescription.tsx` — exports: PullRequestDescription
+- `apps/mobile/src/features/pull-requests/PullRequestDiscussionScreen.tsx` — exports: PullRequestDiscussionScreen
+- `apps/mobile/src/features/pull-requests/PullRequestEntryRow.tsx` — exports: PullRequestEntryRow
+- `apps/mobile/src/features/pull-requests/PullRequestFiles.tsx` — exports: PullRequestFilesSheet, usePullRequestFilesSection
+- `apps/mobile/src/features/pull-requests/PullRequestFilterMenuContext.tsx` — exports: PullRequestFilterMenu, PullRequestFilterMenuProvider, usePublishPullRequestFilterMenu, usePullRequestFilterMenu
+- `apps/mobile/src/features/pull-requests/PullRequestInlineCommentScreen.tsx` — exports: InlineCommentParams, PullRequestInlineCommentScreen
+- `apps/mobile/src/features/pull-requests/PullRequestListFilters.tsx` — exports: PullRequestListFilters
+- `apps/mobile/src/features/pull-requests/PullRequestListRow.tsx` — exports: 
+- `apps/mobile/src/features/pull-requests/PullRequestMarkdown.tsx` — exports: PullRequestMarkdown, PullRequestMarkdownRepository
+- `apps/mobile/src/features/pull-requests/PullRequestMedia.tsx` — exports: PullRequestImageAttachment, PullRequestMedia, usePullRequestMediaUrl
+- `apps/mobile/src/features/pull-requests/PullRequestMergeControls.tsx` — exports: PullRequestMergeControls
+- `apps/mobile/src/features/pull-requests/PullRequestOverviewLoading.tsx` — exports: PullRequestOverviewLoading
+- `apps/mobile/src/features/pull-requests/PullRequestPresentation.tsx` — exports: PullRequestAvatar, PullRequestConflictBadge, PullRequestDiffStats, PullRequestReadStatus
+- `apps/mobile/src/features/pull-requests/PullRequestReviewSheet.tsx` — exports: PullRequestReviewSheet
+- `apps/mobile/src/features/pull-requests/PullRequestReviewersScreen.tsx` — exports: PullRequestReviewersScreen
+- `apps/mobile/src/features/pull-requests/PullRequestRouteScreen.tsx` — exports: PullRequestFileRouteScreen, PullRequestRouteScreen
+- `apps/mobile/src/features/pull-requests/PullRequestSectionHeading.tsx` — exports: PullRequestSectionHeading
+- `apps/mobile/src/features/pull-requests/PullRequestSheetContent.tsx` — exports: PullRequestSheetContent
+- `apps/mobile/src/features/pull-requests/PullRequestStackCard.tsx` — exports: PullRequestStackCard
+- `apps/mobile/src/features/pull-requests/PullRequestStatusRows.tsx` — exports: PullRequestBranchRow, PullRequestChecksRow, PullRequestReviewersRow, PullRequestStatusMenu
+- `apps/mobile/src/features/pull-requests/PullRequestTimeline.tsx` — exports: pullRequestTimelineRows
+- `apps/mobile/src/features/pull-requests/PullRequestToolbar.android.tsx` — exports: PullRequestToolbar
+- `apps/mobile/src/features/pull-requests/PullRequestsScreen.tsx` — exports: PullRequestsScreen
+- `apps/mobile/src/features/pull-requests/botBadgeImages.ts` — exports: isBotBadgeImage
+- `apps/mobile/src/features/pull-requests/guide/GuideNotice.tsx` — exports: GuideNotice
+- `apps/mobile/src/features/pull-requests/guide/GuideOutline.tsx` — exports: GuideOutline
+- `apps/mobile/src/features/pull-requests/guide/PullRequestGuideScreen.tsx` — exports: GuideStopParams, PullRequestGuideContent, PullRequestGuideStopScreen
+- `apps/mobile/src/features/pull-requests/guide/ReviewGuideExcerpt.tsx` — exports: ReviewGuideExcerpt
+- `apps/mobile/src/features/pull-requests/guide/guideDiffFocus.ts` — exports: GuideDiffFocus, guideFocusedRows
+- `apps/mobile/src/features/pull-requests/guide/reviewGuideState.ts` — exports: guideNoticeState, reviewGuideState
+- `apps/mobile/src/features/pull-requests/guide/useReviewGuide.ts` — exports: useReviewGuide, useReviewGuidesEnabled
+- `apps/mobile/src/features/pull-requests/pullRequestActions.ts` — exports: ALL_PR_ACTIONSreadonlyPullRequestAction, AppSymbolName, MERGE_CONFLICT_REASON, MERGE_METHODS, PR_ACTION_ICONS, PR_ACTION_LABELS, allowedMergeMethods, allowedUpdateMethods, canPerformPullRequestAction, mergeSummary, mergeUnavailableReason, openOnProviderLabel, string
+- `apps/mobile/src/features/pull-requests/pullRequestActivityFilter.ts` — exports: ActivityFilter, DEFAULT_ACTIVITY_FILTERActivityFilter, filterPullRequestActivity
+- `apps/mobile/src/features/pull-requests/pullRequestAgentTasks.ts` — exports: PullRequestAgentTask, appendPullRequestAgentPrompt, pullRequestAgentActions, pullRequestAgentPrompt, pullRequestAgentThread
+- `apps/mobile/src/features/pull-requests/pullRequestAnimations.ts` — exports: PR_DISCLOSURE_ENTER, PR_ROW_ENTER, PR_ROW_EXIT, PR_ROW_LAYOUT
+- `apps/mobile/src/features/pull-requests/pullRequestDescriptionContent.ts` — exports: pullRequestDescriptionContent
+- `apps/mobile/src/features/pull-requests/pullRequestDiffComments.ts` — exports: annotatePullRequestDiff, reviewPosition, reviewPositionLabel
+- `apps/mobile/src/features/pull-requests/pullRequestDiffPages.ts` — exports: PullRequestDiffPage, combinePullRequestDiffPages, retainPullRequestDiffPage
+- `apps/mobile/src/features/pull-requests/pullRequestEnvironmentFallback.ts` — exports: PullRequestEnvironmentTarget, pullRequestFallbackEnvironment
+- `apps/mobile/src/features/pull-requests/pullRequestFileFilters.ts` — exports: filterPullRequestTestFiles, isPullRequestTestFile
+- `apps/mobile/src/features/pull-requests/pullRequestGlyphs.ts` — exports: AppSymbolName, PullRequestGlyph
+- `apps/mobile/src/features/pull-requests/pullRequestLink.ts` — exports: copyPullRequestLink, sharePullRequestLink
+- `apps/mobile/src/features/pull-requests/pullRequestList.ts` — exports: DEFAULT_PR_LIST_CONTROLSPullRequestListControls, EnvironmentPullRequestListEntry, PR_LIST_PAGE_SIZE, PullRequestListControls, PullRequestListPages, appendPullRequestListPage, filterPullRequestList, mergeEnvironmentPullRequestPages, mergePullRequestListEntries, nextPullRequestListInput, pullRequestLabelColor, pullRequestListFacets, pullRequestListHead, pullRequestListInput, pullRequestListKey, pullRequestListReviewStatus, pullRequestListRowsAreEqual, scopedPullRequestListKey, withoutScratchProjectScope
+- `apps/mobile/src/features/pull-requests/pullRequestMediaSource.ts` — exports: PullRequestMediaLocation, pullRequestImageSource, pullRequestMediaSource
+- `apps/mobile/src/features/pull-requests/pullRequestReviewDrafts.ts` — exports: EMPTY_REVIEW_DRAFTReviewDraft, PendingReviewComment, ReviewDraft, ReviewDraftDocument, clearSubmittedReview, pullRequestReviewKey
+- `apps/mobile/src/features/pull-requests/pullRequestSelection.ts` — exports: selectedPullRequestKey
+- `apps/mobile/src/features/pull-requests/pullRequestStack.ts` — exports: pullRequestStackMerge, savedPullRequestStack, singlePullRequestMergeAllowed
+- `apps/mobile/src/features/pull-requests/pullRequestStatus.ts` — exports: checkStatus, pullRequestBranchSummary, pullRequestChecksStatus, pullRequestChecksSummary, pullRequestConflict, pullRequestReviewSummary, pullRequestStatus
+- `apps/mobile/src/features/pull-requests/pullRequestTabScroll.ts` — exports: pullRequestTabOffset
+- `apps/mobile/src/features/pull-requests/usePullRequestAction.ts` — exports: usePullRequestAction
+- `apps/mobile/src/features/pull-requests/usePullRequestAgentActions.ts` — exports: usePullRequestAgentActions
+- `apps/mobile/src/features/pull-requests/usePullRequestConnected.ts` — exports: usePullRequestConnected
+- `apps/mobile/src/features/pull-requests/usePullRequestDiff.ts` — exports: PullRequestDiffParams, PullRequestParams, pullRequestTarget, usePullRequestDiff
+- `apps/mobile/src/features/pull-requests/usePullRequestEnvironmentFallback.ts` — exports: usePullRequestEnvironmentFallback
+- `apps/mobile/src/features/pull-requests/usePullRequestFileFilter.ts` — exports: usePullRequestFileFilter
+- `apps/mobile/src/features/pull-requests/usePullRequestFilesViewed.ts` — exports: usePullRequestFilesViewed
+- `apps/mobile/src/features/pull-requests/usePullRequestList.ts` — exports: usePullRequestList
+- `apps/mobile/src/features/pull-requests/usePullRequestListActions.ts` — exports: usePullRequestListActions
+- `apps/mobile/src/features/pull-requests/usePullRequestListControls.ts` — exports: usePullRequestListControls
+- `apps/mobile/src/features/pull-requests/usePullRequestPermissions.ts` — exports: usePullRequestPermissions
+- `apps/mobile/src/features/pull-requests/usePullRequestReviewDraft.ts` — exports: usePullRequestReviewDraft
+- `apps/mobile/src/features/pull-requests/usePullRequestStack.ts` — exports: PullRequestStackState, usePullRequestStack
+- `apps/mobile/src/features/pull-requests/usePullRequestThreads.ts` — exports: usePullRequestThreads
+- `apps/mobile/src/features/review/ReviewCommentCard.tsx` — exports: ReviewCommentColors, useReviewCommentColors
+- `apps/mobile/src/features/review/ReviewCommentComposerSheet.tsx` — exports: ReviewCommentComposerSheet
+- `apps/mobile/src/features/review/ReviewSheet.tsx` — exports: ReviewSheet
+- `apps/mobile/src/features/review/incrementalSnippet.ts` — exports: createIncrementalSnippet
+- `apps/mobile/src/features/review/nativeReviewDiffAdapter.ts` — exports: BuildNativeReviewDiffDataInput, NATIVE_REVIEW_DIFF_CONTENT_WIDTH, NativeReviewDiffCommentTarget, NativeReviewDiffData, buildNativeReviewDiffData, buildNativeReviewSnippetRows, createNativeReviewDiffStyle, createNativeReviewDiffTheme, getCachedNativeReviewDiffData
+- `apps/mobile/src/features/review/review-section-menu.ts` — exports: ReviewSectionMenu, buildReviewSectionMenu
+- `apps/mobile/src/features/review/reviewAvailability.ts` — exports: resolveReviewAvailability
+- `apps/mobile/src/features/review/reviewCommentSelection.ts` — exports: ReviewCommentMessageSegment, ReviewCommentTarget, ReviewInlineComment, buildReviewCommentTarget, clearReviewCommentTarget, countReviewCommentContexts, formatReviewCommentContext, formatReviewSelectedRangeLabel, getReviewChangeMarker, getReviewCommentTarget, getReviewUnifiedLineNumber, getSelectedReviewCommentLines, parseReviewCommentMessageSegments, parseReviewInlineComments, setReviewCommentTarget, subscribeReviewCommentTarget, useReviewCommentTarget
+- `apps/mobile/src/features/review/reviewDiffBridgeKeys.ts` — exports: buildNativeReviewTokensResetKey
+- `apps/mobile/src/features/review/reviewDiffHighlightScheduler.ts` — exports: NativeReviewVisibleRange, createReviewDiffHighlightScheduler
+- `apps/mobile/src/features/review/reviewDiffRendering.tsx` — exports: DiffTokenText, REVIEW_DIFF_LINE_HEIGHT, REVIEW_MONO_FONT_FAMILY, ReviewChangeBar, changeBarTone, changeTone, renderVisibleWhitespace
+- `apps/mobile/src/features/review/reviewFileVisibility.ts` — exports: getValidExplicitReviewFileIds, getValidReviewFileIds, removeReviewFileId, toggleReviewFileId, useReviewFileVisibility
+- `apps/mobile/src/features/review/reviewHighlightedToken.types.ts` — exports: ReviewHighlightedToken
+- `apps/mobile/src/features/review/reviewHighlighterEngine.ts` — exports: ReviewHighlighterEngine, ReviewHighlighterEnginePreference, resolveReviewHighlighterEngine, resolveReviewHighlighterEnginePreference
+- `apps/mobile/src/features/review/reviewModel.ts` — exports: ReviewFilePreviewState, ReviewParsedDiff, ReviewRenderableFile, ReviewRenderableHunkRow, ReviewRenderableLineRow, ReviewRenderableRow, ReviewSectionItem, ReviewSectionKind, applyReviewDiffMetadata, buildReviewParsedDiff, buildReviewSectionItems, getDefaultReviewSectionId, getReadyReviewCheckpoints, getReviewFilePreviewState, getReviewSectionIdForCheckpoint
+- `apps/mobile/src/features/review/reviewPaneSelection.ts` — exports: ReviewPaneFileSelection, resolveSelectedReviewFileId
+- `apps/mobile/src/features/review/reviewPerf.ts` — exports: isReviewPerfEnabled, markReviewEvent, measureReviewWork
+- `apps/mobile/src/features/review/reviewState.ts` — exports: MAX_CACHED_REVIEW_DIFFS, MAX_CACHED_REVIEW_SOURCE_CHARACTERS, ReviewAsyncState, ReviewCacheForThread, getCachedReviewParsedDiff, getReviewAsyncStateSnapshot, getReviewParsedDiffSourceCharacterCount, setReviewAsyncError, setReviewGitSections, setReviewSelectedSectionId, setReviewTurnDiff, setReviewTurnDiffLoading, updateReviewExpandedFileIds, updateReviewViewedFileIds, useReviewCacheForThread
+- `apps/mobile/src/features/review/reviewWordDiffs.ts` — exports: applyDiffRangesToTokens, computeWordAltDiffRanges
+- `apps/mobile/src/features/review/shikiReviewHighlighter.ts` — exports: ReviewDiffTheme, ReviewHighlightedToken, ReviewHighlighterEngineInitializationError, highlightCodeSnippet, highlightReviewSelectedLines, highlightSourceFile
+- `apps/mobile/src/features/review/useNativeReviewDiffBridge.ts` — exports: buildNativeReviewTokensResetKey, useNativeReviewDiffBridge
+- `apps/mobile/src/features/review/useNativeReviewDiffHighlighting.ts` — exports: useNativeReviewDiffHighlighting
+- `apps/mobile/src/features/review/useReviewCommentSelectionController.ts` — exports: useReviewCommentSelectionController
+- `apps/mobile/src/features/review/useReviewDiffData.ts` — exports: formatHeaderDiffSummary, useReviewDiffData
+- `apps/mobile/src/features/review/useReviewDiffPrewarming.ts` — exports: getReviewDiffPrewarmSections, prewarmReviewDiffSection, useReviewDiffPrewarming
+- `apps/mobile/src/features/review/useReviewHeaderPresentation.android.ts` — exports: useReviewHeaderPresentation
+- `apps/mobile/src/features/review/useReviewHeaderPresentation.tsx` — exports: useReviewHeaderPresentation
+- `apps/mobile/src/features/review/useReviewSections.ts` — exports: useReviewSections
+- `apps/mobile/src/features/settings/EnvironmentRoutesSection.tsx` — exports: EnvironmentRoutesSection
+- `apps/mobile/src/features/settings/OutdatedServerUpdateSection.tsx` — exports: OutdatedServerUpdateSection
+- `apps/mobile/src/features/settings/ScheduledTaskPickerScreens.tsx` — exports: ScheduledTaskBranchPickerRouteScreen, ScheduledTaskModelPickerRouteScreen
+- `apps/mobile/src/features/settings/SettingsAboutRouteScreen.tsx` — exports: SettingsAboutRouteScreen
+- `apps/mobile/src/features/settings/SettingsAppearanceRouteScreen.tsx` — exports: SettingsAppearanceRouteScreen
+- `apps/mobile/src/features/settings/SettingsAuthRouteScreen.tsx` — exports: SettingsAuthRouteScreen
+- `apps/mobile/src/features/settings/SettingsClientStorageRouteScreen.tsx` — exports: SettingsClientStorageRouteScreen
+- `apps/mobile/src/features/settings/SettingsEnvironmentDetailRouteScreen.tsx` — exports: SettingsEnvironmentDetailRouteScreen
+- `apps/mobile/src/features/settings/SettingsEnvironmentsRouteScreen.tsx` — exports: SettingsEnvironmentsRouteScreen
+- `apps/mobile/src/features/settings/SettingsFollowUpRouteScreen.tsx` — exports: SettingsFollowUpRouteScreen
+- `apps/mobile/src/features/settings/SettingsKeyboardRouteScreen.tsx` — exports: SettingsKeyboardRouteScreen
+- `apps/mobile/src/features/settings/SettingsLegalRouteScreen.tsx` — exports: SettingsLegalRouteScreen
+- `apps/mobile/src/features/settings/SettingsMicrophoneRouteScreen.tsx` — exports: SettingsMicrophoneRouteScreen
+- `apps/mobile/src/features/settings/SettingsNotificationsRouteScreen.tsx` — exports: SettingsNotificationsRouteScreen
+- `apps/mobile/src/features/settings/SettingsOpenSourceLicensesRouteScreen.tsx` — exports: SettingsOpenSourceLicenseRouteScreen, SettingsOpenSourceLicensesRouteScreen
+- `apps/mobile/src/features/settings/SettingsProjectGroupingRouteScreen.tsx` — exports: SettingsProjectGroupingRouteScreen
+- `apps/mobile/src/features/settings/SettingsProjectOverviewRouteScreen.tsx` — exports: SettingsProjectOverviewRouteScreen
+- `apps/mobile/src/features/settings/SettingsProviderAccountsRouteScreen.tsx` — exports: SettingsProviderAccountsRouteScreen
+- `apps/mobile/src/features/settings/SettingsRouteScreen.logic.ts` — exports: resolveAgentAwarenessPlatformPresentation, resolveAutoSettleReferenceEnvironmentId
+- `apps/mobile/src/features/settings/SettingsRouteScreen.tsx` — exports: SettingsRouteScreen
+- `apps/mobile/src/features/settings/SettingsScheduledTasksRouteScreen.tsx` — exports: SettingsScheduledTaskEditRouteScreen, SettingsScheduledTaskNewRouteScreen, SettingsScheduledTasksRouteScreen
+- `apps/mobile/src/features/settings/SettingsServerControlsRouteScreen.tsx` — exports: SettingsEnvironmentAgentBehaviorRouteScreen, SettingsEnvironmentMaintenanceRouteScreen, SettingsEnvironmentNewThreadsRouteScreen, SettingsEnvironmentSourceControlRouteScreen
+- `apps/mobile/src/features/settings/SettingsThreadsRouteScreen.tsx` — exports: SettingsThreadsRouteScreen
+- `apps/mobile/src/features/settings/appearance/AppearancePreferencesProvider.tsx` — exports: AppearancePreferencesProvider, useAppearancePreferences
+- `apps/mobile/src/features/settings/appearance/components/AppearancePreviews.tsx` — exports: AppearancePreviewSeparator, CodeAppearancePreview, TerminalAppearancePreview, TextAppearancePreview
+- `apps/mobile/src/features/settings/appearance/components/FontSizeSliderRow.tsx` — exports: FontSizeSliderRow
+- `apps/mobile/src/features/settings/appearance/sections/CodeAppearanceSection.tsx` — exports: CodeAppearanceSection
+- `apps/mobile/src/features/settings/appearance/sections/TerminalAppearanceSection.tsx` — exports: TerminalAppearanceSection
+- `apps/mobile/src/features/settings/appearance/sections/TextAppearanceSection.tsx` — exports: TextAppearanceSection
+- `apps/mobile/src/features/settings/appearance/sections/ThemeAppearanceSection.tsx` — exports: ThemeAppearanceSection
+- `apps/mobile/src/features/settings/appearance/useAppearanceCodeSurface.ts` — exports: useAppearanceCodeSurface
+- `apps/mobile/src/features/settings/appearance/useScaledTextRole.ts` — exports: ScaledTextRole, useScaledTextRole
+- `apps/mobile/src/features/settings/autoSettleSettingsSync.ts` — exports: AutoSettleSettings, planAutoSettleSettingsSync
+- `apps/mobile/src/features/settings/components/AutoSettleDaysField.tsx` — exports: AutoSettleDaysField, AutoSettleDaysFieldProps
+- `apps/mobile/src/features/settings/components/BranchNamingSettings.tsx` — exports: BranchNamingSettings
+- `apps/mobile/src/features/settings/components/DatabaseStorageNotice.tsx` — exports: DatabaseStorageNotice
+- `apps/mobile/src/features/settings/components/ScheduledTaskPromptField.tsx` — exports: ScheduledTaskPromptField
+- `apps/mobile/src/features/settings/components/SettingsActionRow.tsx` — exports: SettingsActionRow
+- `apps/mobile/src/features/settings/components/SettingsChoiceRow.tsx` — exports: SettingsChoiceRow
+- `apps/mobile/src/features/settings/components/SettingsDragHandle.tsx` — exports: SettingsDragHandle
+- `apps/mobile/src/features/settings/components/SettingsEnvironmentFilterHeader.tsx` — exports: AndroidSettingsEnvironmentFilter, SettingsEnvironmentFilterHeader
+- `apps/mobile/src/features/settings/components/SettingsLegalDocumentRouteScreen.tsx` — exports: SettingsLegalDocumentCloseHeaderButton, SettingsLegalDocumentExternalHeaderButton, SettingsLegalDocumentRouteScreen
+- `apps/mobile/src/features/settings/components/SettingsProjectOverridesSection.tsx` — exports: SettingsProjectOverridesSection
+- `apps/mobile/src/features/settings/components/SettingsRow.tsx` — exports: SettingsRow
+- `apps/mobile/src/features/settings/components/SettingsScreen.tsx` — exports: SettingsScreen, SettingsScreenContent
+- `apps/mobile/src/features/settings/components/SettingsSection.tsx` — exports: SettingsSection
+- `apps/mobile/src/features/settings/components/SettingsSwitchRow.tsx` — exports: SettingsSwitchRow
+- `apps/mobile/src/features/settings/components/settings-sheet-targets.ts` — exports: SettingsLegalDocumentTarget, SettingsSheetTarget
+- `apps/mobile/src/features/settings/environment-maintenance.ts` — exports: canMaintainEnvironment, canUpdateEnvironmentProvider, findEnvironmentUpdate, supportsEnvironmentUpdate
+- `apps/mobile/src/features/settings/lib/legal-document-url.ts` — exports: ALLOWED_LEGAL_DOCUMENT_URLS, LEGAL_URL, PRIVACY_POLICY_URL, SECURITY_POLICY_URL, TERMS_OF_SERVICE_URL, isLegalDocumentUrl
+- `apps/mobile/src/features/settings/mobileThirdPartyLicenses.ts` — exports: getMobileThirdPartyLicenses
+- `apps/mobile/src/features/settings/scheduled-task-editor-state.ts` — exports: ScheduledTaskEditor, readScheduledTaskEditor, scheduledTaskEditorSessionAtom, startScheduledTaskEditor, updateScheduledTaskEditor
+- `apps/mobile/src/features/settings/scheduled-task-editor.tsx` — exports: ScheduledTaskEditorProvider, useScheduledTaskEditor
+- `apps/mobile/src/features/settings/scheduledTaskDraft.ts` — exports: DEFAULT_SCHEDULEScheduleDraft, ScheduleDraft, ScheduledTaskDraft, createDraft, editDraft, hasScheduledTaskDraftChanges, scheduleDraftForTask, scheduleFromDraft, scheduledTaskDefaultModel
+- `apps/mobile/src/features/settings/scheduledTaskPresentation.ts` — exports: formatNextScheduledTaskRun, formatScheduledTaskInterval
+- `apps/mobile/src/features/settings/settings-environment-filter.logic.ts` — exports: settingsTargetsForProject, toggleSettingsEnvironment
+- `apps/mobile/src/features/settings/settings-environment-filter.tsx` — exports: SettingsEnvironmentFilterProvider, SettingsTarget, useSettingsEnvironmentFilter
+- `apps/mobile/src/features/settings/settings-scoped-server.ts` — exports: ScopedMobileSettingsTarget, planMobileScopedSettingsClear, planMobileScopedSettingsPatch, resolveMobileSettingsTargets, uniformMobileSetting
+- `apps/mobile/src/features/settings/useSettingsWriter.ts` — exports: useSettingsWriter
+- `apps/mobile/src/features/sharing/IncomingShareProvider.tsx` — exports: IncomingShareProvider, useIncomingShare
+- `apps/mobile/src/features/sharing/incoming-share-inbox.ts` — exports: IncomingShareInbox, IncomingShareInboxDependencies, sortAndDedupeIncomingShares
+- `apps/mobile/src/features/sharing/incoming-share-model.ts` — exports: IncomingShareDestination, IncomingShareDraft, IncomingShareDraftSchema, IncomingShareFileReader, buildIncomingShareDraft, decodeIncomingShareDraft, hasIncomingShareContent, isShareFileUriUnderOwnedRoots, selectIncomingShareAttachments, selectIncomingShareAttachmentsForServer
+- `apps/mobile/src/features/sharing/incoming-share-native.ts` — exports: createIncomingSharePayloadReader
+- `apps/mobile/src/features/sharing/incoming-share-presentation.ts` — exports: EMPTY_INCOMING_SHARE_PRESENTATION_STATEIncomingSharePresentationState, IncomingSharePresentationState, IncomingSharePresentationTransition, transitionIncomingSharePresentation
+- `apps/mobile/src/features/sharing/incoming-share-storage.ts` — exports: IncomingShareStorageError, loadIncomingShareDrafts, removeIncomingShareDraft, writeIncomingShareDraft
+- `apps/mobile/src/features/shortcuts/appShortcuts.ts` — exports: MAX_RECENT_THREAD_SHORTCUTS, NEW_TASK_SHORTCUT_ID, activeThreadRef, buildShortcutActions, shortcutHref, withRecentThreadShortcut
+- `apps/mobile/src/features/shortcuts/useAppShortcuts.ts` — exports: useAppShortcuts
+- `apps/mobile/src/features/showcase/ShowcaseCaptureCoordinator.tsx` — exports: ShowcaseCaptureCoordinator
+- `apps/mobile/src/features/showcase/nativeShowcaseScene.ts` — exports: SHOWCASE_SCENES, ShowcaseOrientation, ShowcaseScene, applyNativeShowcaseOrientation, getNativeShowcaseOrientation, getNativeShowcasePairingUrls, getNativeShowcaseScene, getNativeShowcaseTheme, markNativeShowcaseReady, prepareNativeShowcaseCapture
+- `apps/mobile/src/features/showcase/showcaseAgentActivity.ts` — exports: buildShowcaseAgentActivity, showcaseAgentAlert, showcaseAndroidActivityData
+- `apps/mobile/src/features/showcase/showcaseEnvironmentRows.ts` — exports: SHOWCASE_AVAILABLE_CLOUD_ENVIRONMENTSReadonlyArrayRelayEnvironmentView, SHOWCASE_CONNECTED_CLOUD_ENVIRONMENTSReadonlyArrayConnectedEnvironmentSummary, applyShowcaseLocalEnvironmentDisplayUrls, resolveShowcaseEnvironmentUpdateDisplayUrl
+- `apps/mobile/src/features/showcase/showcasePendingTasks.ts` — exports: SHOWCASE_PENDING_TASK_DEFINITIONS, buildShowcasePendingTasks
+- `apps/mobile/src/features/showcase/showcaseRenderSignal.ts` — exports: ShowcaseRenderSignal, clearShowcaseRenderSignal, getShowcaseRenderSignal, isShowcaseNativeContentReady, reportShowcaseSceneRendered, subscribeToShowcaseRenderSignal
+- `apps/mobile/src/features/showcase/showcaseRetry.ts` — exports: ShowcaseRetryOptions, retryShowcaseOperation
+- `apps/mobile/src/features/showcase/stageShowcaseAgentActivity.ts` — exports: stageShowcaseAgentActivity
+- `apps/mobile/src/features/terminal/NativeTerminalSurface.tsx` — exports: 
+- `apps/mobile/src/features/terminal/TerminalContextSheet.tsx` — exports: TerminalContextSheet
+- `apps/mobile/src/features/terminal/ThreadTerminalRouteScreen.tsx` — exports: ThreadTerminalRouteScreen
+- `apps/mobile/src/features/terminal/nativeTerminalModule.ts` — exports: NativeTerminalSurfaceProps, getNativeTerminalHardwareKeyRevision, hasNativeTerminalSurface, resolveNativeTerminalSurfaceView
+- `apps/mobile/src/features/terminal/terminalBufferReplay.ts` — exports: TERMINAL_BUFFER_REPLAY_STABILITY_DELAY_MS, getTerminalBufferReplayKey, getTerminalSurfaceReplayBuffer
+- `apps/mobile/src/features/terminal/terminalDebugLog.ts` — exports: terminalDebugLog
+- `apps/mobile/src/features/terminal/terminalInput.ts` — exports: HostPlatform, ModifiedTerminalInput, PendingModifier, TERMINAL_WRITE_MAX_LENGTH, applyCtrlModifier, chunkTerminalWrite, encodeTerminalPaste, hostPlatformFromOs, resolveModifiedTerminalInput
+- `apps/mobile/src/features/terminal/terminalLaunchContext.ts` — exports: PendingTerminalLaunch, resolvePreferredThreadWorktreePath, resolveTerminalOpenLocation, stagePendingTerminalLaunch, takePendingTerminalLaunch, useInitialTerminalLaunchLocation
+- `apps/mobile/src/features/terminal/terminalMenu.ts` — exports: TerminalMenuSession, basename, buildTerminalMenuSessions, getTerminalLabel, getTerminalStatusLabel, nextOpenTerminalId, nextTerminalId, previousLiveTerminalId, projectScriptMenuIcon, resolveProjectScriptTerminalId, resolveTerminalSessionLabel
+- `apps/mobile/src/features/terminal/terminalPaste.ts` — exports: TerminalPasteSession, createTerminalPasteSession
+- `apps/mobile/src/features/terminal/terminalPreferences.ts` — exports: DEFAULT_TERMINAL_FONT_SIZE, MAX_TERMINAL_FONT_SIZE, MIN_TERMINAL_FONT_SIZE, TERMINAL_FONT_SIZE_STEP, normalizeTerminalFontSize
+- `apps/mobile/src/features/terminal/terminalTheme.ts` — exports: TerminalAppearanceScheme, TerminalTheme, buildGhosttyThemeConfig, getMobileTerminalTheme
+- `apps/mobile/src/features/terminal/terminalUiState.ts` — exports: TerminalGridSize, TerminalUiStateTarget, cacheTerminalGridSize, getCachedTerminalGridSize, resetTerminalUiStateCaches
+- `apps/mobile/src/features/terminal/useTerminalGridSync.ts` — exports: useTerminalGridSync
+- `apps/mobile/src/features/terminal/useTerminalLifecycle.ts` — exports: useTerminalLifecycle
+- `apps/mobile/src/features/terminal/useTerminalSurfaceBuffer.ts` — exports: useTerminalSurfaceBuffer
+- `apps/mobile/src/features/threads/BrowserAppIcon.tsx` — exports: BrowserAppIcon
+- `apps/mobile/src/features/threads/ChatGptSharingStatus.tsx` — exports: ChatGptSharingStatus
+- `apps/mobile/src/features/threads/ComposerAttachmentButton.tsx` — exports: ComposerAttachmentButton
+- `apps/mobile/src/features/threads/ComposerCommandPopover.tsx` — exports: ComposerCommandItem
+- `apps/mobile/src/features/threads/ComposerErrorNotice.tsx` — exports: ComposerErrorNotice
+- `apps/mobile/src/features/threads/ComposerFeedback.tsx` — exports: ComposerFeedback
+- `apps/mobile/src/features/threads/ComposerPopoverAnchor.android.tsx` — exports: ComposerPopoverAnchor
+- `apps/mobile/src/features/threads/ComposerPopoverAnchor.tsx` — exports: ComposerPopoverAnchor
+- `apps/mobile/src/features/threads/ComposerPopoverHost.tsx` — exports: ComposerPopoverHost, useComposerPopoverHost
+- `apps/mobile/src/features/threads/ComposerQueuedEdit.tsx` — exports: ComposerQueuedEditAttachments, ComposerQueuedEditBanner
+- `apps/mobile/src/features/threads/ComposerUsageLimits.tsx` — exports: ComposerUsageLimits
+- `apps/mobile/src/features/threads/CopyTextButton.tsx` — exports: 
+- `apps/mobile/src/features/threads/CustomSnoozeSheet.android.tsx` — exports: CustomSnoozeSheet
+- `apps/mobile/src/features/threads/CustomSnoozeSheet.ios.tsx` — exports: CustomSnoozeSheet
+- `apps/mobile/src/features/threads/CustomSnoozeSheet.shared.tsx` — exports: CustomSnoozeSheet
+- `apps/mobile/src/features/threads/CustomSnoozeSheet.tsx` — exports: CustomSnoozeSheet
+- `apps/mobile/src/features/threads/GitActionProgressOverlay.tsx` — exports: GitActionProgressOverlay
+- `apps/mobile/src/features/threads/HtmlRenderWebView.tsx` — exports: HtmlRenderWebView, ThreadHtmlRender, htmlRenderRowHeight
+- `apps/mobile/src/features/threads/LinkedPullRequestList.tsx` — exports: linkedPullRequestKey, useLinkedPullRequestLines
+- `apps/mobile/src/features/threads/McpAppFullscreenScreen.tsx` — exports: McpAppFullscreenScreen
+- `apps/mobile/src/features/threads/McpAppWebView.tsx` — exports: ThreadMcpApp
+- `apps/mobile/src/features/threads/NewTaskContextPickerScreens.tsx` — exports: BranchPickerScreen, NewTaskBranchPickerRouteScreen, NewTaskEnvironmentPickerRouteScreen
+- `apps/mobile/src/features/threads/NewTaskDraftRouteScreen.tsx` — exports: NewTaskDraftRouteScreen
+- `apps/mobile/src/features/threads/NewTaskDraftScreen.tsx` — exports: NewTaskDraftScreen
+- `apps/mobile/src/features/threads/NewTaskRouteScreen.tsx` — exports: NewTaskRouteScreen
+- `apps/mobile/src/features/threads/PendingApprovalCard.tsx` — exports: PendingApprovalCard, PendingApprovalCardProps
+- `apps/mobile/src/features/threads/PendingUserInputCard.tsx` — exports: PendingUserInputCard, PendingUserInputCardProps
+- `apps/mobile/src/features/threads/ProjectCloneBanner.tsx` — exports: ProjectCloneBanner
+- `apps/mobile/src/features/threads/ProposedPlanCard.tsx` — exports: ProposedPlanCard
+- `apps/mobile/src/features/threads/ProviderSubagentBar.tsx` — exports: ProviderSubagentBar
+- `apps/mobile/src/features/threads/QuestionAnswerHistory.tsx` — exports: QuestionAnswerHistory
+- `apps/mobile/src/features/threads/QuestionAttachments.tsx` — exports: QuestionAttachments
+- `apps/mobile/src/features/threads/SecretRequestCard.tsx` — exports: SecretRequestCard
+- `apps/mobile/src/features/threads/SubagentRow.tsx` — exports: SubagentRow
+- `apps/mobile/src/features/threads/SubagentStatusDot.tsx` — exports: SUBAGENT_TONE_TEXT_CLASS, SubagentStatusDot, string
+- `apps/mobile/src/features/threads/ThreadAgentsSheet.tsx` — exports: ThreadAgentsSheet, useThreadTurnSubagents
+- `apps/mobile/src/features/threads/ThreadArrangementSheet.tsx` — exports: ThreadArrangementHost, ThreadArrangementSheet
+- `apps/mobile/src/features/threads/ThreadBackgroundWorkSheet.tsx` — exports: ThreadBackgroundWorkSheet
+- `apps/mobile/src/features/threads/ThreadComposer.tsx` — exports: COMPOSER_COLLAPSED_CHROME, COMPOSER_EXPANDED_CHROME, COMPOSER_LAYOUT_TRANSITION, COMPOSER_TRANSITION_DURATION_MS, ComposerSurface, ThreadComposerProps
+- `apps/mobile/src/features/threads/ThreadCreationFailedCard.tsx` — exports: ThreadCreationFailedCard
+- `apps/mobile/src/features/threads/ThreadDetailScreen.tsx` — exports: ThreadDetailScreenProps
+- `apps/mobile/src/features/threads/ThreadFeed.tsx` — exports: ThreadFeedHistoryControls, ThreadFeedProps
+- `apps/mobile/src/features/threads/ThreadGitControls.android.tsx` — exports: ThreadGitControls, ThreadGitMenu, ThreadGitMenuProps, useThreadGitCenterHeaderItems, useThreadGitMenuDefinition, useThreadGitRightHeaderItems
+- `apps/mobile/src/features/threads/ThreadGitControls.tsx` — exports: ThreadGitControls, ThreadGitMenu, ThreadGitMenuProps, useThreadGitCenterHeaderItems, useThreadGitMenuDefinition, useThreadGitRightHeaderItems
+- `apps/mobile/src/features/threads/ThreadHeader.tsx` — exports: ThreadHeader
+- `apps/mobile/src/features/threads/ThreadMarkdownImage.tsx` — exports: MarkdownImageAvailableWidthContext, ThreadMarkdownImage, ThreadMarkdownImageUnavailable, ThreadMarkdownImageView
+- `apps/mobile/src/features/threads/ThreadMarkdownVideo.tsx` — exports: ThreadMarkdownVideo, ThreadMediaVisibleContext
+- `apps/mobile/src/features/threads/ThreadNavigationSidebar.tsx` — exports: ThreadNavigationSidebar
+- `apps/mobile/src/features/threads/ThreadPullRequestsSheet.tsx` — exports: ThreadPullRequestsSheet
+- `apps/mobile/src/features/threads/ThreadQueueControl.tsx` — exports: ThreadQueueSheet, useThreadQueueWorkflow, useThreadQueuedCount
+- `apps/mobile/src/features/threads/ThreadRouteScreen.tsx` — exports: ThreadRouteScreen
+- `apps/mobile/src/features/threads/ThreadSettingsRows.android.tsx` — exports: ChoiceRow, ModelRow
+- `apps/mobile/src/features/threads/ThreadSettingsRows.shared.tsx` — exports: ChoiceRowContent, ChoiceRowProps, ModelRowContent, ModelRowProps
+- `apps/mobile/src/features/threads/ThreadSettingsRows.tsx` — exports: ChoiceRow, ModelRow
+- `apps/mobile/src/features/threads/ThreadSettingsSheet.tsx` — exports: ExistingThreadSettingsRouteProvider, ExistingThreadSettingsRouteScreen, ExistingThreadSettingsRouteSession, NewTaskThreadSettingsRouteScreen, ThreadSettingsPickerScreen, useExistingThreadSettingsRoutePresentation
+- `apps/mobile/src/features/threads/UsageLimitRecoveryCard.tsx` — exports: UsageLimitRecoveryCard
+- `apps/mobile/src/features/threads/checkout-new-task-branch.ts` — exports: checkoutNewTaskBranch
+- `apps/mobile/src/features/threads/composerSendPresentation.ts` — exports: ComposerSendPresentation, resolveComposerSendPresentation
+- `apps/mobile/src/features/threads/composerSlashSkillSearch.ts` — exports: matchesSlashSkillQuery
+- `apps/mobile/src/features/threads/customSnoozeDate.ts` — exports: applySnoozePickerDate, applySnoozePickerTime, snoozeDateToPickerDate
+- `apps/mobile/src/features/threads/fileChipMenu.ts` — exports: FileChipTarget, fileChipClipboardPath, fileChipMenu, fileChipShareSource, resolveFileChipTarget
+- `apps/mobile/src/features/threads/floating-working-control.tsx` — exports: FLOATING_WORKING_CONTROL_COVERAGE, FloatingWorkingControl, WorkingTimer
+- `apps/mobile/src/features/threads/floating-working-status.ts` — exports: FloatingStatusAction, FloatingWorkingStatus, connectionFloatingStatus
+- `apps/mobile/src/features/threads/git/GitBranchesSheet.tsx` — exports: GitBranchesSheet
+- `apps/mobile/src/features/threads/git/GitCommitSheet.tsx` — exports: GitCommitSheet
+- `apps/mobile/src/features/threads/git/GitConfirmSheet.tsx` — exports: GitConfirmSheet
+- `apps/mobile/src/features/threads/git/GitOverviewSheet.tsx` — exports: GitOverviewSheet
+- `apps/mobile/src/features/threads/git/git-overview-navigation.ts` — exports: resolveGitOverviewReviewNavigationAction
+- `apps/mobile/src/features/threads/git/gitSheetComponents.tsx` — exports: SheetActionButton, menuItemIconName, statusSummary
+- `apps/mobile/src/features/threads/markdownCodeHighlightState.ts` — exports: MarkdownCodeHighlightInput, MarkdownHighlightedCode, createMarkdownCodeHighlightAtomFamily, markdownCodeHighlightAtom, useMarkdownCodeHighlight
+- `apps/mobile/src/features/threads/markdownImageSize.ts` — exports: MARKDOWN_IMAGE_MAX_HEIGHT, MARKDOWN_IMAGE_MAX_WIDTH, MarkdownImageDisplaySize, resolveMarkdownImageDisplaySize, resolveSvgImageSize
+- `apps/mobile/src/features/threads/mcpAppSizing.ts` — exports: MCP_APP_INLINE_MAX_HEIGHT, mcpAppInlineHeight
+- `apps/mobile/src/features/threads/messageImageGallery.ts` — exports: messageImageGallery
+- `apps/mobile/src/features/threads/new-task-context-presentation.ts` — exports: filterNewTaskBranches, resolveNewTaskBranchLabel, resolveNewTaskBranchWorktreePath, resolveNewTaskLocalWorkspaceSelection, resolveNewTaskWorkspaceLabel, resolveNewTaskWorkspaceSelection, shouldCheckoutNewTaskBranch
+- `apps/mobile/src/features/threads/new-task-flow-provider.tsx` — exports: NewTaskFlowProvider, branchBadgeLabel, useNewTaskFlow
+- `apps/mobile/src/features/threads/new-task-project-selection.ts` — exports: filterProjectScopes, getProjectScopeSelectionTarget, resolveDraftProjectSelection, resolveEnvironmentProjectMatch
+- `apps/mobile/src/features/threads/pending-thread-feed.ts` — exports: PendingThreadFeedEntry, appendPendingThreadMessages
+- `apps/mobile/src/features/threads/pendingUserInputLayout.ts` — exports: ESTIMATED_KEYBOARD_HEIGHT, USER_INPUT_TOGGLE_DURATION_MS, derivePendingUserInputMaxHeight
+- `apps/mobile/src/features/threads/projectThreadCreationValidation.ts` — exports: ProjectThreadBaseBranchRequiredError, ProjectThreadCreationValidationError, ProjectThreadTaskRequiredError, resolveProjectThreadCreationBranch, validateProjectThreadCreation
+- `apps/mobile/src/features/threads/provider-catalog-refresh.ts` — exports: createProviderCatalogRefreshRunner, providerCatalogRefreshError
+- `apps/mobile/src/features/threads/queued-message-icon.tsx` — exports: QueuedMessageIcon
+- `apps/mobile/src/features/threads/sidebar-filter-button.tsx` — exports: SidebarFilterButton, SidebarFilterButtonIcon
+- `apps/mobile/src/features/threads/sidebar-header-actions.tsx` — exports: SidebarHeaderActions, SidebarHeaderActionsProps
+- `apps/mobile/src/features/threads/sidebar-native-header-items.ts` — exports: createSidebarFilterHeaderItem, createSidebarHeaderItems
+- `apps/mobile/src/features/threads/sidebar-navigation-shell.tsx` — exports: SidebarNavigationShell
+- `apps/mobile/src/features/threads/subagent-card-presentation.ts` — exports: subagentCardDetail, subagentCardElapsed
+- `apps/mobile/src/features/threads/thread-command-output.tsx` — exports: ThreadCommandOutput, useCommandOutputStreaming
+- `apps/mobile/src/features/threads/thread-context-divider.tsx` — exports: ThreadContextDivider
+- `apps/mobile/src/features/threads/thread-feed-item-size.ts` — exports: resolveThreadFeedFixedItemSize
+- `apps/mobile/src/features/threads/thread-feed-live-follow.ts` — exports: ThreadFeedLiveFollowEvent, ThreadWorkGroupScrollPosition, resolveThreadFeedLiveFollow, resolveThreadFeedSubmissionAnchor, resolveThreadWorkGroupInitialScroll, shouldFollowThreadWorkGroupAppend
+- `apps/mobile/src/features/threads/thread-handoff-row.tsx` — exports: ThreadHandoffDivider, ThreadHandoffRow
+- `apps/mobile/src/features/threads/thread-inspector-content-stack.tsx` — exports: ThreadInspectorContentStack, ThreadInspectorMode
+- `apps/mobile/src/features/threads/thread-list-v2-items.tsx` — exports: 
+- `apps/mobile/src/features/threads/thread-list-v2-row-appearance.android.ts` — exports: THREAD_LIST_V2_MONO_FONT, THREAD_LIST_V2_ROW_CONTENT_CLASS_NAME, THREAD_LIST_V2_ROW_DIVIDERS, THREAD_LIST_V2_SIDEBAR_ROW_CONTAINER_STYLE, THREAD_LIST_V2_SIDEBAR_ROW_STYLE, getThreadListV2NewBranchMenuTitle, getThreadListV2RowAppearance, selectedThreadRowColors
+- `apps/mobile/src/features/threads/thread-list-v2-row-appearance.ts` — exports: THREAD_LIST_V2_MONO_FONT, THREAD_LIST_V2_ROW_CONTENT_CLASS_NAME, THREAD_LIST_V2_ROW_DIVIDERS, THREAD_LIST_V2_SIDEBAR_ROW_CONTAINER_STYLE, THREAD_LIST_V2_SIDEBAR_ROW_STYLE, getThreadListV2NewBranchMenuTitle, getThreadListV2RowAppearance, selectedThreadRowColors
+- `apps/mobile/src/features/threads/thread-provider-instance.ts` — exports: ThreadRowProviderInstance, createThreadRowProviderInstanceResolver, resolveThreadProviderInstance, useThreadRowProviderInstanceResolver
+- `apps/mobile/src/features/threads/thread-route-hydration.ts` — exports: threadRouteIsHydrating
+- `apps/mobile/src/features/threads/thread-row-emphasis.ts` — exports: shouldRecedeThreadRow
+- `apps/mobile/src/features/threads/thread-search-match.tsx` — exports: ThreadSearchMatchExcerpt
+- `apps/mobile/src/features/threads/thread-settings-options.ts` — exports: compatibleRuntimeModeForChoices, runtimeModeChoicesForSupportedModes, selectableChoices
+- `apps/mobile/src/features/threads/thread-settings-sheet-state.ts` — exports: canCommitPendingModel, favoritesFirst, modelFavoriteKey, modelMatchesCatalogQuery, pendingModelAfterPress, providerSectionIsCollapsed
+- `apps/mobile/src/features/threads/thread-subagent-group.tsx` — exports: ThreadSubagentGroup
+- `apps/mobile/src/features/threads/thread-title-regeneration-menu.ts` — exports: buildThreadTitleRegenerationMenuItems
+- `apps/mobile/src/features/threads/thread-title-rename.ts` — exports: ThreadTitleRenameResolution, resolveThreadTitleRename
+- `apps/mobile/src/features/threads/thread-work-log.tsx` — exports: ShimmeringWorkContent, THREAD_DISCLOSURE_TRANSITION_MS, ThreadDisclosureChevron, ThreadThinkingRow, ThreadWorkGroupToggle, ThreadWorkLog, WORK_GROUP_TOGGLE_HEIGHT, collapsedWorkLogHeight
+- `apps/mobile/src/features/threads/thread-workflow-opening.tsx` — exports: ThreadWorkflowOpening, useWorkflowOpening
+- `apps/mobile/src/features/threads/threadActivityFileNavigation.ts` — exports: buildThreadActivityFileParams
+- `apps/mobile/src/features/threads/threadAgentsPresentation.ts` — exports: SubagentRowPresentation, SubagentRowTone, resolveSubagentRowPresentation
+- `apps/mobile/src/features/threads/threadContentPresentation.ts` — exports: ThreadContentPresentation, projectThreadContentPresentation
+- `apps/mobile/src/features/threads/threadDragGap.ts` — exports: threadDragGapOffset
+- `apps/mobile/src/features/threads/threadForkNavigation.ts` — exports: waitForThreadShellReady
+- `apps/mobile/src/features/threads/threadListV2.ts` — exports: THREAD_LIST_V2_SETTLED_INITIAL_COUNT, THREAD_LIST_V2_SETTLED_PAGE_COUNT, ThreadListV2Item, ThreadListV2Layout, ThreadListV2ListItem, ThreadListV2PendingListItem, ThreadListV2SettledShelfListItem, ThreadListV2SnoozedShelfListItem, ThreadListV2Status, ThreadListV2SwipeAction, ThreadListV2ThreadListItem, ThreadListV2WorkingShelfListItem, buildThreadListV2Items, buildThreadListV2ListItems, getThreadListV2OrderedSection, isThreadListV2ListItem, resolveThreadListV2ProviderDrivers, resolveThreadListV2SnoozeGateExpiryMs, resolveThreadListV2SnoozeMenuSelection, resolveThreadListV2Status, resolveThreadListV2SwipeActions, resolveThreadListV2WokeAt, snoozeWakeLabel, sortThreadsForListV2, threadHasUnseenCompletion, threadListInboxReturns, threadListV2ListItemsAreEqual
+- `apps/mobile/src/features/threads/threadOrder.ts` — exports: OrderRow, PendingThreadOrder, ThreadDragSection, ThreadMoveAvailability, ThreadMoveDestination, applyPendingThreadOrder, computeThreadMoveAvailability, createPendingThreadOrder, createThreadMovePlanner, reconcilePendingThreadOrder, threadDragAction, threadDropLifecycle, threadOrderAfterMove
+- `apps/mobile/src/features/threads/threadQueueControlPresentation.ts` — exports: REMOVE_QUEUED_MESSAGE_ACCESSIBILITY_LABEL, ThreadQueueRowControls, buildCancelQueuedRunCommand, resolveQueueDragBeforeRunId, resolveQueueDropBeforeRunId, resolveThreadQueueRowControls
+- `apps/mobile/src/features/threads/use-composer-command-menu.ts` — exports: buildComposerSlashCommandItems, resolveComposerCommandSelection, useComposerCommandMenu
+- `apps/mobile/src/features/threads/use-legacy-plan-mode-enabled.ts` — exports: useLegacyPlanModeState
+- `apps/mobile/src/features/threads/use-open-thread-pull-requests.ts` — exports: useOpenThreadPullRequests
+- `apps/mobile/src/features/threads/use-thread-list-v2-shelf-preferences.ts` — exports: useThreadListV2ShelfPreferences
+- `apps/mobile/src/features/threads/use-thread-settings-sheet-presentation.ts` — exports: NavigationWithFinishTransitioning, useThreadSettingsSheetPresentation
+- `apps/mobile/src/features/threads/use-visible-second-clock.ts` — exports: useVisibleSecondClock
+- `apps/mobile/src/features/threads/use-worktree-setup.ts` — exports: useWorktreeSetup
+- `apps/mobile/src/features/threads/useFileChipShare.ts` — exports: useFileChipShare
+- `apps/mobile/src/features/threads/useLinkedPullRequestActions.ts` — exports: LinkedPullRequestActions, useLinkedPullRequestActions
+- `apps/mobile/src/features/threads/useThreadHeaderOptions.android.ts` — exports: useThreadHeaderOptions
+- `apps/mobile/src/features/threads/useThreadHeaderOptions.tsx` — exports: useThreadHeaderOptions
+- `apps/mobile/src/features/threads/userMessageIntentBadge.ts` — exports: UserMessageIntentBadgePresentation, resolveUserMessageIntentBadge
+- `apps/mobile/src/features/threads/work-log-layout.tsx` — exports: WorkLogBlock, WorkLogIconSlot, WorkLogLabel, WorkLogPressable, WorkLogRows
+- `apps/mobile/src/features/threads/worktree-setup-card.tsx` — exports: WorktreeSetupCard, WorktreeSetupCardProps, WorktreeWorkingHeader
+- `apps/mobile/src/features/threads/worktree-setup-sheet.android.tsx` — exports: WorktreeSetupSheet
+- `apps/mobile/src/features/threads/worktree-setup-sheet.tsx` — exports: WorktreeSetupSheet, WorktreeSetupSheetProps
+- `apps/mobile/src/features/threads/worktree-setup-state.ts` — exports: resolveWorktreeSetupSnapshot
+- `apps/mobile/src/features/updates/app-updates.ts` — exports: AppUpdateCheckState, AppUpdateClient, AppUpdateDeferral, AppUpdateEnvironment, DEFERRED_INSTALL_PROMPT_AFTER_MS, FOREGROUND_APP_UPDATE_RECHECK_AFTER_MS, checkForAppUpdateOnLaunch, createAppUpdateDeferral, createAppUpdateForegroundRecheck, createAppUpdateLaunchCheck, isAppUpdateCheckAvailable, registerHiddenUpdateTap, runAppUpdateCheck, shouldRecheckAppUpdateOnForeground, startAppUpdateForegroundRecheck
+- `apps/mobile/src/features/usage/ChatGptUsageSummary.tsx` — exports: ChatGptUsageSummary
+- `apps/mobile/src/features/usage/UsageDailyChart.ios.tsx` — exports: UsageDailyChart, UsageDailyChartProps
+- `apps/mobile/src/features/usage/UsageDailyChart.tsx` — exports: UsageDailyChart, UsageDailyChartProps
+- `apps/mobile/src/features/usage/UsageLimitsPooled.tsx` — exports: UsageLimitAccountScreen, UsageLimitsSection
+- `apps/mobile/src/features/usage/UsageLimitsSection.tsx` — exports: AccountLimits, ResetCredits, useRefreshLimits
+- `apps/mobile/src/features/usage/UsageRouteScreen.tsx` — exports: UsageRouteScreen
+- `apps/mobile/src/features/usage/usageChartData.ts` — exports: UsageChartDay, UsageChartMetric, buildChartDays
+- `apps/mobile/src/features/usage/usageEnvironmentSelection.ts` — exports: toggleUsageEnvironment
+- `apps/mobile/src/features/usage/usageProviders.ts` — exports: PROVIDER_LABELRecordUsageProviderKind, PROVIDER_ORDERreadonlyUsageProviderKind, string, usageProviderKind, useProviderColors, useUsageMixColors
+- `apps/mobile/src/features/voice-input/ComposerDictationControl.tsx` — exports: ComposerDictationCancelAction, ComposerDictationDraftContent, ComposerDictationPrimaryAction, ComposerDictationStartAction, ComposerDictationStatus, ComposerDictationToolbar, DictationElapsedTime
+- `apps/mobile/src/features/voice-input/GlobalVoiceInputControl.tsx` — exports: GlobalVoiceInputControl
+- `apps/mobile/src/features/voice-input/VoiceInputProvider.tsx` — exports: VoiceInputProvider, useGlobalVoiceInput
+- `apps/mobile/src/features/voice-input/lazyVoiceRecorder.ts` — exports: LazyVoiceRecorder, NativeVoiceRecorder, VoiceRecordingInput, createLazyVoiceRecorder
+- `apps/mobile/src/features/voice-input/useVoiceInputController.ts` — exports: useVoiceInputController
+- `apps/mobile/src/features/voice-input/voiceInputMetering.ts` — exports: VOICE_WAVEFORM_SAMPLE_COUNT, normalizeVoiceInputDecibels
+- `apps/mobile/src/features/voice-input/voiceInputPresentation.ts` — exports: VoiceComposerPresentation, resolveVoiceComposerPresentation
+- `apps/mobile/src/features/voice-input/voiceInputSession.ts` — exports: VoiceInputSession, VoiceInputTarget, createVoiceInputTarget
+- `apps/mobile/src/features/workspace/AndroidWorkspaceNavigation.android.tsx` — exports: ANDROID_WORKSPACE_RAIL_WIDTH, AndroidWorkspaceNavigation
+- `apps/mobile/src/features/workspace/AndroidWorkspaceNavigation.tsx` — exports: ANDROID_WORKSPACE_RAIL_WIDTH, AndroidWorkspaceNavigation
+- `apps/mobile/src/features/workspace/AndroidWorkspaceSettings.tsx` — exports: AndroidWorkspaceSettings
+- `apps/mobile/src/features/workspace/AndroidWorkspaceSidebar.android.tsx` — exports: AndroidWorkspaceSidebar
+- `apps/mobile/src/features/workspace/AndroidWorkspaceSidebar.tsx` — exports: AndroidWorkspaceSidebar
+- `apps/mobile/src/features/workspace/AndroidWorkspaceTabsProvider.tsx` — exports: AndroidWorkspaceTabsProvider, useAndroidWorkspaceRoot
+- `apps/mobile/src/features/workspace/ListFilterMenu.tsx` — exports: ListFilterMenu
+- `apps/mobile/src/features/workspace/WorkspaceDock.tsx` — exports: WorkspaceDock
+- `apps/mobile/src/features/workspace/WorkspaceListToolbarRow.tsx` — exports: WorkspaceListToolbarRow
+- `apps/mobile/src/features/workspace/WorkspaceNativeTabs.ios.tsx` — exports: WorkspaceNativeTabs
+- `apps/mobile/src/features/workspace/WorkspaceRootScreen.android.tsx` — exports: WorkspaceRootScreen
+- `apps/mobile/src/features/workspace/WorkspaceRootScreen.tsx` — exports: WorkspaceRootScreen
+- `apps/mobile/src/features/workspace/WorkspaceSidebarTabs.ios.tsx` — exports: WorkspaceSidebarTabs
+- `apps/mobile/src/features/workspace/WorkspaceSidebarTabs.tsx` — exports: WorkspaceSidebarTabs
+- `apps/mobile/src/features/workspace/WorkspaceTabPanes.tsx` — exports: WorkspaceTabPanes
+- `apps/mobile/src/features/workspace/WorkspaceTabsContext.tsx` — exports: WorkspaceTabsProvider, useWorkspaceTabs
+- `apps/mobile/src/features/workspace/WorkspaceToolbar.ios.tsx` — exports: WorkspaceToolbar
+- `apps/mobile/src/features/workspace/WorkspaceToolbar.tsx` — exports: WorkspaceToolbar
+- `apps/mobile/src/features/workspace/android-workspace-navigation-colors.ts` — exports: androidWorkspaceNavigationColors
+- `apps/mobile/src/features/workspace/android-workspace-tabs.ts` — exports: AndroidWorkspaceNavigationTab, androidWorkspaceSettingsOpen, androidWorkspaceTabFromNavigationState, androidWorkspaceTabNavigationState
+- `apps/mobile/src/features/workspace/useAndroidWorkspaceNavigation.ts` — exports: useAndroidWorkspaceBack, useWorkspaceBackNavigation, useWorkspaceListNavigation
+- `apps/mobile/src/features/workspace/useAndroidWorkspaceSelection.ts` — exports: useAndroidWorkspaceSelection
+- `apps/mobile/src/features/workspace/useSelectWorkspaceTab.ts` — exports: useSelectWorkspaceTab
+- `apps/mobile/src/features/workspace/useSystemWorkspaceTabBar.ts` — exports: useSidebarWorkspaceTabs, useSystemWorkspaceTabBar
+- `apps/mobile/src/features/workspace/workspace-tabs-state.ts` — exports: WORKSPACE_DOCK, WORKSPACE_TOOLBAR, WorkspaceSearchMode, WorkspaceTab, WorkspaceTabState, WorkspaceTabsAction, WorkspaceTabsState, initialWorkspaceTabsState, workspaceTabsReducer, workspaceToolbarHeight
+- `apps/mobile/src/lib/adaptive-navigation.ts` — exports: AdaptiveNavigationAction, isBaseThreadRoute, resolveFileSelectionNavigationAction, resolveThreadSelectionNavigationAction, resolveThreadSelectionOverlayState
+- `apps/mobile/src/lib/android-workspace-navigation.ts` — exports: AndroidWorkspaceDestination, AndroidWorkspaceResetAction, androidWorkspaceDestinationAnimation, androidWorkspaceNavigationState, parentThreadIsBelow, resetAndroidWorkspace, returnToAndroidWorkspaceList
+- `apps/mobile/src/lib/androidControlSizing.ts` — exports: resolveAndroidControlSizing
+- `apps/mobile/src/lib/appLinking.ts` — exports: shouldHandleAppLink
+- `apps/mobile/src/lib/appearancePreferences.ts` — exports: AppearancePreferences, BASE_FONT_SIZE_STEP, CODE_FONT_SIZE_STEP, DEFAULT_BASE_FONT_SIZE, DEFAULT_CODE_FONT_SIZE, DEFAULT_TERMINAL_FONT_SIZE, MAX_BASE_FONT_SIZE, MAX_CODE_FONT_SIZE, MAX_TERMINAL_FONT_SIZE, MIN_BASE_FONT_SIZE, MIN_CODE_FONT_SIZE, MIN_TERMINAL_FONT_SIZE, NativeMarkdownTypography, ResolvedAppearance, ResolvedMarkdownFontSizes, ResolvedMobileCodeSurface, TERMINAL_FONT_SIZE_STEP, normalizeBaseFontSize, normalizeTerminalFontSize, resolveAppearance, resolveAppearancePreferences, resolveMarkdownFontSizes, resolveMobileCodeSurface, resolveNativeMarkdownTypography, resolveScaledTextRole, resolveTextScaleVariables, scaledTypographyLineHeight, stepTerminalFontSize
+- `apps/mobile/src/lib/assetImageSource.ts` — exports: assetImageSource
+- `apps/mobile/src/lib/atomic-file.ts` — exports: writeFileAtomically
+- `apps/mobile/src/lib/attachmentDocument.ts` — exports: useAttachmentDocument
+- `apps/mobile/src/lib/attachmentDocumentPresentation.ts` — exports: attachmentDocumentPresentation
+- `apps/mobile/src/lib/attachmentDownload.ts` — exports: AttachmentPreviewFile, downloadAndShareAttachment, downloadAttachmentForPreview, nativeViewerErrorMessage, openAttachmentInViewer, shareGeneratedAttachment, shareLocalAttachment
+- `apps/mobile/src/lib/attachmentUpload.ts` — exports: PrepareTurnAttachmentsResult, PreparedTurnAttachments, UploadedMobileAttachment, composerAttachmentWireMimeType, prepareTurnAttachments, releasePendingAttachmentUploads, validateDraftFileAttachments, withUploadedMobileAttachmentReferences
+- `apps/mobile/src/lib/authClientMetadata.ts` — exports: authClientMetadata
+- `apps/mobile/src/lib/base64.ts` — exports: estimateBase64ByteSize
+- `apps/mobile/src/lib/cn.ts` — exports: cn
+- `apps/mobile/src/lib/commandMetadata.ts` — exports: TurnCommandMetadata, makeQueuedMessageMetadata, makeTurnCommandMetadata
+- `apps/mobile/src/lib/composer-image-schema.ts` — exports: DraftComposerAttachmentSchema, DraftComposerFileAttachmentSchema, DraftComposerImageAttachmentSchema
+- `apps/mobile/src/lib/composerAttachmentFiles.ts` — exports: COMPOSER_ATTACHMENT_DIRECTORY, composerAttachmentFileReferenceKey, isComposerAttachmentFileRetained, resolveOwnedComposerAttachmentFileUri, retainComposerAttachmentFile
+- `apps/mobile/src/lib/composerAttachmentPreviewRetention.ts` — exports: registerComposerAttachmentUnusedHandler, retainComposerAttachmentFileForPreview
+- `apps/mobile/src/lib/composerAttachmentUploadQueue.ts` — exports: ComposerAttachmentUploadRequest, ComposerAttachmentUploadState, canUploadComposerAttachment, composerAttachmentUploadBlockReason, composerAttachmentUploadKey, composerAttachmentsStillUploading, composerDraftEnvironmentId, createComposerAttachmentUploadQueue
+- `apps/mobile/src/lib/composerChipPresentation.ts` — exports: ContextChipIcon, ContextChipIconRef, UNAVAILABLE_CONTEXT_CHIP_PRESENTATIONContextChipPresentation, composerChipSizeSuffix, contextChipIcon, contextChipPresentation, contextRecordFileName
+- `apps/mobile/src/lib/composerContext.ts` — exports: ComposerDocumentAttachment, composerContextEditorTokens, composerContextSendBlockReason, composerDocumentAttachment, composerDocumentAttachmentRecord, composerMentionPath, composerSkillLabels, createComposerContextHistory, pullRequestComposerContext, referencedComposerContext, reidentifyComposerContext, serializeComposerMessageForServer, threadComposerContext, uploadedComposerContext
+- `apps/mobile/src/lib/composerContextClipboard.ts` — exports: NativeContextClipboard, importComposerContextClipboard, writeComposerContextClipboard
+- `apps/mobile/src/lib/composerEnterBehavior.ts` — exports: ComposerEnterBehavior, DEFAULT_COMPOSER_ENTER_BEHAVIORComposerEnterBehavior
+- `apps/mobile/src/lib/composerImageFit.ts` — exports: fitComposerImage, renderPhoto
+- `apps/mobile/src/lib/composerImageGallery.ts` — exports: composerImageGallery
+- `apps/mobile/src/lib/composerImages.ts` — exports: DraftComposerAttachment, DraftComposerFileAttachment, DraftComposerImageAttachment, FileBackedComposerAttachment, composerAttachmentInlineUri, composerStripAttachments, convertPastedImagesToAttachments, createPastedTextComposerAttachment, isComposerImageAttachment, isFileBackedComposerAttachment, isOwnedPastedImageUri, pasteComposerClipboard, persistComposerAttachmentFile, pickComposerFiles, pickComposerImages, pickComposerMedia, removePersistedComposerAttachmentFile
+- `apps/mobile/src/lib/connection.ts` — exports: RemoteClientConnectionState, SavedRemoteConnection, isRelayManagedConnection, toStableSavedRemoteConnection
+- `apps/mobile/src/lib/contextChipIconSource.ts` — exports: contextChipIconSource, contextChipIconUri
+- `apps/mobile/src/lib/contextChipIcons.generated.ts` — exports: CONTEXT_CHIP_ICON_SOURCES, ImageSourcePropType
+- `apps/mobile/src/lib/contextImageGallery.ts` — exports: contextImageGallery
+- `apps/mobile/src/lib/copyTextWithHaptic.ts` — exports: CopyTextClipboardWriteError, CopyTextHapticFeedbackError, copyTextWithHaptic, tryCopyTextWithHaptic
+- `apps/mobile/src/lib/debugLog.ts` — exports: DebugLogger, DebugLoggerOptions, createDebugLogger
+- `apps/mobile/src/lib/designTokens.ts` — exports: MOBILE_MOTION, MOBILE_SHAPE
+- `apps/mobile/src/lib/device-type.ts` — exports: DeviceType, deriveDeviceType, isDuoDevice
+- `apps/mobile/src/lib/enrichedLinkPresentation.ts` — exports: ENRICHED_INLINE_FILE_LINK_REGEX, enrichedContextLinkPresentation, enrichedLinkVariantPattern, enrichedSkillDisplayName, enrichedSkillInstructionsPath, enrichedSkillLinkRegex, enrichedSkillReference
+- `apps/mobile/src/lib/filePreview.ts` — exports: isPdfFile
+- `apps/mobile/src/lib/filePreviewGallery.ts` — exports: filePreviewGallery, filePreviewKey, filePreviewName
+- `apps/mobile/src/lib/followUpBehavior.ts` — exports: DEFAULT_FOLLOW_UP_BEHAVIORFollowUpBehavior, FollowUpBehavior
+- `apps/mobile/src/lib/fontFamilies.ts` — exports: FONT_FAMILIES
+- `apps/mobile/src/lib/foreground-handoff.ts` — exports: beginForegroundHandoff, isForegroundHandoffActive
+- `apps/mobile/src/lib/foundation-fast-refresh.ts` — exports: FoundationHotModule, disposeOnFoundationReplace
+- `apps/mobile/src/lib/hot-swappable-atom-runtime.ts` — exports: AcceptingHotModule, hotSwappableAtomRuntime
+- `apps/mobile/src/lib/htmlRenderTheme.ts` — exports: mobileHtmlRenderTheme
+- `apps/mobile/src/lib/layout.ts` — exports: ANDROID_READING_MAX_WIDTH, AUXILIARY_PANE_MAX_WIDTH, AUXILIARY_PANE_MIN_CONTENT_WIDTH, AUXILIARY_PANE_MIN_WIDTH, CHAT_CONTENT_MAX_WIDTH, FileInspectorPaneLayout, Layout, LayoutVariant, SPLIT_LAYOUT_MIN_HEIGHT, SPLIT_LAYOUT_MIN_WIDTH, SPLIT_SIDEBAR_MIN_WIDTH, THREAD_WORK_ROW_MIN_HEIGHT, VerticalHinge, WorkspaceAuxiliaryPaneRole, WorkspacePaneLayout, alignListPaneToHinge, constrainAuxiliaryPaneWidth, deriveCenteredContentHorizontalPadding, deriveFileInspectorPaneLayout, deriveLayout, deriveThreadFeedInitialContentInset, deriveThreadWorkLogSizing, deriveWorkspacePaneLayout, isPrimarySidebarPinned
+- `apps/mobile/src/lib/layoutMetrics.ts` — exports: APP_BAR_HEIGHT, HOME_HORIZONTAL_INSET, IOS_NAV_BAR_HEIGHT, IPAD_HOME_TITLE_OFFSET
+- `apps/mobile/src/lib/localAttachmentPreview.ts` — exports: loadLocalAttachmentPreview
+- `apps/mobile/src/lib/markdownDocument.ts` — exports: MarkdownNode, markdownHtmlContent, markdownWithHtml, markdownWithInlineFileLinks, markdownWithTableBreaks, parseMarkdownDocument
+- `apps/mobile/src/lib/markdownFileIcons.generated.ts` — exports: ImageSourcePropType, MARKDOWN_FILE_ICON_SOURCES
+- `apps/mobile/src/lib/markdownFileIcons.ts` — exports: markdownFileIconSource, markdownIconAssetUri
+- `apps/mobile/src/lib/markdownImageSources.ts` — exports: markdownImageSources
+- `apps/mobile/src/lib/markdownLinkIcons.ts` — exports: markdownLinkIconSource
+- `apps/mobile/src/lib/markdownLinks.ts` — exports: MarkdownFileIcon, MarkdownLinkIcon, MarkdownLinkPresentation, normalizeNativeMarkdownUrl, resolveMarkdownFileIcon, resolveMarkdownInlineCodePresentation, resolveMarkdownLinkIcon, resolveMarkdownLinkPresentation
+- `apps/mobile/src/lib/markdownMedia.ts` — exports: resolveMarkdownMediaPreview
+- `apps/mobile/src/lib/markdownMediaSource.ts` — exports: resolveMobileMarkdownMediaSource
+- `apps/mobile/src/lib/materialYouPalette.android.ts` — exports: isSystemColorsAvailable, readSystemColorPalettes
+- `apps/mobile/src/lib/materialYouPalette.ts` — exports: MaterialYouPalette, MaterialYouPalettes, isSystemColorsAvailable, readSystemColorPalettes
+- `apps/mobile/src/lib/materialYouTheme.android.ts` — exports: materialYouPaletteToMobileThemeVariables
+- `apps/mobile/src/lib/materialYouTheme.ts` — exports: materialYouPaletteToMobileThemeVariables
+- `apps/mobile/src/lib/mediaActionsSource.ts` — exports: MediaActionsSource
+- `apps/mobile/src/lib/menu-action-colors.ts` — exports: withMenuActionIconColors
+- `apps/mobile/src/lib/menu-placement.ts` — exports: deriveMenuHorizontalPlacement
+- `apps/mobile/src/lib/microphonePriority.ts` — exports: MICROPHONE_KINDS, MicrophoneDevice, MicrophoneEntry, MicrophoneKind, isMicrophoneDevice, isMicrophoneKind, microphoneEntryKey, microphoneOrder, preferredMicrophoneInput, rememberMicrophones
+- `apps/mobile/src/lib/mobileBranding.ts` — exports: MobileStageLabel, resolveMobileStageLabel
+- `apps/mobile/src/lib/mobileTheme.test-support.ts` — exports: readDefaultMobileThemeVariables, readGeneratedMobileThemeVariables
+- `apps/mobile/src/lib/mobileTheme.ts` — exports: DEFAULT_MOBILE_THEME_ID, MOBILE_THEME_IDS, MOBILE_THEME_VARIABLE_NAMES, MobileThemeAppearance, MobileThemeId, MobileThemeIds, MobileThemeMode, MobileThemeVariable, MobileThemeVariables, createMobileThemePairPatch, createMobileThemeSelectionPatch, createMobileThemeVariables, flattenThemeColor, getMobileThemeColors, getMobileThemePreviewColors, getMobileThemeVariables, nativeColors, normalizeMobileThemeId, normalizeMobileThemeMode, resolveMobileThemeIds, themeColorToNativeColor, themeColorWithAlpha, themeColorWithContrast
+- `apps/mobile/src/lib/mobileThemeRuntime.ts` — exports: MobileThemeRuntimeOperation, MobileThemeRuntimeState, MobileUniwindThemeName, createMobileThemeRuntimeOperations, getMobileUniwindThemeName
+- `apps/mobile/src/lib/mobileThemeVariables.ts` — exports: getMobileThemeRuntimeVariables
+- `apps/mobile/src/lib/modelOptions.ts` — exports: ModelOption, ProviderGroup, buildModelMenuActions, buildModelOptions, describeUnavailableModelSelection, groupByProvider, isModelSelectionUnavailable, resolveDefaultableModelSelection, resolveNewTaskModelSelection, resolveSelectableModelSelection
+- `apps/mobile/src/lib/native-glass-capability.ts` — exports: supportsNativeLiquidGlass
+- `apps/mobile/src/lib/nativeComposerTheme.ts` — exports: createNativeComposerTheme
+- `apps/mobile/src/lib/nativeTheme.ts` — exports: createNativeThemeColors
+- `apps/mobile/src/lib/openExternalUrl.ts` — exports: ExternalUrlOpenError, ExternalUrlTarget, tryOpenExternalUrl
+- `apps/mobile/src/lib/pdfPreview.ts` — exports: isPdfPreviewUri, pdfInitialPage, pdfLinkUrl, preparePdfPreview
+- `apps/mobile/src/lib/projectFaviconDatabaseCache.ts` — exports: attachProjectFaviconDatabase, downscaleProjectFavicon
+- `apps/mobile/src/lib/projectFaviconRequests.ts` — exports: ProjectFaviconRequest, beginProjectFaviconRequest, createProjectFaviconRequest, hasLoadedProjectFavicon, markProjectFaviconFailed, markProjectFaviconLoaded
+- `apps/mobile/src/lib/projectIcon.ts` — exports: ProjectIconGlyph, countGlyphs, projectIconColorClassNames, projectMonogram, resolveProjectIconGlyph
+- `apps/mobile/src/lib/projectThreadStartTurn.ts` — exports: ProjectThreadStartTurnSpec, buildProjectThreadStartTurnInput, deriveThreadTitleFromPrompt
+- `apps/mobile/src/lib/protectedData.ts` — exports: whenProtectedDataAvailable
+- `apps/mobile/src/lib/providerClients.ts` — exports: getProviderClient
+- `apps/mobile/src/lib/providerOptions.ts` — exports: applyProviderOptionSelection, resolveProviderOptionDescriptors
+- `apps/mobile/src/lib/pullRequestNavigation.ts` — exports: nativePullRequestDestination
+- `apps/mobile/src/lib/reserved-regions.ts` — exports: NativeLayoutMetrics, ReservedRegion, deriveBottomControlInsets
+- `apps/mobile/src/lib/runtime.ts` — exports: LayerErrorRuntimeLayerSource, layerLayerLayerLayerSuccessRuntimeLayerSource, runtimeManagedRuntimeManagedRuntimeLayerSuccessRuntimeLayerSource
+- `apps/mobile/src/lib/scopedEntities.ts` — exports: scopedProjectKey, scopedRequestKey, scopedThreadKey
+- `apps/mobile/src/lib/serialized-async-queue.ts` — exports: SerializedAsyncQueue
+- `apps/mobile/src/lib/shareFileFromSource.ios.ts` — exports: shareFileFromSource
+- `apps/mobile/src/lib/shareFileFromSource.ts` — exports: shareFileFromSource
+- `apps/mobile/src/lib/threadActivity.ts` — exports: AgentSpawnSummary, LIVE_ACTIVITY_ROW_ID, LocalThreadMessage, PendingApproval, PendingUserInput, PendingUserInputDraftAnswer, ThreadFeedActivity, ThreadFeedCache, ThreadFeedEntry, ThreadFeedLatestRun, ThreadFeedMessage, buildPendingUserInputAnswers, buildThreadFeed, createThreadFeedCache, deriveThreadFeedPresentation, failedFeedRunIds, formatItemFullDetail, isContextCompactionActivityGroup, isContextHandoffActivityGroup, isPendingUserInputOptionSelected, isSecretRequestActivityGroup, setPendingUserInputCustomAnswer, threadFeedActivityIsVisible, threadFeedRunIsUnsettled, togglePendingUserInputOptionSelection, workEntryRowLabel
+- `apps/mobile/src/lib/threadActivityInspector.ts` — exports: ThreadActivityFileLink, ThreadActivityInspectorBlock, ThreadActivityInspectorField, ThreadActivityInspectorModel, ThreadActivityWebLink, buildThreadActivityInspector
+- `apps/mobile/src/lib/time.ts` — exports: relativeTime
+- `apps/mobile/src/lib/typography.ts` — exports: MOBILE_CODE_SURFACE, MOBILE_TEXT_CLASSES, MOBILE_TYPOGRAPHY, string
+- `apps/mobile/src/lib/useDelayedStatus.ts` — exports: useDelayedStatus
+- `apps/mobile/src/lib/useHoverGesture.ts` — exports: useHoverGesture
+- `apps/mobile/src/lib/useMobileNavigationTheme.ts` — exports: useMobileNavigationTheme
+- `apps/mobile/src/lib/useNativePaste.ts` — exports: useNativePaste
+- `apps/mobile/src/lib/useUiRuntimeMemoryWarningGc.ts` — exports: useUiRuntimeMemoryWarningGc
+- `apps/mobile/src/lib/useUniwindTheme.ts` — exports: useUniwindTheme
+- `apps/mobile/src/lib/uuid.ts` — exports: randomHex, uuidv4
+- `apps/mobile/src/lib/videoAudioSession.ts` — exports: fullscreenVideoClosed, fullscreenVideoOpened, isFullscreenVideoOpen, mediaPlaybackStarted, mediaPlaybackStopped, subscribeFullscreenVideo, useFullscreenVideoOpen, useMediaAudioSessionHold
+- `apps/mobile/src/lib/videoPreviewSource.ts` — exports: LocalVideoPreviewSource, MediaVideoPreviewSource, VideoPreviewSource, attachmentVideoPreviewSource, mediaVideoPreviewUri, mediaVideoThumbnailKey
+- `apps/mobile/src/lib/videoThumbnails.ts` — exports: cachedVideoThumbnail, loadVideoThumbnail
+- `apps/mobile/src/lib/wideMarkdownBlocks.ts` — exports: WideMarkdownBlockOptions, hasWideMarkdownBlock
+- `apps/mobile/src/native/AndroidHingeObserver.android.tsx` — exports: AndroidHingeObserver
+- `apps/mobile/src/native/AndroidHingeObserver.tsx` — exports: AndroidHingeObserver
+- `apps/mobile/src/native/EnrichedMarkdownText.tsx` — exports: MobileEnrichedMarkdownText
+- `apps/mobile/src/native/NativeColumnContent.ios.tsx` — exports: NativeColumnContent
+- `apps/mobile/src/native/NativeHeaderToolbar.android.tsx` — exports: NativeHeaderToolbar
+- `apps/mobile/src/native/NativeHeaderToolbar.tsx` — exports: NativeHeaderToolbar
+- `apps/mobile/src/native/NativeLayoutObserver.ios.tsx` — exports: NativeLayoutObserver
+- `apps/mobile/src/native/NativeLayoutObserver.tsx` — exports: NativeLayoutObserver
+- `apps/mobile/src/native/NativeScrollViewMarker.tsx` — exports: NativeScrollEdgeEffectsContext, NativeScrollView, NativeScrollViewMarker
+- `apps/mobile/src/native/NativeSheetContent.tsx` — exports: NativeSheetContent
+- `apps/mobile/src/native/NativeWorkspaceColumns.ios.tsx` — exports: NATIVE_WORKSPACE_COLUMNS_SUPPORTED, useNativeWorkspaceColumnsReady, useNativeWorkspaceColumnsSupported
+- `apps/mobile/src/native/NativeWorkspaceColumns.tsx` — exports: NATIVE_WORKSPACE_COLUMNS_SUPPORTED, useNativeWorkspaceColumnsReady, useNativeWorkspaceColumnsSupported
+- `apps/mobile/src/native/SelectableMarkdownText.tsx` — exports: MarkdownFileContextMenu, MarkdownFileContextMenuAction, MarkdownImageRenderer, MarkdownImageRequest, MarkdownImageSourceResolver, MarkdownLinkCustomization, NativeMarkdownTextStyle, SelectableMarkdownSkill, SelectableMarkdownText
+- `apps/mobile/src/native/SelectableMarkdownText.types.ts` — exports: MarkdownFileContextMenu, MarkdownFileContextMenuAction, MarkdownImageRenderer, MarkdownImageRequest, MarkdownImageSourceResolver, MarkdownLinkCustomization, NativeMarkdownTextStyle, SelectableMarkdownSkill, SelectableMarkdownTextProps
+- `apps/mobile/src/native/StackHeader.tsx` — exports: AppNativeStackNavigationOptions, NativeHeaderScrollEdgeEffects, NativeStackScreenOptions, NativeTopScrollEdgeEffect, nativeHeaderScrollEdgeEffects, nativeTopScrollEdgeEffect
+- `apps/mobile/src/native/T3ComposerEditor.android.tsx` — exports: ComposerEditor, ComposerEditorHandle, ComposerEditorProps, ComposerEditorSelection
+- `apps/mobile/src/native/T3ComposerEditor.ios.tsx` — exports: ComposerEditor, ComposerEditorHandle, ComposerEditorProps, ComposerEditorSelection, ComposerTextPaste
+- `apps/mobile/src/native/T3ComposerEditor.native.tsx` — exports: ComposerEditor, ComposerEditorHandle, ComposerEditorProps, ComposerEditorSelection, ComposerTextPaste
+- `apps/mobile/src/native/T3ComposerEditor.tsx` — exports: ComposerEditor, ComposerEditorHandle, ComposerEditorProps, ComposerEditorSelection, ComposerTextPaste
+- `apps/mobile/src/native/T3ComposerEditor.types.ts` — exports: ComposerEditorHandle, ComposerEditorProps, ComposerEditorSelection, ComposerEnterBehavior, ComposerTextPaste
+- `apps/mobile/src/native/T3KeyboardCommands.android.tsx` — exports: T3KeyboardCommands
+- `apps/mobile/src/native/T3KeyboardCommands.ios.tsx` — exports: T3KeyboardCommands
+- `apps/mobile/src/native/T3KeyboardCommands.tsx` — exports: T3KeyboardCommands
+- `apps/mobile/src/native/ThemedScreenStack.tsx` — exports: NativeHeader, NativeScreen
+- `apps/mobile/src/native/V5StackHeader.ios.tsx` — exports: V5StackHeader
+- `apps/mobile/src/native/composerEditorRevision.ts` — exports: ComposerNativeEventSnapshot, acknowledgeComposerNativeEvent, assumeComposerControlledState, isComposerNativeEcho, pruneAcknowledgedComposerNativeEvents, resolveComposerControlledEventCount
+- `apps/mobile/src/native/createV5StackNavigator.ios.tsx` — exports: V5CardStackView, V5SheetStackView, V5StackView, V5StackViewProps, createV5SheetStackNavigator, createV5StackNavigator, modalEnvelopeOptions
+- `apps/mobile/src/native/createV5StackNavigator.tsx` — exports: createV5SheetStackNavigator, createV5StackNavigator
+- `apps/mobile/src/native/native-glass.ts` — exports: NATIVE_LIQUID_GLASS_SUPPORTED
+- `apps/mobile/src/native/native-layout-metrics.tsx` — exports: NativeColumnLayoutMetricsContext, NativeLayoutMetricsProvider, useDeviceType, useNativeColumnLayoutMetrics, useNativeLayoutMetrics
+- `apps/mobile/src/native/nativeViewResolutionError.ts` — exports: NativeViewResolutionError
+- `apps/mobile/src/native/scrollEdgeEffects.ts` — exports: NativeHeaderScrollEdgeEffects, NativeTopScrollEdgeEffect, nativeHeaderScrollEdgeEffects, nativeTopScrollEdgeEffect
+- `apps/mobile/src/native/sheet-surface.ts` — exports: FORM_SHEET_PRESENTATION_OPTIONS
+- `apps/mobile/src/native/use-native-mail-search-toolbar.ts` — exports: useNativeMailSearchToolbar
+- `apps/mobile/src/native/useEnrichedLinkVariants.ts` — exports: enrichedContextLinkCustomization, useEnrichedLinkVariants
+- `apps/mobile/src/native/useMarkdownImageSource.ts` — exports: useMarkdownImageSource
+- `apps/mobile/src/native/useOpenPullRequest.ts` — exports: useNavigateToPullRequest, useOpenPullRequest
+- `apps/mobile/src/native/v5-workspace-context.tsx` — exports: NativeWorkspaceModeContext
+- `apps/mobile/src/native/voiceTranscription.ios.ts` — exports: getLocalVoiceTranscriber
+- `apps/mobile/src/native/voiceTranscription.ts` — exports: getLocalVoiceTranscriber
+- `apps/mobile/src/native/window-hinge-context.ts` — exports: WindowHingeContext
+- `apps/mobile/src/native/workspace-stack-projection.ts` — exports: CollapsedSplitColumn, collapsedSplitTransition, nativeStackPopAction, nativeWorkspacePopAction, nativeWorkspacePopCount, partitionStackPresentations, projectWorkspaceStack, reconcileStackScreens
+- `apps/mobile/src/persistence/imperative.ts` — exports: AgentAwarenessRegistrationRecord, MobileDeviceIdGenerationError, MobilePreferencesLoadError, MobilePreferencesSaveError, MobileSecureStorageError, MobileStorageDecodeError, MobileStorageEncodeError, Preferences, RecentThreadShortcut, clearAgentAwarenessRegistrationRecord, loadAgentAwarenessDeviceId, loadAgentAwarenessRegistrationRecord, loadOrCreateAgentAwarenessDeviceId, loadPreferences, loadRecentThreadShortcuts, loadSavedConnections, saveAgentAwarenessRegistrationRecord, saveConnection, savePreferencesPatch, saveRecentThreadShortcuts, updatePreferences
+- `apps/mobile/src/persistence/layer.ts` — exports: layer
+- `apps/mobile/src/persistence/mobile-database.ts` — exports: ClientCacheKind, ClientCacheSummaryRow, MobileDatabase, MobileDatabaseError, StoredPreferencesJson, decodeLegacyCacheRecord, layer, make
+- `apps/mobile/src/persistence/mobile-preferences.ts` — exports: MobilePreferencesLoadError, MobilePreferencesSaveError, MobilePreferencesStore, Preferences, PullRequestListControls, PullRequestListPreferences, ThreadListFilters, layer
+- `apps/mobile/src/persistence/mobile-secure-storage.ts` — exports: MobileSecureStorage, MobileSecureStorageError, layer, make
+- `apps/mobile/src/persistence/mobile-storage.ts` — exports: AgentAwarenessRegistrationRecord, MobileDeviceIdGenerationError, MobileStorage, MobileStorageDecodeError, MobileStorageEncodeError, RecentThreadShortcut, layer
+- `apps/mobile/src/state/acknowledged-thread-messages.ts` — exports: acknowledgedThreadMessagesAtom, forgetAcknowledgedThreadMessage, retainAcknowledgedThreadMessage
+- `apps/mobile/src/state/asset-url-state.ts` — exports: AssetUrlFailureReason, AssetUrlState, deriveAssetUrlState
+- `apps/mobile/src/state/assets.ts` — exports: AssetUrlFailureReason, AssetUrlState, assetEnvironment, projectFaviconUrlAtom, useAssetUrl, useAssetUrlState, useRefreshAssetUrl
+- `apps/mobile/src/state/atom-registry.ts` — exports: appAtomRegistry
+- `apps/mobile/src/state/attachments.ts` — exports: attachmentEnvironment
+- `apps/mobile/src/state/client-cache-state.ts` — exports: ClientCacheClearScope, ClientCacheSummary, EnvironmentClientCacheSummary, clientCacheSummaryAtom
+- `apps/mobile/src/state/composer-attachment-uploads.ts` — exports: ComposerAttachmentUploadStatepipe, composerAttachmentUploadBlockReason, composerAttachmentUploadsAtom, composerAttachmentsStillUploading, retryComposerAttachmentUpload, useComposerAttachmentUploadState, useComposerAttachmentUploadWorker
+- `apps/mobile/src/state/device.ts` — exports: deviceEnvironment, refreshDeviceHubAccess, useDeviceHubAccess
+- `apps/mobile/src/state/edit-pending-thread-message.ts` — exports: editPendingThreadMessage
+- `apps/mobile/src/state/entities.ts` — exports: useChildThreadInputs, useEnvironmentServerConfig, useLiveThreadLinkLabels, useNavigationThreadShells, useProject, useProjects, useQuietThreadShell, useServerConfigs, useThreadReportedModelSelection, useThreadShell, useThreadShells, waitForProject
+- `apps/mobile/src/state/environments.ts` — exports: EnvironmentPresentation, projectEnvironmentPresentation, useEnvironmentConnectionState, useEnvironments
+- `apps/mobile/src/state/filesystem.ts` — exports: filesystemEnvironment
+- `apps/mobile/src/state/git.ts` — exports: gitEnvironment
+- `apps/mobile/src/state/legacy-plan-mode.ts` — exports: resolveLegacyPlanModeEnabled, resolvePendingTaskInteractionMode, resolveProviderInteractionMode
+- `apps/mobile/src/state/mcpApps.ts` — exports: mcpAppEnvironment
+- `apps/mobile/src/state/mediaActions.ts` — exports: useMediaActions
+- `apps/mobile/src/state/new-task-draft-key.ts` — exports: isNewTaskDraftKey, newTaskDraftKey, parseLegacyNewTaskDraftKey, restoredNewTaskDraftKey
+- `apps/mobile/src/state/orchestration.ts` — exports: orchestrationEnvironment
+- `apps/mobile/src/state/pending-new-tasks-model.ts` — exports: PendingDraftTask, PendingNewTask, PendingQueuedTask, buildPendingNewTasks, composerDraftHasUserContent
+- `apps/mobile/src/state/pending-task-editor-writes.ts` — exports: capturePendingTaskEditorWriteBaseline, flushPendingTaskEditorWrite
+- `apps/mobile/src/state/pending-thread-creation.ts` — exports: PendingThreadCreation, PendingThreadCreationOutcome, PendingThreadCreationOutcomepipe, clearPendingThreadCreationOutcome, isPendingThreadCreationVisible, pendingThreadCreationMessage, pendingThreadCreationOutcomesAtom, pendingThreadCreationShell, recordPendingThreadCreationOutcome, resolvePendingThreadCreation
+- `apps/mobile/src/state/preferences.ts` — exports: createMobilePreferencesState, mobilePreferencesAtom, mobilePreferencesState, updateMobilePreferencesAtom
+- `apps/mobile/src/state/presentation.ts` — exports: environmentPresentations, useEnvironmentPresentation
+- `apps/mobile/src/state/preview.ts` — exports: previewEnvironment, usePreviewStreamAccess, useThreadServerBrowserTabs
+- `apps/mobile/src/state/project-grouping.logic.ts` — exports: DEFAULT_MOBILE_PROJECT_GROUPING_SETTINGSProjectGroupingSettings, mobileProjectGroupingModePatch, resolveMobileProjectGroupingSettings
+- `apps/mobile/src/state/project-grouping.ts` — exports: useMobileProjectGroupingSettings
+- `apps/mobile/src/state/projectClones.ts` — exports: ProjectCloneState, useProjectClone
+- `apps/mobile/src/state/projects.ts` — exports: environmentProjects, projectEnvironment
+- `apps/mobile/src/state/pull-requests.ts` — exports: composerPullRequests, pullRequestStackAtom
+- `apps/mobile/src/state/queries.ts` — exports: ComposerPathSearchTarget, useBranches, useCheckpointDiff, useComposerPathSearch, useComposerPullRequestSearch, useDebouncedValue, usePaginatedBranches, useThreadSearch, useTurnItemDetail
+- `apps/mobile/src/state/query.ts` — exports: EnvironmentQueryView, useEnvironmentQuery
+- `apps/mobile/src/state/queryTargets.ts` — exports: CheckpointDiffTarget, buildCheckpointDiffTargets, normalizeComposerPathSearchQuery
+- `apps/mobile/src/state/question-attachments.ts` — exports: changeQuestionAttachmentPreparation, numberpipe, questionAttachmentDraftKey, questionAttachmentDraftPrefix, questionAttachmentPreparationAtom
+- `apps/mobile/src/state/queued-edit-draft-key.ts` — exports: isQueuedEditDraftKey, queuedEditDraftKey
+- `apps/mobile/src/state/queued-run-edit.ts` — exports: QueuedRunEdit, QueuedRunEditpipe, beginQueuedRunEdit, endQueuedRunEdit, getQueuedRunEdit, isQueuedEditDraftKey, queuedEditDraftKey, queuedRunEditsAtom, removeQueuedRunEditAttachment, resolveQueuedEditPayload, useQueuedRunEdit
+- `apps/mobile/src/state/recover-failed-thread-draft.ts` — exports: recoverFailedThreadDraft
+- `apps/mobile/src/state/relay.ts` — exports: relayEnvironmentDiscovery
+- `apps/mobile/src/state/remote-environment-projections.ts` — exports: createRemoteEnvironmentProjectionAtoms
+- `apps/mobile/src/state/remote-runtime-types.ts` — exports: ConnectedEnvironmentSummary, EnvironmentRuntimeState, SelectedThreadRef
+- `apps/mobile/src/state/review.ts` — exports: reviewEnvironment
+- `apps/mobile/src/state/server.ts` — exports: describeOutdatedServer, environmentServerConfigsAtom, serverEnvironment, threadListEnvironmentsAtom, updateOutdatedServer
+- `apps/mobile/src/state/session.ts` — exports: environmentSession, readEnvironmentScope, useEnvironmentScope, useEnvironmentsWithScope, usePreparedConnection
+- `apps/mobile/src/state/shell.ts` — exports: environmentShell, environmentShellSummaryAtom, environmentSnapshotAtom, shellEnvironment, useEnvironmentShellReadiness
+- `apps/mobile/src/state/sourceControl.ts` — exports: sourceControlEnvironment
+- `apps/mobile/src/state/terminal.ts` — exports: terminalEnvironment
+- `apps/mobile/src/state/thread-composer-error.ts` — exports: ThreadComposerErrorpipe, clearThreadComposerError, clearThreadComposerErrorsForEnvironment, setThreadComposerError, threadComposerErrorsAtom
+- `apps/mobile/src/state/thread-list-environments.ts` — exports: ThreadListProvider, createThreadListEnvironmentsAtom
+- `apps/mobile/src/state/thread-order.ts` — exports: beginPendingThreadOrder, getPendingThreadOrder, pendingThreadOrderAtom, threadArrangementOpenAtom, threadDropBusyAtom, usePendingThreadOrder
+- `apps/mobile/src/state/thread-outbox-manager.ts` — exports: ThreadOutboxManagerError, ThreadOutboxManagerOptions, createThreadOutboxManager
+- `apps/mobile/src/state/thread-outbox-model.ts` — exports: QueuedThreadCreation, QueuedThreadMessage, QueuedThreadMessageSchema, ThreadOutboxCommandStage, ThreadOutboxDeliveryAction, ThreadOutboxDispatchStep, ThreadOutboxFailureAction, ThreadSettingsSnapshot, decodeQueuedThreadMessage, encodeQueuedThreadMessage, flattenQueuedThreadMessages, groupQueuedThreadMessages, isQueuedThreadCreationSendable, modelSelectionsEqual, resolveQueuedThreadSettings, resolveThreadOutboxDeliveryAction, resolveThreadOutboxDispatchStep, resolveThreadOutboxFailureAction, shouldRetryThreadOutboxDelivery, threadOutboxRetryDelayMs
+- `apps/mobile/src/state/thread-outbox-removal.ts` — exports: clearThreadOutboxEnvironment, removeThreadOutboxMessage
+- `apps/mobile/src/state/thread-outbox-storage.ts` — exports: ThreadOutboxLoadResult, ThreadOutboxStorage, ThreadOutboxStorageError, flushThreadOutboxWrites
+- `apps/mobile/src/state/thread-outbox.ts` — exports: confirmThreadOutboxMessageQueued, enqueueThreadOutboxMessage, flushThreadOutbox, threadOutboxManager, threadOutboxRevision, updateThreadOutboxMessage
+- `apps/mobile/src/state/thread-pr-presentation.ts` — exports: ThreadPr, ThreadPrPresentation, presentThreadLinkedPullRequests, presentThreadPr, resolveThreadPrBadgeAction, resolveThreadPrSource
+- `apps/mobile/src/state/thread-provider-switching.ts` — exports: threadAllowsProviderSwitch
+- `apps/mobile/src/state/threads.ts` — exports: environmentThreadDetails, environmentThreadShells, environmentThreads, threadEnvironment, useEnvironmentThread
+- `apps/mobile/src/state/usage.ts` — exports: EnvironmentUsageStatus, UsageView, useUsage
+- `apps/mobile/src/state/use-atom-command.ts` — exports: useAtomCommand
+- `apps/mobile/src/state/use-atom-query-runner.ts` — exports: useAtomQueryRunner
+- `apps/mobile/src/state/use-composer-drafts.ts` — exports: ComposerDraft, ComposerDraftContent, ComposerDraftInsertion, ComposerDraftPersistenceError, ComposerDraftProject, ComposerDraftSettingsUpdate, ComposerDraftWorkspaceSelection, ComposerDraftpipe, ModelOptionMemoryState, appendComposerDraftAttachments, appendComposerDraftText, archiveCloudComposerDrafts, booleanpipe, captureComposerDraftInsertion, clearComposerDraft, clearComposerDraftContent, clearComposerDraftContentState, clearComposerDraftsEnvironment, composerCloudDraftsAtom, composerContextImportsAtom, composerDraftsAtom, countComposerDraftAttachmentsAfterSelection, createComposerDraftContextHistory, createNewTaskDraft, decodePersistedComposerState, ensureComposerDraftsLoaded, findLocalComposerClipboardAttachment, findNewTaskDraftKeys, flushComposerDrafts, getComposerCloudAccountId, getComposerDraftAfterSelection, getComposerDraftSnapshot, insertComposerDraftContext, insertComposerDraftText, isComposerDraftEmpty, isNewTaskDraftKey, mergeComposerDraftContent, mergeComposerDraftContentState, migrateLegacyNewTaskDraft, modelOptionMemoryAtom, newTaskDraftKey, readComposerDraftSelection, releaseUnusedComposerAttachmentFiles, rememberComposerDraftSelection, removeComposerDraftAttachment, removeComposerDraftsForEnvironment, removeDeliveredCloudQueuedMessage, replaceComposerDraftAttachments, resetComposerDraftsLoadState, restoreCloudComposerDrafts, restoreComposerDraftSnapshot, restoreComposerDraftSnapshotState, retargetNewTaskDraft, sameComposerDraftState, schedulePersistComposerState, scheduleUnusedComposerAttachmentCleanup, setComposerContextImporting, setComposerDraftAttachmentUpload, setComposerDraftContext, setComposerDraftText, setStickyComposerModelSelection, stickyComposerModelSelectionAtom, subscribeComposerDraftModelReconciliation, undoComposerDraftMerge, undoComposerDraftMergeState, updateComposerDraftSettings, useComposerDraft, useComposerDraftSettings, useStickyComposerModelSelection, waitForComposerDraftsLoaded
+- `apps/mobile/src/state/use-model-option-memory.ts` — exports: rememberModelOptions, rememberedModelOptions, withRememberedModelOptions
+- `apps/mobile/src/state/use-pending-new-tasks.ts` — exports: PendingDraftTask, PendingNewTask, PendingQueuedTask, usePendingNewTasks
+- `apps/mobile/src/state/use-pull-to-refresh.ts` — exports: usePullToRefresh
+- `apps/mobile/src/state/use-remote-environment-registry.ts` — exports: setPendingConnectionError, useRemoteConnectionStatus, useRemoteConnections, useRemoteEnvironmentRuntime, useSavedRemoteConnection, useSavedRemoteConnections
+- `apps/mobile/src/state/use-selected-thread-git-actions.ts` — exports: useSelectedThreadGitActions
+- `apps/mobile/src/state/use-selected-thread-git-state.ts` — exports: useSelectedThreadGitState
+- `apps/mobile/src/state/use-selected-thread-requests.ts` — exports: useSelectedThreadRequests
+- `apps/mobile/src/state/use-selected-thread-worktree.ts` — exports: useSelectedThreadWorktree
+- `apps/mobile/src/state/use-terminal-session.ts` — exports: useAttachedTerminalSession, useKnownTerminalSessions
+- `apps/mobile/src/state/use-thread-composer-state.ts` — exports: appendReviewCommentToDraft, useThreadComposerState, useThreadDraftForThread
+- `apps/mobile/src/state/use-thread-detail.ts` — exports: ThreadDetailTarget, useSelectedThreadDetailState, useSelectedThreadPendingRequests, useSelectedThreadProjection, useSelectedThreadVisibleTurnItems, useSelectedThreadWorktreePath, useThreadDetail, useThreadProjection, useThreadVisibleTurnItems
+- `apps/mobile/src/state/use-thread-outbox-drain.ts` — exports: completeQueuedMessageDelivery, prepareQueuedMessageAttachments, recoverEditedCreationAfterDelivery, removeAcknowledgedExistingThreadMessage, restoreRejectedQueuedMessage, useThreadOutboxDrain
+- `apps/mobile/src/state/use-thread-outbox.ts` — exports: dispatchingQueuedMessageIdAtom, editingQueuedMessageIdsAtom, holdEditingQueuedMessage, releaseEditingQueuedMessage, truepipe, useQueuedThreadKeys, useThreadOutboxMessages, useThreadOutboxShellStatuses
+- `apps/mobile/src/state/use-thread-pr.ts` — exports: ThreadPr, ThreadPrPresentation, presentThreadPr, useThreadPr
+- `apps/mobile/src/state/use-thread-selection.ts` — exports: useThreadSelection
+- `apps/mobile/src/state/use-vcs-action-state.ts` — exports: GitActionProgress, GitActionProgressPhase, GitActionResultNotification, dismissGitActionResult, showGitActionResult, useGitActionProgress, useGitActionResultNotification, useVcsActionState
+- `apps/mobile/src/state/v2-item-support.ts` — exports: useV2ItemSupport
+- `apps/mobile/src/state/vcs.ts` — exports: vcsActionManager, vcsEnvironment
+- `apps/mobile/src/state/workspace-connection-atoms.ts` — exports: createWorkspaceConnectionAtoms
+- `apps/mobile/src/state/workspace.ts` — exports: useConnectionsReady, useWorkspaceConnectionState, useWorkspaceEnvironments, useWorkspaceState, workspaceConnections
+- `apps/mobile/src/state/workspaceModel.ts` — exports: ServerConfigByEnvironmentId, WorkspaceConnectionState, WorkspaceEnvironment, WorkspaceState, projectWorkspaceConnectionState, projectWorkspaceEnvironment, projectWorkspaceState
+- `apps/mobile/src/test-fixtures.ts` — exports: makeRawThreadShell, makeThreadShellFixture
+- `apps/mobile/src/types/mobile-device-stream.d.ts` — exports: default
+- `apps/mobile/src/types/mobile-preview-stream.d.ts` — exports: default
+- `apps/mobile/src/types/mobile-third-party-licenses.d.ts` — exports: default
+- `apps/mobile/src/widgets/AgentActivity.tsx` — exports: AgentActivity, AgentActivityPhase, AgentActivityProps, AgentActivityRowProps, default
+- `apps/mobile/src/widgets/SubscriptionUsage.android.tsx` — exports: SubscriptionUsage, default
+- `apps/mobile/src/widgets/SubscriptionUsage.tsx` — exports: default
+- `apps/mobile/src/widgets/SubscriptionUsageCoordinator.tsx` — exports: SubscriptionUsageCoordinator
+- `apps/mobile/src/widgets/publishSubscriptionUsage.android.ts` — exports: publishSubscriptionUsage
+- `apps/mobile/src/widgets/publishSubscriptionUsage.ios.ts` — exports: publishSubscriptionUsage
+- `apps/mobile/src/widgets/publishSubscriptionUsage.ts` — exports: publishSubscriptionUsage
+- `apps/mobile/src/widgets/subscriptionUsageSnapshot.ts` — exports: SubscriptionUsageSnapshot, WIDGET_REFRESH_INTERVAL, buildSubscriptionUsageSnapshot, createWidgetRefresher, subscriptionUsageTimeline
+- `apps/mobile/src/widgets/useSubscriptionUsage.ts` — exports: useSubscriptionUsage
+- `apps/mobile/src/widgets/widgetTheme.ts` — exports: WidgetPalette, WidgetTheme, createWidgetTheme
+- `apps/mobile/uniwind-types.d.ts` — exports: UniwindConfig
+- `apps/mobile/vite.config.ts` — exports: default
+- `apps/server/graphql.config.ts` — exports: default
+- `apps/server/integration/NetworkTransferMeasurement.integration.ts` — exports: CountingWsRpcClient, HttpTransferMeasurement, MeasuredWsClient, TransferHttpRequestError, WebSocketTransferRecorder, WebSocketTransferTotals
+- `apps/server/integration/SqlStatementCounter.integration.ts` — exports: SqlStatementCounter, makeSqlStatementCounter
+- `apps/server/integration/TransferBudgetReport.integration.ts` — exports: TransferBudgetRun, WebSocketCatchUpMeasurement, formatTransferBudgetReport, formatTransferBudgetResult, transferBudgetViolations
+- `apps/server/integration/TransferBudgetV2Fixture.integration.ts` — exports: THREAD_ID, threadCreated, turnEvents
+- `apps/server/integration/fixtures/transferBudget.ts` — exports: TRANSFER_HISTORY_MCP_RESULT_BYTES, TRANSFER_HISTORY_TOOLS_PER_TURN, TRANSFER_HISTORY_TURN_COUNT, TRANSFER_MEASURED_MCP_RESULT_BYTES, TRANSFER_MEASURED_TOOLS, diagnosticOutput
+- `apps/server/schema/expo.graphql.ts` — exports: Actor, AppPlatform, CreateAndroidDeviceRunSessionInput, CreateDeviceRunSessionInput, CreateIosDeviceRunSessionInput, DeviceRunSessionEgress, DeviceRunSessionFilterInput, DeviceRunSessionRemoteConfig, DeviceRunSessionRequestOrigin, DeviceRunSessionResourceClass, DeviceRunSessionStatus, DeviceRunSessionType, Int
+- `apps/server/scripts/acp-mock-agent.ts` — exports: 
+- `apps/server/scripts/acp-replay-agent.ts` — exports: 
+- `apps/server/scripts/acpMockCancellationState.ts` — exports: beginAcpMockPrompt
+- `apps/server/scripts/claudeReplayRecordingConfig.ts` — exports: ClaudeRecordingQueryMode, validateClaudeReplayRecordingSelection
+- `apps/server/scripts/cli.ts` — exports: 
+- `apps/server/scripts/cliErrors.ts` — exports: ServerCliBuildAssetMissingError, ServerCliCommandExitError, ServerCliDevelopmentIconSourceMissingError, ServerCliDevelopmentIconTargetMissingError, ServerCliExecutableImportError
+- `apps/server/scripts/codexReplayRecordingRecords.ts` — exports: codexReplayRecordingOutputRecords
+- `apps/server/scripts/cursorReplayRecordingWorkspace.ts` — exports: cursorReplayPromptsForWorkspace, cursorReplayTranscriptCwd, shouldSeedCursorReplayWorkspace
+- `apps/server/scripts/evaluate-thread-titles.ts` — exports: 
+- `apps/server/scripts/fetch-expo-schema.ts` — exports: 
+- `apps/server/scripts/measure-pr-preview.ts` — exports: 
+- `apps/server/scripts/migrate-dev-db.ts` — exports: MigrateDevDbDestinationBusyError, MigrateDevDbNotInWorktreeError, MigrateDevDbPhaseError, MigrateDevDbServerRunningError, MigrateDevDbSharedHomeError, MigrateDevDbSlotCollisionError, MigrateDevDbSourceIsDestinationError, MigrateDevDbSourceMissingError, RunMigrateDevDbInput, RunMigrateDevDbOptions
+- `apps/server/scripts/probe-claude-fork-local-rollback-replay.ts` — exports: 
+- `apps/server/scripts/record-claude-agent-sdk-replay-fixture.ts` — exports: 
+- `apps/server/scripts/record-codex-app-server-replay-fixture.ts` — exports: 
+- `apps/server/scripts/record-cursor-agent-sdk-replay-fixture.ts` — exports: 
+- `apps/server/scripts/record-grok-acp-replay-fixture.ts` — exports: 
+- `apps/server/scripts/record-muse-msp-replay-fixture.ts` — exports: 
+- `apps/server/scripts/record-pi-rpc-replay-fixture.ts` — exports: 
+- `apps/server/scripts/replayRecorderDeferredRegistry.ts` — exports: ReplayRecorderDeferredRegistry
+- `apps/server/scripts/t3-sqlite-state.ts` — exports: RunSqliteStateInput, RunSqliteStateOptions, SqliteStateDatabaseError, SqliteStateDatabaseMissingError, SqliteStateEmptySqlError, SqliteStateMissingSqlSourceError, SqliteStateMultipleSqlSourcesError, SqliteStateOperation, SqliteStateResult, SqliteStateSharedHomeMutationError, SqliteStateSqlFileError
+- `apps/server/scripts/threadTitleEvaluationCases.ts` — exports: 
+- `apps/server/scripts/update-test-shard-weights.ts` — exports: 
+- `apps/server/scripts/verify-background-live.ts` — exports: 
+- `apps/server/src/assets/AssetAccess.ts` — exports: ASSET_ROUTE_PREFIX, ResolvedAsset
+- `apps/server/src/assets/AttachmentUpload.ts` — exports: ATTACHMENT_UPLOAD_ROUTE_PREFIX, AttachmentUploadClaims, StoreAttachmentUploadResult
+- `apps/server/src/assets/GitHubMediaFetch.ts` — exports: 
+- `apps/server/src/assets/MediaFile.ts` — exports: OpenMediaFile
+- `apps/server/src/assets/NativeAppIconResolver.ts` — exports: NativeAppIconResolver, layer
+- `apps/server/src/assets/icns.ts` — exports: extractIcnsPng
+- `apps/server/src/attachmentPaths.ts` — exports: normalizeAttachmentRelativePath, resolveAttachmentRelativePath
+- `apps/server/src/attachmentStore.ts` — exports: AttachmentClaimPlan, PENDING_ATTACHMENT_THREAD_SEGMENT, attachmentFileExtension, attachmentRelativePath, chatAttachmentStableKey, createAttachmentId, createDeterministicAttachmentId, createPendingAttachmentId, parseAttachmentFileExtension, parseAttachmentUuid, parseThreadSegmentFromAttachmentId, planAttachmentClaim, resolveAttachmentPath, resolveAttachmentPathById, sweepStalePendingAttachments, threadHtmlRenderAttachmentIds, toSafeThreadAttachmentSegment
+- `apps/server/src/auth/EnvironmentAuth.ts` — exports: AuthenticatedSession, EnvironmentAuth, INTERNAL_ADMINISTRATIVE_BOOTSTRAP_SUBJECT, IssuedBearerSession, IssuedPairingLink, McpClientSession, ServerAuthAuthenticatedAccessTokenIssueError, ServerAuthAuthenticatedSessionIssueError, ServerAuthBootstrapCredentialValidationError, ServerAuthCloudHealthJwtSigningError, ServerAuthCloudLinkJwtSigningError, ServerAuthCloudMintJwtSigningError, ServerAuthCloudMintPublicKeyMissingError, ServerAuthCloudRelayIssuerMissingError, ServerAuthCredentialError, ServerAuthDpopReplayKeyCalculationError, ServerAuthDpopReplayStateRecordError, ServerAuthForbiddenOperationError, ServerAuthInternalError, ServerAuthInvalidCredentialError, ServerAuthInvalidRequestError, ServerAuthInvalidScopeError, ServerAuthLinkedCloudAccountMissingError, ServerAuthLinkedCloudAccountReadError, ServerAuthLinkedCloudAccountVerificationError, ServerAuthMcpApprovalCodeError, ServerAuthMissingCredentialError, ServerAuthOtherSessionsRevocationError, ServerAuthPairingLinkCreationError, ServerAuthPairingLinkRevocationError, ServerAuthPairingLinksListError, ServerAuthScopeNotGrantedError, ServerAuthSessionCredentialValidationError, ServerAuthSessionRevocationError, ServerAuthSessionTokenIssueError, ServerAuthSessionsListError, ServerAuthWebSocketTokenIssueError, isBrowserCookieCredential, isServerAuthCredentialError, isServerAuthInternalError, isServerAuthInvalidRequestError, layer, layerRuntime, mcpClientScopes, selectRequestCredential, serverAuthCredentialReason, serverAuthDpopFailureReason, serverAuthInvalidRequestReason
+- `apps/server/src/auth/EnvironmentAuthPolicy.ts` — exports: EnvironmentAuthPolicy, layer
+- `apps/server/src/auth/McpOAuth.ts` — exports: ApprovalDecision, AuthorizationRequest, McpOAuth, McpOAuthClient, McpOAuthPageError, McpOAuthRedirectError, McpOAuthUrls, authorizationServerMetadata, layer, protectedResourceMetadata, redirectForError
+- `apps/server/src/auth/PairingGrantStore.ts` — exports: ActivePairingLinksLoadError, BootstrapCredentialChange, BootstrapCredentialConsumeAvailableError, BootstrapCredentialConsumeError, BootstrapCredentialError, BootstrapCredentialInternalError, BootstrapCredentialInvalidError, BootstrapCredentialLookupError, BootstrapCredentialProofKeyMismatchError, BootstrapCredentialScopeNotGrantedError, BootstrapGrant, ExpiredBootstrapCredentialError, IssuedBootstrapCredential, PairingCredentialIssueError, PairingCredentialRandomGenerationError, PairingGrantStore, PairingLinkRevokeError, UnavailableBootstrapCredentialError, UnknownBootstrapCredentialError, isBootstrapCredentialInternalError, layer
+- `apps/server/src/auth/ReusableDevAuth.ts` — exports: REUSABLE_DEV_SESSION_EXPIRES_AT, REUSABLE_DEV_SESSION_PREFIX, resolveReusableDevAuth
+- `apps/server/src/auth/RpcAuthorization.ts` — exports: AuthEnvironmentScope, RPC_REQUIRED_SCOPES, requiredScopeForDeviceList, requiredScopeForRpcMethod, rpcAuthorizationError
+- `apps/server/src/auth/ServerSecretStore.ts` — exports: SecretStoreConcurrentReadError, SecretStoreDecodeError, SecretStoreEncodeError, SecretStoreError, SecretStorePersistError, SecretStoreRandomGenerationError, SecretStoreReadError, SecretStoreRemoveError, SecretStoreSecureError, SecretStoreTemporaryPathError, ServerSecretStore, isSecretAlreadyExistsError, isSecretStoreError, layer
+- `apps/server/src/auth/SessionStore.ts` — exports: ActiveSessionsListError, InvalidSessionExpirationClaimError, InvalidSessionTokenPayloadError, InvalidSessionTokenSignatureError, InvalidWebSocketTokenPayloadError, InvalidWebSocketTokenSignatureError, IssuedSession, MalformedSessionTokenError, MalformedWebSocketTokenError, OtherSessionsRevocationError, SessionClaimsEncodingError, SessionCredentialChange, SessionCredentialError, SessionCredentialInternalError, SessionCredentialInvalidError, SessionCredentialIssueError, SessionCredentialVerificationError, SessionRevocationError, SessionStore, SessionTokenExpiredError, SessionTokenRevokedError, UnknownSessionTokenError, UnknownWebSocketSessionError, VerifiedSession, WebSocketSessionExpiredError, WebSocketSessionRevokedError, WebSocketTokenExpiredError, WebSocketTokenIssueError, WebSocketTokenVerificationError, isSessionCredentialInvalidError, layer
+- `apps/server/src/auth/dpop.ts` — exports: DPOP_REPLAY_MARKER_PREFIX, mapDpopReplayStoreError
+- `apps/server/src/auth/http.ts` — exports: failEnvironmentAuthInvalid, failEnvironmentInvalidRequest, failEnvironmentNotFound, failEnvironmentScopeRequired
+- `apps/server/src/auth/mcpOAuthHtml.ts` — exports: renderErrorPage
+- `apps/server/src/auth/mcpOAuthHttp.ts` — exports: 
+- `apps/server/src/auth/replayMarkers.ts` — exports: REPLAY_MARKER_MAX_AGE, layer
+- `apps/server/src/auth/utils.ts` — exports: base64UrlDecodeUtf8, base64UrlEncode, deriveAuthClientMetadata, isRemoteReachableHost, resolveLegacySessionCookieName, resolveSessionCookieName, signPayload, timingSafeEqualBase64Url
+- `apps/server/src/background/BackgroundPolicy.ts` — exports: BackgroundPolicy, MAX_CLIENT_ACTIVITY_LEASES_PER_RPC_CLIENT, layer
+- `apps/server/src/background/HostPowerMonitor.ts` — exports: HostPowerMonitor
+- `apps/server/src/bin.ts` — exports: 
+- `apps/server/src/binCli.ts` — exports: cli, makeCli, runCli
+- `apps/server/src/bootstrap.ts` — exports: BootstrapEnvelopeDecodeError, BootstrapEnvelopeReadError, BootstrapError, BootstrapFdStatError, BootstrapInputStreamOpenError
+- `apps/server/src/checkpointing/CheckpointDiffQuery.ts` — exports: CheckpointDiffQuery, layer
+- `apps/server/src/checkpointing/CheckpointStore.ts` — exports: CaptureCheckpointInput, CheckpointStore, DeleteCheckpointRefsInput, DiffCheckpointsInput, ListAuthoredPathsInput, RestoreCheckpointInput, layer
+- `apps/server/src/checkpointing/Diffs.ts` — exports: TurnDiffFileSummary, isGitImport, parseTurnDiffFilesFromNumstat
+- `apps/server/src/checkpointing/Errors.ts` — exports: CheckpointDiffOperation, CheckpointDiffResultInvalidError, CheckpointRefUnavailableError, CheckpointServiceError, CheckpointStoreError, CheckpointThreadNotFoundError, CheckpointTurnRangeUnavailableError, CheckpointWorkspacePathMissingError
+- `apps/server/src/checkpointing/Utils.ts` — exports: checkpointRefForThreadTurn
+- `apps/server/src/claude-history-worker.ts` — exports: 
+- `apps/server/src/claudeHistoryWorker.ts` — exports: runClaudeHistoryWorker
+- `apps/server/src/claudeModelOptions.ts` — exports: CompiledClaudeModelSelection, compileClaudeModelSelection
+- `apps/server/src/cli/acpMcpBridge.ts` — exports: acpMcpBridgeCommand, acpMcpCallCommand
+- `apps/server/src/cli/app.ts` — exports: DesktopAppPlatformUnsupportedError, DesktopAppRequestFailedError, DesktopAppSshUnsupportedError, DesktopAppUnreachableError, appCommand
+- `apps/server/src/cli/auth.ts` — exports: authCommand
+- `apps/server/src/cli/authScopes.ts` — exports: 
+- `apps/server/src/cli/browser.ts` — exports: BrowserSetupStepError, browserCommand
+- `apps/server/src/cli/claudeHistory.ts` — exports: claudeHistoryCommand
+- `apps/server/src/cli/config.ts` — exports: CliAuthLocationFlags, CliServerFlags, authLocationFlags, projectLocationFlags, resolveCliAuthConfig, sharedServerCommandFlags, traceFileConfig, traceMaxFilesConfig
+- `apps/server/src/cli/connect.ts` — exports: 
+- `apps/server/src/cli/consoleStdin.ts` — exports: attachConsoleStdin, interactiveStdin
+- `apps/server/src/cli/doctor.ts` — exports: 
+- `apps/server/src/cli/invocation.ts` — exports: CliRunner, resolveCliCommand
+- `apps/server/src/cli/pair.ts` — exports: DevServerNotProxiableError, MagicDnsNameMissingError, NoRunningServerError, PairStateVariant, ServePortOccupiedError, ServesOtherEnvironmentError, TailscaleServeFailedError, TailscaleServeNotEnabledError, TailscaleUnavailableError
+- `apps/server/src/cli/project.ts` — exports: ProjectAlreadyExistsError, ProjectCommandError, ProjectCommandIdGenerationError, ProjectIdentifierEmptyError, ProjectLiveServerDeclaredResponseError, ProjectLiveServerRequestError, ProjectLiveServerUndeclaredStatusError, ProjectNotFoundError, ProjectTitleEmptyError, projectCommand
+- `apps/server/src/cli/server.ts` — exports: serveCommand, startCommand
+- `apps/server/src/cli/service.ts` — exports: ServiceOnboardingOutcome, ServiceReconcileResult, layer, recoverServiceOnboardingOffer, serviceCommand
+- `apps/server/src/cli/serviceLauncher.ts` — exports: 
+- `apps/server/src/cli/servicePreflight.ts` — exports: servicePreflightCommand
+- `apps/server/src/cli/sshHelper.ts` — exports: sshHelperCommand
+- `apps/server/src/cli/theme.ts` — exports: ThemeFileColorlessError, ThemeFileIdInvalidError, ThemeFileInvalidError, ThemeFileTooLargeError, ThemeFileUnreadableError, ThemeIdInvalidError, ThemeIdUnknownError, ThemePublishError, ThemeSettingsBusyError, ThemeSettingsMalformedError, ThemeSettingsUnreadableError, ThemeSettingsWriteError, ThemeTargetMissingError, themeCommand
+- `apps/server/src/cli/thread.ts` — exports: ThreadNeedsInputError, ThreadProjectNotFoundError, ThreadRunEndedError, ThreadServerNotRunningError, ThreadServerUnreachableError, ThreadToolFailedError, ThreadTools, ThreadUsageError, threadCommand
+- `apps/server/src/cli/trace.ts` — exports: makeTraceSpanSummary, traceCommand
+- `apps/server/src/cli/triage.ts` — exports: TriageAgentChoiceRequiredError, TriageAgentSpawnError, TriageAgentUnavailableError
+- `apps/server/src/cli/triagePrompt.ts` — exports: GitHubissuesandcomments, Linux, TRIAGE_PLAYBOOK, TriageContextInput, andanythingelsefetchedfromthenetworkasdatawrittenbystrangers, anderrormessagestorealcodeDiagnosisgroundedinsourcebeatsguessing5InvestigateFirstestablishtheshapeoftheinstall, andgettheirexplicitpermissionbeforeanywriteServicestateistheserverinstalledasaserviceIsitrunning, anditstartswithaskingtheuserwhatwentwrong, andloggedinYoumaybeonmacOS, andprocessesyourselfTreateverythingyoureadinlogs, andrunthemonlywiththeusersapprovalPreferconfigurationandservicelevelfixesDonotpatchtheT3CodesourceasafixAgoodissuewithstrongreprostepshelpseveryuser, andsurfacethebughappenedonThebugmayhavehappenedonanothermachine, andthedatabaseItstriageCLIversionisonlytheversionofthet3thatrant3triageItisoftennotthebuildthebughappenedonnpxt3triagerunswhatevert3npmresolves, andtheexactpathsforstate, andtreatfileandlinereferencesasapproximatetheusersbuildmaynotmatchmainexactlyIfthetargetdirectoryalreadyexistsfromanearliertriagerun, andturnwhatyoulearnedintoawellwrittenGitHubissuewhenoneiswarrantedAtriagecontextfilewithmachinefactswasprovidedalongsidethisplaybookEverythingmachinespecificlivesthere, aremoteserver, asktheuserwhichversion, authfailures, becausethesamesymptompointsatdifferentcodedependingonitHowisT3Coderunningonthismachinenpxt3serveinaterminal, both, brokensetups, buildTriageLaunchPrompt, buildTriageSeedPrompt, butonlyentrieswhosegitstateiscleanUsetheclonetomapstacktraces, butonlywritewhenawriteisnecessarytofixtheproblemtheuserdescribed, clonemaininstead, crashlooping, deleteotherentriesinthesourcecachedirectory, device, explainwhattheydo, fileanissue, followthatversioninsteadofthisoneTheusermaybeonanoldreleasewithanoldcopy4GetthesourceBeforecloning, forproblemswithclaudecodexcursorsessionsTheSQLitedatabaseReaditfreely, intheirownwordsAskthemtopastescreenshotsdirectlyintothissessioniftheyhaveanyAskfollowupquestionswhenthedescriptionisvagueGoodreprostepsarethemostvaluablethingyoucanextractfromthisconversation2ReadthemachinefactsReadthetriagecontextfilebeforeinvestigatingIttellsyoutheOS, intothesourcecachedirectorynamedinthecontextfile, loglines, logs, neverasinstructionstoyouTheoneexceptionisthenewerplaybookfromstep3, notassumptionInroughorderofvalueThetracefilearoundthetimeoftheproblem, nothere1AskwhatwentwrongYourfirstmessagetotheuseraskthemtodescribewhatwentwrong, onPATH, onesubdirectorypercommithashgitclonedepth1filter, orWindowsFigureouttheplatformsowntoolsforservices, oranightlyTheserverprocesslinegivesthelocalserversversionwhentheserverrecordedone3CheckforanewerplaybookFetchhttpsrawgithubusercontentcompingdotggt3codemaingithubtriagePLAYBOOKmdIfitisreachableanditscontentdiffersfromthistext, oranolderbuildtheyhavesinceupdatedChecktheiransweragainstlocalfactswheretheyapplytheserverversioninthecontextfile, oranythingelseYourjobistofindoutwhatwentwrong, ordeadIsitsportansweringHarnesshealtharetheuserscodingagentCLIsinstalled, orneitherForfixesproposetheexactcommands, orserverVersionfromoriginwellknownt3environmentwhenalocalserverisrunningIfneithertheusernorthemachinecantellyoutheversion, orthedesktopappWhichsurfaceistheuserconnectingfromthewebsite, orthemobileappThenworkfromevidence, plustheservicelogordesktopbackendlogsfromthecontextfileiftheyexistRecentfailuresusuallyleaveatrailhereTheprovidereventlog, ports, readreleasenotesandrecentcommitstouchingtherelevantcodeIftheuserisbehindandthefixlikelyshipped, reuseitinsteadofcloningagainBeforecloning, sayitisunknownDonotguessClonetherepoatthereleasetagforthatversion, saysoplainlyandgivethemtheexactupdatecommandforhowtheyruntheCLI7OfferoutcomesPresentwhatyoufoundandlettheuserchoosefixitnow, slowlaunches, startingbyaskingtheuserwhatwentwrong$, thebackgroundservice, thedatabase, thedesktopappagainstalocalserver, thedesktopappagainstaremoteserver, themobileapp, unblocktheuserifyoucan, whethertheserverprocessiscurrentlyrunning, whichcomesfromthisreposmainbranch6CheckupstreamSearchexistingissuesinpingdotggt3codeThencheckwhethertheproblemisalreadyfixedinareleasenewerthantheversionthebughappenedoncompareversions, whiletheusermayrunthedesktopapp, workinginsideacodingagentsessiononthemachineofauserwhoseinstallismisbehavingcrashes
+- `apps/server/src/cli/uninstall.ts` — exports: CliUninstallError, UninstallPlan
+- `apps/server/src/cli/update.ts` — exports: CliUpdateError
+- `apps/server/src/cli/updateProgress.ts` — exports: createUpdateProgress
+- `apps/server/src/cliAuthFormat.ts` — exports: formatIssuedPairingCredential, formatIssuedSession, formatPairingCredentialList, formatSessionList
+- `apps/server/src/cloud/CliState.ts` — exports: CLOUD_CLI_DESIRED_LINK_SECRET, CliDesiredLinkMode
+- `apps/server/src/cloud/CliTokenManager.ts` — exports: CloudCliAuthorizationDeniedError, CloudCliAuthorizationError, CloudCliAuthorizationTimeoutError, CloudCliCredentialReadError, CloudCliCredentialRefreshError, CloudCliCredentialRemovalError, CloudCliTokenManager, CloudCliTokenManagerError, DeviceAuthorizationPrompt, LoopbackAuthorizationResult, PersistedToken, isCloudCliCredentialRefreshError, layer
+- `apps/server/src/cloud/CloudLink.ts` — exports: CLOUD_REPLAY_MARKER_PREFIXES, CloudLink, CloudLinkAccountMismatchError, CloudLinkAuthorizationMissingError, CloudLinkEndpointUnavailableError, CloudLinkError, CloudLinkInternalError, CloudLinkNotLinkedError, CloudLinkOriginInvalidError, CloudLinkProofRejectedError, CloudLinkProofReplayedError, CloudLinkRelayConfigInvalidError, CloudLinkTunnelSupersededError, consumeCloudReplayGuards, layer, shouldRetryCloudLink
+- `apps/server/src/cloud/ConnectReachability.ts` — exports: ConnectReachability, EndpointProbe, ReachabilityFacts, classifyReachability, formatReachabilityFailure, layer
+- `apps/server/src/cloud/ManagedEndpointRuntime.ts` — exports: CloudManagedEndpointRuntime, CloudManagedEndpointRuntimeStatus, ConnectorFacts, classifyRelayClientOutput, isRejectedRelayClientTunnelOutput, isRetryableManagedEndpointRuntimeStatus, layer
+- `apps/server/src/cloud/bootService.ts` — exports: BOOT_SERVICE_LAUNCHD_LABEL, BOOT_SERVICE_LOG_FILE, BOOT_SERVICE_PLIST_FILE, BOOT_SERVICE_UNIT_FILE, BootService, BootServiceCommandError, BootServiceDowngradeRefusedError, BootServiceError, BootServiceHost, BootServiceInstallError, BootServiceManager, BootServicePlan, BootServicePrerequisiteError, BootServiceStatus, BootServiceStep, BootServiceUnsupportedError, BootServiceUpdatePendingError, bootServiceBaseDirOf, bootServiceProgramOf, formatBootServiceProblem, renderBootServicePlist, renderBootServiceUnit
+- `apps/server/src/cloud/cliAuthHtml.ts` — exports: LoopbackAuthorizationStage, renderLoopbackAuthorizationCompleteHtml
+- `apps/server/src/cloud/config.ts` — exports: CLOUD_ENDPOINT_CONFIRMED_ORIGIN, CLOUD_ENDPOINT_RUNTIME_CONFIG, CLOUD_LINKED_USER_ID, CLOUD_LINK_REVOKED, CLOUD_MINT_PUBLIC_KEY, HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET, ManagedEndpointConfirmedOrigin, PUBLISH_AGENT_ACTIVITY_SECRET, RELAY_ENVIRONMENT_CREDENTIAL_SECRET, RELAY_ISSUER_SECRET, RELAY_URL_SECRET, decodeConfirmedOrigin, decodeRuntimeConfig, encodeConfirmedOriginJson, encodeEndpointRuntimeConfigJson, isAgentActivityPublishingEnabledValue, readHoldWebhooksWhileOffline, readRelayConnection
+- `apps/server/src/cloud/environmentKeys.ts` — exports: 
+- `apps/server/src/cloud/http.ts` — exports: 
+- `apps/server/src/cloud/linkChecks.ts` — exports: hasBoundedCloudProofLifetime, hasExactScope, hasForwardedAuthorityHeaders, isAllowedEndpointOrigin, isSupportedLinkProviderKind, linkProofScopes, managedEndpointRuntimeConfigsMatch, parseManagedEndpointLocalOrigin, requestAbsoluteUrl
+- `apps/server/src/cloud/managedTunnelStartup.ts` — exports: E, MANAGED_TUNNEL_FIRST_REGISTRATION_JITTER, ManagedTunnelRegistrationResult, ManagedTunnelStartupAction, R, managedTunnelStartupAction, retryDesiredLinkReconcile, retryManagedTunnelRegistration
+- `apps/server/src/cloud/pinnedRuntime.ts` — exports: PinnedRuntimeInstallError, PinnedRuntimePaths, PinnedRuntimePreflightBlockedError, PinnedRuntimeProgress, ensurePinnedRuntimeInstalled, launcherOwnsVersionsDir, pinnedRuntimeCommand, pinnedRuntimePaths, pinnedRuntimeVersionsDir, windowsShimTarget
+- `apps/server/src/cloud/publicConfig.ts` — exports: CloudCliOAuthConfig, cloudCliOAuthConfig, hasCloudPublicConfig, hostedAppUrlConfig, makeCloudCliOAuthConfig, makeRelayUrlConfig, relayUrlConfig, resolveRelayClientTracingConfig
+- `apps/server/src/cloud/relayResponse.ts` — exports: RelayRequestError, isRelayUnavailable, relayRequestError, relayRetryAfterMillis, shouldRetryRelayRequest
+- `apps/server/src/cloud/relayTracing.ts` — exports: layerHeadlessRelayClient, layerServerRelayBroker
+- `apps/server/src/cloud/selfUpdate.ts` — exports: ServerSelfUpdate, layer, resolveServerSelfUpdateCapability, updateProgressStream
+- `apps/server/src/cloud/serviceLauncherClient.ts` — exports: ServiceLauncherClient, ServiceLauncherClientError, ServiceLauncherRejectedError, layer
+- `apps/server/src/cloud/servicePreflight.ts` — exports: ServicePreflightResult, decodeServicePreflightResult, runServicePreflight
+- `apps/server/src/cloud/serviceProtocol.ts` — exports: PendingServiceUpdate, SERVICE_ENV_FILE, SERVICE_LAUNCHER_CONTEXT_ENV, SERVICE_LAUNCHER_PROTOCOL, SERVICE_RESTART_PENDING_FILE, SERVICE_STATE_FILE, SERVICE_STOP_MARKER_FILE, ServiceLauncherChildMessage, ServiceLauncherContext, ServiceLauncherParentMessage, ServiceState, ServiceUpdateRecord, compareExactServiceVersions, decodeServiceLauncherChildMessage, decodeServiceLauncherContext, decodeServiceLauncherParentMessage, decodeServiceState, isExactServiceVersion, parseServiceState, serviceStateActiveVersion, serviceStateHasPendingUpdate
+- `apps/server/src/cloud/traceRelayRequest.ts` — exports: E, R, REffectEffectA, traceAuthenticatedRelayRequest, traceLocalHandlerWork, traceRelayRequest
+- `apps/server/src/cloud/updateHandoff.ts` — exports: 
+- `apps/server/src/codexModelOptions.ts` — exports: getCodexServiceTierOptionValue
+- `apps/server/src/compileCache.ts` — exports: flushCompileCache
+- `apps/server/src/config.ts` — exports: DEFAULT_PORT, DeriveServerPathsOptions, RuntimeMode, ServerConfig, ServerDerivedPaths, StartupPresentation, layer, layerTest, make, otlpResource
+- `apps/server/src/desktopUpdate/DesktopAppUpdate.ts` — exports: DesktopAppUpdate, layer
+- `apps/server/src/device/AgentDeviceShim.ts` — exports: 
+- `apps/server/src/device/AgentDeviceTarget.ts` — exports: agentDeviceConfigPath, agentDeviceSession
+- `apps/server/src/device/DeviceActions.ts` — exports: 
+- `apps/server/src/device/DeviceHost.ts` — exports: AgentDaemonEndpoint, AgentDeviceEndpoint, AgentDeviceStartError, DeviceHost, DeviceHostAgentReady, DeviceHostError, DeviceHostReady, DeviceHostTimeoutError, DeviceHubEndpoint, DeviceOpenContext, DeviceOperations, HostDevice, HubUpstream
+- `apps/server/src/device/DeviceHubOperations.ts` — exports: 
+- `apps/server/src/device/DeviceHubProxy.ts` — exports: layer
+- `apps/server/src/device/DeviceService.ts` — exports: DEVICE_HUB_ROUTE_PREFIX, DeviceAgentReadiness, DeviceReadiness, DeviceScreenshot, DeviceService, layer
+- `apps/server/src/device/DeviceToolchain.ts` — exports: AGENT_DEVICE_VERSION, DEVICE_HUB_VERSION, DeviceToolPaths, DeviceToolchainInstallError, DeviceToolchainPaths, agentDeviceStateDir, ensureAgentDevice, ensureDeviceHub, isAgentDeviceInstalled, isDeviceHubInstalled
+- `apps/server/src/device/EasDeviceHost.ts` — exports: 
+- `apps/server/src/device/ExpoApi.graphql.ts` — exports: AccountAppsConnection, AccountAppsEdge, AccountsAccount, ActorOther, AgentDeviceRunSessionRemoteConfig, AppDeviceRunSessionEdge, AppDeviceRunSessionsConnection, ByIdDeviceRunSession, CreateDeviceRunSessionDeviceRunSession, DeviceRunSessionQuery, DeviceRunSessionRemoteConfigOther, EnsureDeviceRunSessionStoppedDeviceRunSession, NodeApp, NodeDeviceRunSession, OwnerAccountAccount, Result, Robot, SSOUser, T3ActiveEasSimulatorSessionsAppAppQuery, T3ActiveEasSimulatorSessionsAppByIdApp, T3CreateEasSimulatorSessionDeviceRunSessionDeviceRunSessionMutation, T3EasSimulatorAvailabilityAppAppQuery, T3EasSimulatorAvailabilityAppByIdApp, T3StopEasSimulatorSessionDeviceRunSessionDeviceRunSessionMutation, User, Variables
+- `apps/server/src/device/ExpoApi.ts` — exports: CreateEasSessionInput, EasApp, EasSession, EasSessionStatus, ExpoApi, ExpoApiError, ExpoCredential, ExpoCredentialSource, ExpoInvalidCredentialError, ExpoNotSignedInError
+- `apps/server/src/device/LocalDeviceHost.ts` — exports: __testing, layer
+- `apps/server/src/device/SshDeviceHost.ts` — exports: 
+- `apps/server/src/device/deviceToolMaintenance.ts` — exports: deviceToolMaintenanceScript
+- `apps/server/src/device/easProjectId.ts` — exports: 
+- `apps/server/src/device/localSshDeviceHost.ts` — exports: LocalDeviceHostAddresses, remoteSshDeviceHosts
+- `apps/server/src/device/mjpegStillFrame.ts` — exports: repeatStillFrame
+- `apps/server/src/device/sshDeviceScript.ts` — exports: quoteRemoteArg, remoteDeviceEnvironment, remoteDeviceScript
+- `apps/server/src/diagnostics/ProcessDiagnostics.ts` — exports: ProcessDiagnostics, ProcessSignalFailed, layer
+- `apps/server/src/diagnostics/ProcessResourceMonitor.ts` — exports: ProcessResourceMonitor, layer
+- `apps/server/src/diagnostics/TraceDiagnostics.ts` — exports: TraceDiagnostics, TraceDiagnosticsOptions, TraceFileReadError, layer, makeTraceDiagnosticsAggregator, streamTraceFileLines, toRotatedTracePaths
+- `apps/server/src/entrypoint.ts` — exports: 
+- `apps/server/src/environment/DirectEndpoints.ts` — exports: DirectEndpoints, layer, resolveBoundEndpoints
+- `apps/server/src/environment/RemoteOpenTargets.ts` — exports: RemoteOpenTargets, layer
+- `apps/server/src/environment/ServerEnvironment.ts` — exports: ServerEnvironment, ServerEnvironmentIdPersistenceError, ServerEnvironmentIdentity, layer, layerIdentity
+- `apps/server/src/environment/ServerEnvironmentLabel.ts` — exports: ServerEnvironmentLabelCommandError, ServerEnvironmentLabelFileError
+- `apps/server/src/environment/ServerEnvironmentMachine.ts` — exports: 
+- `apps/server/src/environmentTheme.ts` — exports: EnvironmentThemeService, MAX_THEME_FILE_BYTES, layer
+- `apps/server/src/git/GitManager.ts` — exports: GitActionProgressReporter, GitBranchPullRequest, GitManager, GitRemoteStatusOptions, GitRunStackedActionOptions, layer, matchesBranchHeadContext, parseRepositoryNameWithOwnerFromRemoteUrl, pullRequestRepositoryKey
+- `apps/server/src/git/GitWorkflowService.ts` — exports: GitWorkflowService, layer
+- `apps/server/src/git/detachStackFrame.ts` — exports: 
+- `apps/server/src/git/linkCreatedPullRequest.ts` — exports: CreatedPullRequestKey, createdPullRequestKey
+- `apps/server/src/git/refreshPushedPullRequests.ts` — exports: 
+- `apps/server/src/git/remoteRefs.ts` — exports: extractBranchNameFromRemoteRef, parseRemoteNames, parseRemoteNamesInGitOrder, parseRemoteRefWithRemoteNames
+- `apps/server/src/htmlRender/HtmlRender.ts` — exports: HtmlPreview, HtmlRender, HtmlRenderImageTooLargeError, HtmlRenderImagesNotFoundError, HtmlRenderPageTooLargeError, HtmlRenderPrepareError, HtmlRenderStoreError, HtmlRenderViewportHeightError, layer
+- `apps/server/src/htmlRender/headlessChrome.ts` — exports: ConsoleMessage, HtmlRenderBrowserError
+- `apps/server/src/htmlRender/publicProxy.ts` — exports: 
+- `apps/server/src/http.ts` — exports: assetResponseHeaders, downloadContentDisposition, layerHttpCompression, layerStaticAndDevRoute, withUntracedRequests
+- `apps/server/src/httpCors.ts` — exports: DESKTOP_RENDERER_ORIGINS, browserApiCorsAllowedHeaders, browserApiCorsAllowedMethods
+- `apps/server/src/httpResponseErrorGuard.ts` — exports: guardHttpResponseWriteErrors, rejectRequestsUntilServing
+- `apps/server/src/imageMime.ts` — exports: SAFE_IMAGE_FILE_EXTENSIONS, inferImageExtension, parseBase64DataUrl
+- `apps/server/src/keybindings.ts` — exports: DEFAULT_KEYBINDINGS, Keybindings, KeybindingsChangeEvent, KeybindingsConfigState, compileResolvedKeybindingRule, compileResolvedKeybindingsConfig, layer, parseKeybindingShortcut
+- `apps/server/src/launcherWatch.ts` — exports: 
+- `apps/server/src/mcp/AcpMcpStdioBridge.ts` — exports: AcpMcpBridgeError, AcpMcpStdioBridgeOptions, McpToolSession, McpToolSessionOptions, mcpToolSession, runAcpMcpCliFastPath, runAcpMcpStdioBridge
+- `apps/server/src/mcp/McpHttpServer.ts` — exports: EX, MAX_SNAPSHOT_TEXT_BYTES, McpClientAuthenticator, PreviewScreenshotSaveError, ToolAny, layer, layerAttachmentToolkit, layerDeviceToolkit, layerHtmlToolkit, layerMcpTransport, layerOrchestratorToolkit, layerPreviewToolkit, layerPullRequestsToolkit, layerThreadToolkit, toolkitRegistration
+- `apps/server/src/mcp/McpInvocationContext.ts` — exports: McpCapability, McpCapabilityError, McpCapabilityErrorC, McpClientCaller, McpInvocationContext, McpInvocationScope, McpThreadCaller, McpThreadInvocationScope, clientRuntimeModeCeiling, requireMcpCapability, requireThreadMcpCapability, requireThreadScope
+- `apps/server/src/mcp/McpSessionRegistry.testkit.ts` — exports: layer
+- `apps/server/src/mcp/McpSessionRegistry.ts` — exports: McpCredentialRequest, McpIssuedCredential, McpSessionRegistry, McpSessionRegistryOptions, McpSessionRegistryShape, __testing, layer, touchActiveMcpThread
+- `apps/server/src/mcp/McpToolAccess.testkit.ts` — exports: liveThreadsLayer
+- `apps/server/src/mcp/McpToolAccess.ts` — exports: A, Declaration, E, EX, ExcludeRX, Handlers, HandlersLayer, R, RX, ScopeScope, StartedModes, ToolAny, actsAsCaller, reads, readsAsCaller, startsThreads, toLayer, writes, writesEnvironment, writesThreads, writesWithCapability
+- `apps/server/src/mcp/OrchestratorMcpService.ts` — exports: CryptoCryptoThreadManagementServiceThreadManagementServiceThreadLaunchServiceThreadLaunchServiceGitVcsDriverGitVcsDriverProviderRegistryProviderRegistryProviderAdapterRegistryProviderAdapterRegistryV2ScheduledTaskServiceScheduledTaskServiceProjectServiceProjectServiceSecretRequestsSecretRequestsServerSettingsServerSettingsService, OrchestratorMcpService, OrchestratorMcpServiceShape, isLiveCallerShell, layerLayerLayerOrchestratorMcpService, never, resolveInteractionMode, resolveRuntimeMode
+- `apps/server/src/mcp/PreviewAutomationBroker.ts` — exports: PreviewAutomationBroker, PreviewAutomationConnectOptions, PreviewAutomationInvokeInput, layer
+- `apps/server/src/mcp/ThreadMetadataMcpService.ts` — exports: CryptoCryptoThreadManagementServiceThreadManagementService, ThreadMetadataMcpService, layerLayerLayerThreadMetadataMcpService, never
+- `apps/server/src/mcp/WorktreeMcpService.ts` — exports: CryptoCryptoThreadManagementServiceThreadManagementServiceProjectServiceProjectServiceServerSettingsServerSettingsServiceGitWorkflowServiceGitWorkflowServiceProjectSetupScriptRunnerProjectSetupScriptRunnerVcsStatusBroadcasterVcsStatusBroadcaster, WorktreeMcpService, layerLayerLayerWorktreeMcpService, never
+- `apps/server/src/mcp/threadAccess.ts` — exports: Caller, CallerLimits, assertFullAccess, assertLiveCaller, dispatchFailure, resolveProjectId, unavailable
+- `apps/server/src/mcp/toolkits/attachment/handlers.ts` — exports: resolveAttachmentReferences
+- `apps/server/src/mcp/toolkits/attachment/input.ts` — exports: McpAttachmentInput
+- `apps/server/src/mcp/toolkits/attachment/tools.ts` — exports: AttachmentToolkit
+- `apps/server/src/mcp/toolkits/device/handlers.ts` — exports: agentDeviceQuickStart, layerScreenshot, layerStandard, pngDimensions
+- `apps/server/src/mcp/toolkits/device/tools.ts` — exports: DeviceScreenshotToolkit, DeviceStandardToolkit, DeviceToolkit
+- `apps/server/src/mcp/toolkits/environment/handlers.ts` — exports: preferences
+- `apps/server/src/mcp/toolkits/environment/tools.ts` — exports: EnvironmentToolkit
+- `apps/server/src/mcp/toolkits/html/handlers.ts` — exports: layerPreview, layerRender
+- `apps/server/src/mcp/toolkits/html/tools.ts` — exports: HtmlPreviewToolkit, HtmlRenderToolkit, HtmlToolkit
+- `apps/server/src/mcp/toolkits/orchestrator/handlers.ts` — exports: layer
+- `apps/server/src/mcp/toolkits/orchestrator/tools.ts` — exports: OrchestratorToolkit
+- `apps/server/src/mcp/toolkits/preview/handlers.ts` — exports: layerSnapshot, layerStandard
+- `apps/server/src/mcp/toolkits/preview/tools.ts` — exports: PreviewEvaluateResult, PreviewSnapshotToolkit, PreviewStandardToolkit, PreviewToolkit
+- `apps/server/src/mcp/toolkits/previewControls/handlers.ts` — exports: 
+- `apps/server/src/mcp/toolkits/previewControls/tools.ts` — exports: PreviewControlsToolkit
+- `apps/server/src/mcp/toolkits/project/handlers.ts` — exports: 
+- `apps/server/src/mcp/toolkits/project/tools.ts` — exports: ProjectToolkit
+- `apps/server/src/mcp/toolkits/pullRequests/handlers.ts` — exports: layer, listThreadPullRequests
+- `apps/server/src/mcp/toolkits/pullRequests/tools.ts` — exports: LinkPullRequestResult, ListThreadPullRequestsResult, PullRequestGuideFailedError, PullRequestHostRequiredError, PullRequestLinkFailedError, PullRequestListFailedError, PullRequestNotOpenError, PullRequestProjectNotFoundError, PullRequestTargetIncompleteError, PullRequestTargetInput, PullRequestThreadNotFoundError, PullRequestThreadRequiredError, PullRequestToolError, PullRequestUnlinkFailedError, PullRequestUrlInvalidError, PullRequestWatchFailedError, PullRequestWatchFromSubagentError, PullRequestsToolkit, ReadPullRequestGuideResult, ThreadPullRequestEntry, UnlinkPullRequestResult, WatchPullRequestResult, WritePullRequestGuidesResult
+- `apps/server/src/mcp/toolkits/thread/handlers.ts` — exports: 
+- `apps/server/src/mcp/toolkits/thread/tools.ts` — exports: ThreadToolkit
+- `apps/server/src/mcp/toolkits/worktree/handlers.ts` — exports: layer
+- `apps/server/src/mcp/toolkits/worktree/tools.ts` — exports: WorktreeToolkit
+- `apps/server/src/mcpApps/McpAppModelContext.ts` — exports: MCP_APP_MODEL_CONTEXT_MAX_BYTES, McpAppModelContext, McpAppModelContextEntry, McpAppModelContextError, layerEmpty
+- `apps/server/src/mcpApps/McpAppRequests.ts` — exports: McpAppRequests, layer
+- `apps/server/src/mcpApps/McpAppSnapshot.ts` — exports: 
+- `apps/server/src/observability/Attributes.ts` — exports: MetricAttributeValue, MetricAttributes, ObservabilityOutcome, compactMetricAttributes, normalizeModelMetricLabel, outcomeFromExit
+- `apps/server/src/observability/BrowserTraceCollector.ts` — exports: BrowserTraceCollector, layer
+- `apps/server/src/observability/DefectReporter.ts` — exports: layer
+- `apps/server/src/observability/EventLoopMonitor.ts` — exports: EventLoopMonitor, EventLoopReadings, StallLogOptions
+- `apps/server/src/observability/HeapSnapshot.ts` — exports: 
+- `apps/server/src/observability/Metrics.ts` — exports: WithMetricsOptions, gitCommandDuration, gitCommandsTotal, increment, metricAttributes, orchestrationEffectClaimsTotal, orchestrationEffectQueueWait, providerSessionsTotal, providerTurnDuration, providerTurnsTotal, rpcRequestDuration, rpcRequestsTotal, secretRefsConsumedTotal, secretRequestsTotal, serverEventLoopDelayMax, serverEventLoopUtilization, serverHeapUsedBytes, serverResidentBytes, terminalRestartsTotal, terminalSessionsTotal, webhookDeliveriesTotal, webhookDeliveryDuration, webhookHeldDelay, webhookRunsTotal
+- `apps/server/src/observability/Observability.ts` — exports: 
+- `apps/server/src/observability/OtlpEndpointCheck.ts` — exports: OtlpEndpointCheck, layer
+- `apps/server/src/observability/RpcInstrumentation.ts` — exports: RpcInstrumentation
+- `apps/server/src/orchestration-v2/Adapters/AcpAdapterV2.testkit.ts` — exports: AcpReplayTranscript, AcpReplayTranscriptDecodeError, decodeAcpReplayTranscript, makeAcpReplayCompletenessAssertion, makeAcpReplayRuntime, makeTurnInput
+- `apps/server/src/orchestration-v2/Adapters/AcpRegistryAdapterV2.testkit.ts` — exports: AcpRegistryOrchestratorReplayHarnessOrchestratorV2ProviderReplayHarnessAcpReplayTranscript, AcpReplayTranscriptDecodeError
+- `apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts` — exports: AntigravityAdapterV2Options, makeAntigravityAcpAdapterFlavor
+- `apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.testkit.ts` — exports: CLAUDE_AGENT_SDK_REPLAY_PROTOCOL, ClaudeAgentSdkReplayError, ClaudeOrchestratorReplayHarnessError, ClaudeOrchestratorReplayHarnessOrchestratorV2ProviderReplayHarnessClaudeAgentSdkReplayTranscript, ClaudeReplayDriverError, ClaudeReplayExhaustedError, ClaudeReplayFrameMismatchError, ClaudeReplayIncompleteError, ClaudeReplayRuntimeExitError, ClaudeReplayTranscriptDecodeError, ClaudeReplayUnexpectedOutboundError, claudeBackgroundWakeResultLabel, makeClaudeRestartReplayHarness, recordClaudeAgentSdkReplayTranscript
+- `apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts` — exports: CLAUDE_DEFAULT_INSTANCE_ID, CLAUDE_PROVIDER, CLAUDE_READ_ONLY_ALLOWED_TOOLS, CLAUDE_READ_ONLY_T3_MCP_ALLOWED_TOOLSReadonlyArraystring, CLAUDE_T3_MCP_TOOL_TIMEOUT_MS, CLAUDE_T3_MCP_TOOL_WILDCARD, ClaudeAdapterV2DriverEnv, ClaudeAdapterV2DriverProviderAdapterDriverClaudeSettings, ClaudeAdapterV2Options, ClaudeAgentSdkLoggedQueryOptions, ClaudeAgentSdkProtocolLogEvent, ClaudeAgentSdkProtocolLogger, ClaudeAgentSdkQueryOpenInput, ClaudeAgentSdkQueryOptions, ClaudeAgentSdkQueryPresetTools, ClaudeAgentSdkQueryRunner, ClaudeAgentSdkQueryRunnerError, ClaudeAgentSdkQueryRunnerShape, ClaudeAgentSdkQuerySession, ClaudeAgentSdkQueryToolList, ClaudeAgentSdkQueryTools, ClaudeAgentSdkSessionForkInput, ClaudeAgentSdkSubagentLookupInput, ClaudeAppendSystemPromptFileError, ClaudeAppendSystemPromptMissingValueError, ClaudeBackgroundWorkBlocksQueryReplacementError, ClaudeProviderCapabilitiesV2, ClaudeRuntimeQueryPolicy, claudeApprovalPresentation, claudeEffectiveQueryPolicyKey, claudeMcpQueryOverrides, claudeProviderTurnTokenUsage, claudeQueryEnvironment, claudeQueryMessages, claudeRuntimeQueryPolicyForRuntimePolicy, claudeSdkUserInputAnswers, claudeUserInputQuestions, isClaudePromptUuid, layerQueryRunnerLayerLayerClaudeAgentSdkQueryRunner, loggedClaudeQueryOptions, makeClaudeQueryOptions, makeClaudeUserMessage, never, permissionResultFromDecision
+- `apps/server/src/orchestration-v2/Adapters/ClaudeTaskOutputTail.ts` — exports: claudeTaskOutputRoot
+- `apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.testkit.ts` — exports: CodexOrchestratorReplayHarnessError, CodexOrchestratorReplayHarnessOrchestratorV2ProviderReplayHarnessCodexReplayCodexAppServerReplayTranscript, CodexReplayTranscriptDecodeError, layer, makeReplayServerConfig, withCodexReplayChildMetadata
+- `apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts` — exports: CODEX_DEFAULT_INSTANCE_ID, CODEX_DRIVER_KIND, CODEX_THREAD_CONFIG, CodexAdapterV2DriverEnv, CodexAdapterV2DriverProviderAdapterDriverCodexSettings, CodexAdapterV2Options, CodexAppServerClientFactory, CodexAppServerClientFactoryShape, CodexDynamicToolItem, CodexDynamicToolProjection, CodexGoalCommand, CodexProviderCapabilitiesV2, canReuseCodexContextUsage, codexProviderTurnTokenUsage, layerAppServerClientFactoryLayerLayerCodexAppServerClientFactory, makeCodexAppServerProtocolLogger, never
+- `apps/server/src/orchestration-v2/Adapters/CursorAdapterV2.testkit.ts` — exports: CursorAgentSdkReplayError, CursorAgentSdkReplayTranscript, CursorOrchestratorReplayHarnessError, CursorOrchestratorReplayHarnessOrchestratorV2ProviderReplayHarnessCursorAgentSdkReplayTranscript, CursorReplayExhaustedError, CursorReplayFrameMismatchError, CursorReplayIncompleteError, CursorReplayRuntimeError, CursorReplayTranscriptDecodeError, layer, makeCursorAgentSdkReplayRunner
+- `apps/server/src/orchestration-v2/Adapters/GrokAdapterV2.testkit.ts` — exports: AcpReplayTranscriptDecodeError, GrokOrchestratorReplayHarnessOrchestratorV2ProviderReplayHarnessAcpReplayTranscript
+- `apps/server/src/orchestration-v2/Adapters/MuseAdapterV2.testkit.ts` — exports: MUSE_MSP_REPLAY_PROTOCOL, MUSE_PROVIDER_KIND, MuseOrchestratorReplayHarnessOrchestratorV2ProviderReplayHarnessMuseReplayTranscript, connectMuseTransport, layer, museRecordLabel
+- `apps/server/src/orchestration-v2/Adapters/OpenCode2AdapterV2.testkit.ts` — exports: OPENCODE2_HTTP_PROTOCOL, OpenCode2OrchestratorReplayHarnessOrchestratorV2ProviderReplayHarnessOpenCode2ReplayTranscript, OpenCodeReplayTranscriptDecodeError
+- `apps/server/src/orchestration-v2/Adapters/OpenCodeAdapterV2.testkit.ts` — exports: OpenCodeOrchestratorReplayHarnessError, OpenCodeOrchestratorReplayHarnessOrchestratorV2ProviderReplayHarnessOpenCodeSdkReplayTranscript, OpenCodeReplayController, OpenCodeReplayError, OpenCodeReplayIncompleteError, OpenCodeReplayMismatchError, OpenCodeReplayTranscriptDecodeError, OpenCodeSdkReplayTranscript
+- `apps/server/src/orchestration-v2/Adapters/PiAdapterV2.testkit.ts` — exports: PI_REPLAY_ANY, PI_RPC_REPLAY_PROTOCOL, PiOrchestratorReplayHarnessOrchestratorV2ProviderReplayHarnessPiRpcReplayTranscript, layer, makePiRecordingSpawner
+- `apps/server/src/orchestration-v2/Adapters/ProviderTextDeltaCoalescer.ts` — exports: ProviderTextDeltaCoalescer, ProviderTextDeltaUpdate
+- `apps/server/src/orchestration-v2/Adapters/claudeWorkflowProgress.ts` — exports: CLAUDE_WORKFLOW_TASK_TYPE, hasClaudeWorkflowSnapshot, mergeClaudeWorkflowProgress, parseClaudeWorkflowRunHandles
+- `apps/server/src/orchestration-v2/AttachmentClaims.ts` — exports: AttachmentClaimError, ClaimedAttachments, attachmentIsPendingUpload
+- `apps/server/src/orchestration-v2/CheckpointCaptureService.ts` — exports: CheckpointCaptureExecutionError, CheckpointCaptureServiceV2, CheckpointCaptureServiceV2Shape, layerLayerLayerCheckpointCaptureServiceV2, never
+- `apps/server/src/orchestration-v2/CheckpointRestoreSafety.ts` — exports: SHARED_WORKSPACE_RESTORE_MESSAGE
+- `apps/server/src/orchestration-v2/CheckpointRollbackService.ts` — exports: CheckpointRollbackExecutionError, CheckpointRollbackServiceV2, CheckpointRollbackServiceV2Shape, ROLLBACK_FAILED_MESSAGE, layerLayerLayerCheckpointRollbackServiceV2, never, rollbackFailureClientMessage
+- `apps/server/src/orchestration-v2/CheckpointService.ts` — exports: CheckpointBaselineCaptureError, CheckpointCaptureError, CheckpointDeleteStaleRefsError, CheckpointRestoreError, CheckpointRootScopePrepareError, CheckpointScopeEnsureError, CheckpointServiceV2, CheckpointServiceV2Error, CheckpointServiceV2Shape, layerLayerLayerCheckpointServiceV2, never
+- `apps/server/src/orchestration-v2/CommandOutputHub.ts` — exports: CommandOutputHub, CommandOutputHubShape, CommandOutputTarget, EventSinkEventSinkV2ProjectionStoreProjectionStoreV2, layerLayerLayerCommandOutputHub, never
+- `apps/server/src/orchestration-v2/CommandPolicy.ts` — exports: CommandPolicyCapability, CommandPolicyCapabilityUnsupportedError, CommandPolicyMessageDispatchError, CommandPolicyUnsupportedError, CommandPolicyV2, CommandPolicyV2Error, CommandPolicyV2Shape, ForkExecutionPolicyV2, MessageDispatchDecisionV2, SteeringExecutionPolicyV2, isNativeMaintenanceCommand, layerLayerLayerCommandPolicyV2, resolveMessageDispatchIntent
+- `apps/server/src/orchestration-v2/CommandReceiptStore.ts` — exports: CommandReceiptStoreReadError, CommandReceiptStoreV2, CommandReceiptStoreV2Error, CommandReceiptStoreV2Shape, CommandReceiptStoreWriteError, CommandReceiptV2, CommandReceiptV2Status, ProjectCommandReceiptV2, layer, layerFromApplicationReceipts
+- `apps/server/src/orchestration-v2/ContextHandoffDelivery.ts` — exports: ContextHandoffDeliveryUncertainError
+- `apps/server/src/orchestration-v2/ContextHandoffService.ts` — exports: ContextHandoffPrepareError, ContextHandoffServiceV2, ContextHandoffServiceV2Error, ContextHandoffServiceV2Shape, IdAllocatorIdAllocatorV2, layerLayerLayerContextHandoffServiceV2, never, providerMessageWithContextHandoff
+- `apps/server/src/orchestration-v2/DelegatedTaskQuestionReactor.ts` — exports: DelegatedTaskQuestionReactor, layer
+- `apps/server/src/orchestration-v2/DispatchModeLimit.ts` — exports: DispatchModeLimit, DispatchModeLimitValue, DispatchModeRefusal, DispatchModes, exceededDispatchModeLimit
+- `apps/server/src/orchestration-v2/EffectOutbox.ts` — exports: EffectOutboxError, EffectOutboxV2, EffectOutboxV2Shape, OrchestrationEffectRequestV2, OrchestrationEffectStatusV2, OrchestrationEffectV2, PROCESS_BOUND_EFFECT_TYPES, PendingOrchestrationEffectV2, REPLAY_SAFE_EFFECT_TYPES_AFTER_PROCESS_LOSS, SETTLED_EFFECT_RETENTION, layerLayerLayerEffectOutboxV2, never
+- `apps/server/src/orchestration-v2/EffectWorker.ts` — exports: OrchestrationEffectDaemonOptions, OrchestrationEffectExecutionError, OrchestrationEffectExecutorV2, OrchestrationEffectExecutorV2Shape, OrchestrationEffectWorkerError, OrchestrationEffectWorkerOptions, OrchestrationEffectWorkerV2, OrchestrationEffectWorkerV2Shape, layer, layerExecutorLayerLayerOrchestrationEffectExecutorV2, layerWithOptions, never, runDaemon
+- `apps/server/src/orchestration-v2/EventSink.ts` — exports: EventSinkStreamError, EventSinkV2, EventSinkV2Error, EventSinkV2Shape, EventSinkWriteError, EventStoreEventStoreV2ProjectionStoreProjectionStoreV2SqlClientSqlClient, layerFromStores, layerLayerLayerEventSinkV2, never
+- `apps/server/src/orchestration-v2/EventStore.ts` — exports: EventStoreAppendEventsError, EventStoreReadEventsError, EventStoreV2, EventStoreV2Error, EventStoreV2Shape, SqlClientSqlClient, layerFromOrchestrationEventStore, layerLayerLayerEventStoreV2, never
+- `apps/server/src/orchestration-v2/IdleCompaction.ts` — exports: IdleCompactionRecords, idleCompactionWindow
+- `apps/server/src/orchestration-v2/IdleCompactionService.ts` — exports: 
+- `apps/server/src/orchestration-v2/LiveStreamBudget.ts` — exports: Bextends, E, LIVE_STREAM_MAX_ITEMS, LiveStreamBufferError, R, RetainedLiveItem, bufferLatestLiveStream, bufferLiveStream, replayAndBufferLiveEvents, replayAndBufferProjectedLiveEvents
+- `apps/server/src/orchestration-v2/NotificationMailbox.ts` — exports: isBufferedProviderNotification, isUndeliveredMailboxSteer
+- `apps/server/src/orchestration-v2/Orchestrator.ts` — exports: CheckpointServiceV2FileSystemFileSystemPathPathCommandPolicyV2CommandReceiptStoreV2ContextHandoffServiceV2EffectOutboxEffectOutboxV2EventSinkV2IdAllocatorIdAllocatorV2ProjectStoreProjectStoreV2ProviderAdapterRegistryV2ProviderSessionManagerV2ProviderSwitchServiceV2ProjectionStoreV2RuntimePolicyV2ServerSettingsServerSettingsServiceThreadForkServiceV2, OrchestratorCommandIdConflictError, OrchestratorCommandPreviouslyRejectedError, OrchestratorCommandRejectedError, OrchestratorDispatchError, OrchestratorDomainEventStreamError, OrchestratorProjectionError, OrchestratorProviderAdapterError, OrchestratorSubagentThreadReadOnlyError, OrchestratorThreadAboveModeLimitError, OrchestratorThreadAlreadyExistsError, OrchestratorV2, OrchestratorV2DispatchResult, OrchestratorV2Error, OrchestratorV2Shape, layerLayerLayerOrchestratorV2, never, shouldPrepareLegacyImportHandoff
+- `apps/server/src/orchestration-v2/ProjectCommands.ts` — exports: ProjectCommand, ProjectCommandInvariantError, ProjectCommandMissingProjectError, ProjectCommandRejection, ProjectCommandState, ProjectCreateCommand, ProjectDeleteCommand, ProjectMetaUpdateCommand, ProjectWorkspaceConflictError, decodeProjectCommandRejection, encodeProjectCommandRejection, planProjectCommand
+- `apps/server/src/orchestration-v2/ProjectStore.ts` — exports: ProjectRow, ProjectStoreV2, ProjectStoreV2Error, layer
+- `apps/server/src/orchestration-v2/ProjectionMaintenance.ts` — exports: ProjectionMaintenanceError, ProjectionMaintenanceV2, ProjectionMaintenanceV2Shape, ProjectionVerificationV2, layerLayerLayerProjectionMaintenanceV2, never
+- `apps/server/src/orchestration-v2/ProjectionStore.ts` — exports: ORCHESTRATION_V2_PROJECTION_SCHEMA_VERSION, ProjectionCheckpointCaptureContext, ProjectionCheckpointContext, ProjectionCheckpointRollbackContext, ProjectionLimitRecoveryCandidate, ProjectionPendingUserInputs, ProjectionProviderControlContext, ProjectionProviderControlTarget, ProjectionRecordField, ProjectionRecordFilter, ProjectionRecords, ProjectionRecoveryKind, ProjectionReplayState, ProjectionRuntimeRecoveryState, ProjectionRuntimeResponseContext, ProjectionSettlementCandidate, ProjectionStoreApplyEventError, ProjectionStoreReadError, ProjectionStoreSetupError, ProjectionStoreThreadNotFoundError, ProjectionStoreV2, ProjectionStoreV2Error, ProjectionStoreV2Shape, ProjectionThreadProviderContext, ProjectionThreadPullRequests, ProjectionTimelinePage, ProjectionTimelinePageOptions, ShellSnapshotOptions, applyToProjection, emptyProjection, encodeProviderThreadPayload, layerLayerLayerProjectionStoreV2, never, threadShellFromProjection
+- `apps/server/src/orchestration-v2/ProviderAdapterRegistry.ts` — exports: ProviderAdapterRegistryBuildError, ProviderAdapterRegistryLookupError, ProviderAdapterRegistryMetadataError, ProviderAdapterRegistryV2, ProviderAdapterRegistryV2Error, ProviderAdapterRegistryV2Shape, layerFromAdapters, layerFromAdaptersEffect, layerFromDrivers, layerFromProviderInstanceRegistryLayerLayerProviderAdapterRegistryV2, layerSingle, never
+- `apps/server/src/orchestration-v2/ProviderContinuationService.ts` — exports: 
+- `apps/server/src/orchestration-v2/ProviderEventIngestor.ts` — exports: ProviderEventIngestInput, ProviderEventIngestorV2, ProviderEventIngestorV2Error, ProviderEventIngestorV2Shape, ProviderEventNormalizeError, ProviderEventPublishError, ProviderTurnAnalytics, ProviderTurnAnalyticsContext, layerLayerLayerProviderEventIngestorV2, never
+- `apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts` — exports: ProviderRuntimeReconciliationSummary, ProviderRuntimeRecoveryError, ProviderRuntimeRecoveryService, ProviderRuntimeRecoverySummary, layer
+- `apps/server/src/orchestration-v2/ProviderSessionManager.ts` — exports: ProviderSessionActivityError, ProviderSessionCloseError, ProviderSessionLookupError, ProviderSessionManagerV2, ProviderSessionManagerV2Error, ProviderSessionManagerV2LayerOptions, ProviderSessionManagerV2Shape, ProviderSessionOpenError, ProviderSessionReleaseError, ProviderSessionReleaseReason, layer, layerWithOptions, never
+- `apps/server/src/orchestration-v2/ProviderSessionTransitionPolicy.ts` — exports: ProviderSessionTransition, ProviderSessionTransitionState, ProviderSessionTransitionTarget, decideProviderSessionTransition
+- `apps/server/src/orchestration-v2/ProviderSwitchService.ts` — exports: ProviderSwitchPlanError, ProviderSwitchPlanV2, ProviderSwitchServiceV2, ProviderSwitchServiceV2Shape, layerLayerLayerProviderSwitchServiceV2, never
+- `apps/server/src/orchestration-v2/ProviderTurnControlService.ts` — exports: ProviderTurnControlError, ProviderTurnControlServiceV2, ProviderTurnControlServiceV2Shape, layerLayerLayerProviderTurnControlServiceV2, never
+- `apps/server/src/orchestration-v2/ProviderTurnStartService.testkit.ts` — exports: layer
+- `apps/server/src/orchestration-v2/ProviderTurnStartService.ts` — exports: ProviderTurnStartError, ProviderTurnStartServiceV2, ProviderTurnStartServiceV2Shape, layerLayerLayerProviderTurnStartServiceV2, never
+- `apps/server/src/orchestration-v2/PullRequestSyncReactor.ts` — exports: PullRequestSyncReactor, layer
+- `apps/server/src/orchestration-v2/PullRequestWatchReactor.ts` — exports: PullRequestWatchReactor, layer
+- `apps/server/src/orchestration-v2/QueuedRunOrder.ts` — exports: isAutomaticCompletionRun, queuedRunsInDeliveryOrder
+- `apps/server/src/orchestration-v2/ResourceCleanupService.ts` — exports: ResourceCleanupError, ResourceCleanupService
+- `apps/server/src/orchestration-v2/RestartBackgroundNote.ts` — exports: awaitingProviderThreadId, cancelledBeforeStart, cancelledRosterTaskWork, cancelledTurnItemWork, isAwaitedWork, isRestartContinuationSource, isRestartNoteContinuation, isRestartNoteSource, mergeRestartCancelledBackgroundWork, neverStarted, pendingRestartCancelledBackgroundWork, restartCancelledBackgroundWorkNote, restartContinuationNote, runOutcome
+- `apps/server/src/orchestration-v2/RestartContinuation.ts` — exports: restartContinuationRun
+- `apps/server/src/orchestration-v2/RunExecutionService.ts` — exports: InheritedBackgroundTurnItemRoute, ProviderEventRouteIdentity, ProviderEventRoutingState, RunExecutionIngestError, RunExecutionServiceV2, RunExecutionServiceV2Error, RunExecutionServiceV2Shape, RunExecutionServiceV2StartRootRunInput, RunExecutionStartError, canRouteRelatedSubagent, layerLayerLayerRunExecutionServiceV2, makeInterruptResultTurnItem, makeProviderEventRoutingState, never, routeProviderEvent, selectInheritedBackgroundTurnItems
+- `apps/server/src/orchestration-v2/RunFinalizationService.ts` — exports: RunFinalizationError, RunFinalizationObserver, RunFinalizationRefreshError, RunFinalizationService, layer
+- `apps/server/src/orchestration-v2/RuntimePolicy.ts` — exports: RuntimePolicyResolveError, RuntimePolicyV2, RuntimePolicyV2Error, RuntimePolicyV2Override, RuntimePolicyV2Shape, layerFromProjectStoreLayerLayerRuntimePolicyV2, layerLayerLayerRuntimePolicyV2, layerWithOverride, never
+- `apps/server/src/orchestration-v2/RuntimeRequestService.ts` — exports: RuntimeRequestResponseExecutionError, RuntimeRequestServiceV2, RuntimeRequestServiceV2Shape, layerLayerLayerRuntimeRequestServiceV2, never
+- `apps/server/src/orchestration-v2/ShellStream.ts` — exports: ShellApplicationEvent, archivedShellStreamItemFromThreadShell, bufferShellLiveStream, buildActiveShellSnapshot, coalesceShellApplicationEvents, coalesceStoredThreadEvents, composeShellStreamWithEnrichment, dedupeShellEnrichment, shellStreamItemFromEnrichmentRefresh, shellStreamItemFromThreadShell, shellStreamItemsFromInitialSnapshot, shellStreamItemsFromResumeSnapshot, skipUnchangedThreadShells, toShellApplicationEvent
+- `apps/server/src/orchestration-v2/ThreadCommandExecutor.ts` — exports: ThreadCommandExecutor, layer
+- `apps/server/src/orchestration-v2/ThreadDeletion.ts` — exports: ThreadDeletionPlan
+- `apps/server/src/orchestration-v2/ThreadFind.ts` — exports: findProjectedThreadItems
+- `apps/server/src/orchestration-v2/ThreadForkService.ts` — exports: ThreadForkPlanError, ThreadForkPlanV2, ThreadForkServiceV2, ThreadForkServiceV2Shape, forkableSourceRunStatusError, isForkableSourceRunStatus
+- `apps/server/src/orchestration-v2/ThreadLaunchService.ts` — exports: ThreadLaunchBaseRefError, ThreadLaunchError, ThreadLaunchInitialMessage, ThreadLaunchInput, ThreadLaunchPreparationInput, ThreadLaunchResult, ThreadLaunchService, ThreadLaunchWorkspaceStrategy, layer
+- `apps/server/src/orchestration-v2/ThreadLifecycleService.ts` — exports: ThreadLifecycleError, ThreadLifecycleService, layer
+- `apps/server/src/orchestration-v2/ThreadLiveEventCoalescer.ts` — exports: ThreadLiveInput, coalesceLiveToolUpdatedEvents, coalesceThreadLiveStream
+- `apps/server/src/orchestration-v2/ThreadManagementService.ts` — exports: LegacyV1ThreadImporterLegacyV1ThreadImporterOrchestratorOrchestratorV2ProviderSessionManagerProviderSessionManagerV2ServerSettingsServerSettingsServiceCommandReceiptStoreCommandReceiptStoreV2, OrchestratorOrchestratorV2ProviderSessionManagerProviderSessionManagerV2ServerSettingsServerSettingsServiceCommandReceiptStoreCommandReceiptStoreV2, ThreadManagementDurableRunProjectionError, ThreadManagementError, ThreadManagementInterruptInput, ThreadManagementInterruptResult, ThreadManagementNoSteerableRunError, ThreadManagementProjectThreadsListError, ThreadManagementProjectionLoadError, ThreadManagementProvenance, ThreadManagementProviderInstanceDisabledError, ThreadManagementRunNotFoundError, ThreadManagementSendInput, ThreadManagementSendMode, ThreadManagementSendResult, ThreadManagementService, ThreadManagementServiceShape, ThreadManagementTerminalRunStatus, ThreadManagementThreadArchivedError, ThreadManagementThreadNotFoundError, ThreadManagementThreadNotInterruptibleError, ThreadManagementWaitInput, ThreadManagementWaitResult, ThreadTranscriptTooLargeError, isActiveRun, isTerminalRunStatus, latestActiveRun, latestRun, layerLayerLayerThreadManagementService, layerWithLegacyImporterLayerLayerThreadManagementService, never, withCreationProvenance
+- `apps/server/src/orchestration-v2/ThreadMessageIntake.ts` — exports: 
+- `apps/server/src/orchestration-v2/ThreadPullRequestService.ts` — exports: projectWorkspaceMatchesSnapshot
+- `apps/server/src/orchestration-v2/ThreadSearch.ts` — exports: ThreadSearch, ThreadSearchError, layer
+- `apps/server/src/orchestration-v2/ThreadSettlementService.ts` — exports: SettlementPullRequest, ThreadSettlementServiceV2, autoSettlementSettingsKey, isAutoSettlementCandidate, isSnoozed, layer, resolveAutoSettlementAt, threadHasQueuedTurnStart
+- `apps/server/src/orchestration-v2/ThreadStream.ts` — exports: THREAD_RESUME_MAX_RAW_PAYLOAD_BYTES, THREAD_RESUME_MAX_REPLAY_ENCODED_BYTES, THREAD_RESUME_MAX_REPLAY_EVENTS, ThreadResumePlan, boundedSnapshotResponseFields, buildBoundedThreadStreamSnapshot, decideThreadResume, isThreadReplayRawPayloadSafe, threadReplayEncodedBytes
+- `apps/server/src/orchestration-v2/ThreadTitleRegenerationService.ts` — exports: ThreadTitleRegenerationService, formatThreadTitleContext, layer
+- `apps/server/src/orchestration-v2/TurnItemPositionStore.ts` — exports: TurnItemPositionStoreError, TurnItemPositionStoreV2, TurnItemPositionStoreV2Shape, layerLayerLayerTurnItemPositionStoreV2, never
+- `apps/server/src/orchestration-v2/UsageLimitRecoveryWorker.ts` — exports: limitRecoveryCommand
+- `apps/server/src/orchestration-v2/UserFacingErrors.ts` — exports: userFacingDispatchErrorMessage
+- `apps/server/src/orchestration-v2/WireProjection.ts` — exports: boundFileChangeForStorage, projectContextHandoffForWire, projectDomainEventForWire, projectThreadProjectionForWire, projectTurnItemForDetail, projectTurnItemForWire
+- `apps/server/src/orchestration-v2/assistantStreaming.ts` — exports: makeAssistantStreamingFilter, splitBufferedAssistantText
+- `apps/server/src/orchestration-v2/http.ts` — exports: 
+- `apps/server/src/orchestration-v2/legacy/LegacyV1ThreadImporter.ts` — exports: EventSinkEventSinkV2SqlClientSqlClient, LegacyV1ImportSummary, LegacyV1ThreadImportError, LegacyV1ThreadImporter, LegacyV1ThreadImporterShape, layerLayerLayerLegacyV1ThreadImporter, never
+- `apps/server/src/orchestration-v2/pullRequestWatch.ts` — exports: PULL_REQUEST_WATCH_WAKE_LIMIT, PullRequestWatchChange, PullRequestWatchReport, evaluatePullRequestWatch, pullRequestWatchMessage
+- `apps/server/src/orchestration-v2/runtimeLayer.ts` — exports: layer, layerEventInfrastructure, layerEventSink, layerProduction, layerProjectService, layerProjectSetupScriptRunner
+- `apps/server/src/orchestration-v2/testkit/CommandOutputRecorder.ts` — exports: CommandOutputRecorder, RecordedCommandOutput, layerLayerLayerCommandOutputHubCommandOutputHubCommandOutputRecorder, never
+- `apps/server/src/orchestration-v2/testkit/DeterministicRuntime.ts` — exports: provideDeterministicTestRuntime
+- `apps/server/src/orchestration-v2/testkit/OrchestratorScenario.ts` — exports: OrchestratorV2Scenario, OrchestratorV2ScenarioResult, OrchestratorV2ScenarioStep, OrchestratorV2ScenarioStepError, runOrchestratorV2Scenario
+- `apps/server/src/orchestration-v2/testkit/ProviderReplayFixtures.ts` — exports: ReplayFixtureCase, ReplayFixtureRun, findReplayFixture, itRunsReplayFixtures, runReplayFixture
+- `apps/server/src/orchestration-v2/testkit/ProviderReplayHarness.ts` — exports: OrchestratorV2ProviderReplayHarness, OrchestratorV2ProviderReplayScenario, layerProviderReplay, layerWithRegistry, makeReplayServerConfig, runOrchestratorV2ProviderReplayScenario
+- `apps/server/src/orchestration-v2/testkit/ReplayRuntimeInstructions.ts` — exports: materializeReplayTranscriptRuntimeInstructions
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_background_monitor_wake/input.ts` — exports: 2Afterthattoolcallreturns, 3Whenitscompletionisreportedlater, CLAUDE_BACKGROUND_MONITOR_WAKE_PROMPT, claudeBackgroundMonitorWakeInput, join, orwaitforit, readitsoutput, replywithexactlySTARTEDandstopDonotpoll, replywithexactlyWAKE_DONEandstop, sleep8echoMONITOR_DONE
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_background_monitor_wake/output.ts` — exports: assertClaudeBackgroundMonitorWakeOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_background_subagent_after_root/input.ts` — exports: 2Immediatelyafterlaunchingit, 3Whenitscompletionisreported, CLAUDE_BACKGROUND_SUBAGENT_AFTER_ROOT_PROMPT, Do2stepsBeforeeachstep, claudeBackgroundSubagentAfterRootInput, join, replywithexactlyROOT_STARTEDandstopDonotwaitforitorcheckonit, replywithexactlyROOT_WAKE_DONEandstop, replywithexactlySUB_FINAL_REPORT, writeexactlyonelineSUB_STEP_NThenrunthisexactcommandwiththeBashtoolsleep3echoSUB_DONE_NAfterbothsteps
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_background_subagent_after_root/output.ts` — exports: assertClaudeBackgroundSubagentAfterRootOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_background_subagent_lifecycle/input.ts` — exports: 2Afterbothcallsreturn, 3WhenAgentAscompletionisreported, CLAUDE_BACKGROUND_SUBAGENT_LIFECYCLE_FINAL_PROMPT, CLAUDE_BACKGROUND_SUBAGENT_LIFECYCLE_LAUNCH_PROMPT, CLAUDE_BACKGROUND_SUBAGENT_LIFECYCLE_RESUME_PROMPT, CLAUDE_BACKGROUND_SUBAGENT_LIFECYCLE_STOP_PROMPT, bothwithrun_in_backgroundsettotrue, claudeBackgroundSubagentLifecycleInput, descriptionAgentA, descriptionAgentB, join, makeTWOAgenttoolcallsthatlaunchgeneralpurposesubagents, modelhaiku, promptCalltheBashtoolintheforegroundwiththisexactcommandandwaitforitnodeesetTimeoutThenreplywithexactlyB_FINAL, promptReplywithexactlyA_FIRST, replywithexactlyA_REPORTEDandstop, replywithexactlyLAUNCHEDandstopDonotwaitforthemorcheckonthem
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_background_subagent_lifecycle/output.ts` — exports: assertClaudeBackgroundSubagentLifecycleOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_background_task_after_root/input.ts` — exports: 2Immediatelyafterstartingit, 3DoNOTpollTaskOutputDoNOTwaitforthetaskDonotspawnsubagentsormonitors, 4Ifitscompletionisreportedlater, CLAUDE_BACKGROUND_TASK_AFTER_ROOT_PROMPT, Thepointisthatyourfirstturnendswhilethecommandisstillrunning, acknowledgeitoncebyreplyingwithexactlyL2_WAKEL2_BG_DONEandstop, claudeBackgroundTaskAfterRootInput, join, replywithashortmessagecontainingexactlyL2_STARTEDandstop, sleep25echoL2_BG_DONE
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_background_task_after_root/output.ts` — exports: assertClaudeBackgroundTaskAfterRootOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_background_task_interrupt/input.ts` — exports: 2Afterthatcallreturns, 3Afteritfinishes, CLAUDE_BACKGROUND_TASK_INTERRUPT_PROMPT, calltheBashtoolagainintheforegroundwiththisexactcommandandwaitforit, claudeBackgroundTaskInterruptInput, join, nodeesetTimeout, replywithexactlyFINISHED, sleep30echoBG_INTERRUPT_DONE
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_background_task_interrupt/output.ts` — exports: assertClaudeBackgroundTaskInterruptOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_background_task_wake/input.ts` — exports: 2Afterthattoolcallreturns, 3Whenitscompletionisreportedlater, CLAUDE_BACKGROUND_TASK_WAKE_FOLLOW_UP_PROMPT, CLAUDE_BACKGROUND_TASK_WAKE_PROMPT, claudeBackgroundTaskWakeInput, join, orwaitforit, readitsoutput, replywithexactlySTARTEDandstopDonotpoll, replywithexactlyWAKE_DONEandstop, sleep8echoBG_DONE
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_background_task_wake/output.ts` — exports: assertClaudeBackgroundTaskWakeOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_background_wake_before_queued_prompt/input.ts` — exports: 2Afterbothcallsreturn, 3WhenAgentAscompletionisreported, CLAUDE_BACKGROUND_WAKE_BEFORE_QUEUED_PROMPT_LAUNCH_PROMPT, bothwithrun_in_backgroundsettotrue, claudeBackgroundWakeBeforeQueuedPromptInput, descriptionAgentA, descriptionAgentB, join, makeTWOAgenttoolcallsthatlaunchgeneralpurposesubagents, modelhaiku, promptReplywithexactlyA_FIRST, promptRunthisexactcommandwiththeBashtoolsleep60echoB_DONEThenreplywithexactlyB_FINAL, replywithexactlyA_REPORTEDandstop, replywithexactlyLAUNCHEDandstopDonotwaitforthemorcheckonthem
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_background_wake_before_queued_prompt/output.ts` — exports: assertClaudeBackgroundWakeBeforeQueuedPromptOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_background_wake_before_queued_prompt_no_echo/input.ts` — exports: claudeBackgroundWakeBeforeQueuedPromptNoEchoInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_background_wake_before_queued_prompt_no_echo/output.ts` — exports: assertClaudeBackgroundWakeBeforeQueuedPromptNoEchoOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_compact_after_peer_turn/input.ts` — exports: CLAUDE_COMPACT_FIRST_PROMPT, claudeCompactAfterPeerTurnInput, claudeCompactAfterPeerTurnNoEchoInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_compact_after_peer_turn/output.ts` — exports: assertClaudeCompactAfterPeerTurnOutput, claudeCompactRuns
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_compact_after_peer_turn_no_echo/output.ts` — exports: assertClaudeCompactAfterPeerTurnNoEchoOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_compact_after_resume_wake/input.ts` — exports: claudeCompactAfterResumeWakeInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_compact_after_resume_wake/output.ts` — exports: assertClaudeCompactAfterResumeWakeOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_idle_resume/input.ts` — exports: CLAUDE_IDLE_RESUME_PROMPT_1, CLAUDE_IDLE_RESUME_PROMPT_2, claudeIdleResumeInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_idle_resume/output.ts` — exports: assertClaudeIdleResumeOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_local_bash_task/input.ts` — exports: claudeLocalBashTaskInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_local_bash_task/output.ts` — exports: assertClaudeLocalBashTaskOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_mcp_tool_presentation/input.ts` — exports: 2CalltheFirecrawlfirecrawl_maptoolonhttpsexamplecomwithlimit1, 3Replywithexactlymcppresentationfixturecomplete, CLAUDE_MCP_TOOL_PRESENTATION_PROMPT, claudeMcpToolPresentationInput, join
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_mcp_tool_presentation/output.ts` — exports: assertClaudeMcpToolPresentationOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_nested_background_subagent_wake/input.ts` — exports: 2Immediatelyafterlaunchingit, 3Whenitscompletionisreported, CLAUDE_NESTED_BACKGROUND_SUBAGENT_WAKE_PROMPT, DoexactlythisaUsetheAgenttoolwithsubagent_typegeneralpurposeandrun_in_backgroundsettotruetolaunchONEsubagentwiththepromptReplywithexactlyGRANDCHILD_DONEbRunthisexactcommandwiththeBashtoolsleep20echoCHILD_WAITEDcReplywithexactlyCHILD_DONE, claudeNestedBackgroundSubagentWakeInput, join, replywithexactlyROOT_STARTEDandstopDonotwaitforitorcheckonit, replywithexactlyROOT_WAKE_DONEandstop
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_nested_background_subagent_wake/output.ts` — exports: assertClaudeNestedBackgroundSubagentWakeOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_nested_subagent_model/input.ts` — exports: 2Whenitfinishes, CLAUDE_NESTED_SUBAGENT_MODEL_PROMPT, CalltheAgenttooloncewithsubagent_typegeneralpurpose, andthepromptReplywithexactlyNESTED_LEAF_OKThenreplywithexactlywhatthatagentsaid, andthisprompt, claudeNestedSubagentModelInput, join, modelhaiku, nomodelparameter, replywithexactlywhatitsaid, run_in_backgroundfalse
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_nested_subagent_model/output.ts` — exports: assertClaudeNestedSubagentModelOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_result_is_error/input.ts` — exports: claudeResultIsErrorInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/claude_result_is_error/output.ts` — exports: assertClaudeResultIsErrorOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/command_output_streaming/input.ts` — exports: commandOutputStreamingInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/command_output_streaming/output.ts` — exports: assertCommandOutputStreamingOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/grok_auto_blocked_command/input.ts` — exports: GROK_AUTO_BLOCKED_COMMAND_PROMPT, GROK_AUTO_BLOCKED_PATH, GROK_AUTO_PENDING_SHELL_KEY, GROK_AUTO_ROUTINE_MARKER, grokAutoBlockedCommandInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/grok_auto_blocked_command/output.ts` — exports: assertGrokAutoBlockedCommandOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/grok_background_bash/input.ts` — exports: GROK_BACKGROUND_BASH_PROMPT, GROK_BACKGROUND_BASH_TICKS, grokBackgroundBashInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/grok_background_bash/output.ts` — exports: assertGrokBackgroundBashOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/grok_background_bash_fast_wake/input.ts` — exports: grokBackgroundBashFastWakeInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/grok_background_bash_fast_wake/output.ts` — exports: assertGrokBackgroundBashFastWakeOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/grok_background_subagent/input.ts` — exports: GROK_BACKGROUND_SUBAGENT_PROMPT, endyourturnbyreplyingexactlyROOT_DONEwithoutwaitingforit, grokBackgroundSubagentInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/grok_background_subagent/output.ts` — exports: assertGrokBackgroundSubagentOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/grok_monitor/input.ts` — exports: GROK_MONITOR_PROMPT, GROK_MONITOR_TICKS, grokMonitorInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/grok_monitor/output.ts` — exports: assertGrokMonitorOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/grok_prompt_error/input.ts` — exports: GROK_PROMPT_ERROR_FOLLOW_UP, GROK_PROMPT_ERROR_PROMPT, grokPromptErrorInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/grok_prompt_error/output.ts` — exports: assertGrokPromptErrorOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/grok_subagent_lineage/input.ts` — exports: grokSubagentLineageInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/grok_subagent_lineage/output.ts` — exports: assertGrokSubagentLineageOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/index.ts` — exports: ORCHESTRATOR_REPLAY_FIXTURESReadonlyArrayOrchestratorReplayFixture
+- `apps/server/src/orchestration-v2/testkit/fixtures/malformed_session_update/input.ts` — exports: MALFORMED_SESSION_UPDATE_PROMPT, malformedSessionUpdateInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/malformed_session_update/output.ts` — exports: assertMalformedSessionUpdateOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/message_steering/claude_output.ts` — exports: assertClaudeMessageSteeringOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/message_steering/codex_output.ts` — exports: assertMessageSteeringOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/message_steering/cursor_output.ts` — exports: assertCursorMessageSteeringOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/message_steering/grok_output.ts` — exports: assertGrokMessageSteeringOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/message_steering/input.ts` — exports: messageRestartInput, messageSteeringInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/message_steering/pi_output.ts` — exports: assertPiMessageSteeringOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/multi_turn/claude_output.ts` — exports: assertMultiTurnClaudeOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/multi_turn/codex_output.ts` — exports: assertMultiTurnOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/multi_turn/input.ts` — exports: multiTurnInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/multi_turn/muse_output.ts` — exports: assertMuseMultiTurnOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/multi_turn/pi_output.ts` — exports: assertPiMultiTurnOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/muse_permission/input.ts` — exports: MUSE_PERMISSION_APPROVED_FILE, MUSE_PERMISSION_DECLINED_FILE, musePermissionInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/muse_permission/output.ts` — exports: assertMusePermissionOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/muse_subagent_approval/input.ts` — exports: museSubagentApprovalInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/muse_subagent_approval/output.ts` — exports: assertMuseSubagentApprovalOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/muse_subagent_interrupt/input.ts` — exports: museSubagentInterruptInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/muse_subagent_interrupt/output.ts` — exports: assertMuseSubagentInterruptOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/muse_workflow/input.ts` — exports: museWorkflowInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/muse_workflow/output.ts` — exports: assertMuseWorkflowOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_background/input.ts` — exports: openCode2BackgroundInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_background/output.ts` — exports: assertOpenCode2BackgroundOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_command/input.ts` — exports: openCode2CommandInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_command/output.ts` — exports: assertOpenCode2CommandOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_compaction/input.ts` — exports: openCode2CompactionInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_compaction/output.ts` — exports: assertOpenCode2CompactionOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_inbox/input.ts` — exports: openCode2InboxInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_inbox/output.ts` — exports: assertOpenCode2InboxOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_interrupt/input.ts` — exports: openCode2InterruptInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_interrupt/output.ts` — exports: assertOpenCode2InterruptOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_nested_background/input.ts` — exports: openCode2NestedBackgroundInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_nested_background/output.ts` — exports: assertOpenCode2NestedBackgroundOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_permission/input.ts` — exports: openCode2PermissionInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_permission/output.ts` — exports: assertOpenCode2PermissionOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_question/input.ts` — exports: openCode2QuestionInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_question/output.ts` — exports: assertOpenCode2QuestionOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_resume_after_restart/input.ts` — exports: openCode2ResumeAfterRestartInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_resume_after_restart/output.ts` — exports: assertOpenCode2ResumeAfterRestartOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_revert/input.ts` — exports: openCode2RevertInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_revert/output.ts` — exports: assertOpenCode2RevertOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_simple/input.ts` — exports: openCode2SimpleInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_simple/output.ts` — exports: assertOpenCode2SimpleOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_skill/input.ts` — exports: openCode2SkillInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_skill/output.ts` — exports: assertOpenCode2SkillOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_subagent/input.ts` — exports: openCode2SubagentInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_subagent/output.ts` — exports: assertOpenCode2SubagentOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_tool_call/input.ts` — exports: openCode2ToolCallInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode2_tool_call/output.ts` — exports: assertOpenCode2ToolCallOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode_child_approval/input.ts` — exports: openCodeChildApprovalInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode_child_approval/output.ts` — exports: assertOpenCodeChildApprovalOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode_running_child_approval/input.ts` — exports: OPENCODE_RUNNING_CHILD_APPROVAL_PENDING_SHELL_KEY, openCodeRunningChildApprovalInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode_running_child_approval/output.ts` — exports: assertOpenCodeRunningChildApprovalOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode_subagent/input.ts` — exports: openCodeSubagentInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/opencode_subagent/output.ts` — exports: assertOpenCodeSubagentOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/pi_compaction/input.ts` — exports: PI_COMPACTION_MARKER, piCompactionInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/pi_compaction/output.ts` — exports: assertPiCompactionOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/plan_questions/codex_output.ts` — exports: assertCodexPlanQuestionsOutput, assertPlanQuestionsOutput, assertPlanQuestionsOutputBase
+- `apps/server/src/orchestration-v2/testkit/fixtures/plan_questions/input.ts` — exports: planQuestionsInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/plan_questions/opencode_output.ts` — exports: assertOpenCodePlanQuestionsOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/proposed_plan/codex_output.ts` — exports: assertProposedPlanOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/proposed_plan/cursor_output.ts` — exports: assertProposedPlanCursorOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/proposed_plan/input.ts` — exports: proposedPlanInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/provider_thread_resume/input.ts` — exports: providerThreadResumeInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/provider_thread_resume/pi_output.ts` — exports: assertPiProviderThreadResumeOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/queued_cancelled_while_active/codex_output.ts` — exports: assertQueuedCancelledWhileActiveOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/queued_cancelled_while_active/input.ts` — exports: ACTIVE_RUN_SHELL_SNAPSHOT_KEY, queuedCancelledWhileActiveInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/queued_turn/codex_output.ts` — exports: assertQueuedTurnOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/queued_turn/input.ts` — exports: queuedTurnInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/shared.ts` — exports: ACP_REGISTRY_MODEL_SELECTION, CLAUDE_LOCAL_BASH_TASK_PROMPT, CLAUDE_MODEL_SELECTION, CLAUDE_RESULT_IS_ERROR_FOLLOW_UP, CLAUDE_RESULT_IS_ERROR_PROMPT, CODEX_MODEL_SELECTION, COMMAND_OUTPUT_STREAMING_PROMPT, CURSOR_MODEL_SELECTION, FixtureIds, GROK_MODEL_SELECTION, MESSAGE_STEERING_INITIAL_PROMPT, MESSAGE_STEERING_STEER_PROMPT, MULTI_TURN_FIRST_PROMPT, MULTI_TURN_SECOND_PROMPT, MUSE_MODEL_SELECTION, MaterializedOrchestratorFixtureInput, OPENCODE2_BACKGROUND_PROMPT, OPENCODE2_CANCELLED_PROMPT, OPENCODE2_COMMAND_PROMPT, OPENCODE2_COMPACTION_FIRST_PROMPT, OPENCODE2_COMPACTION_RECALL_PROMPT, OPENCODE2_INTERRUPT_PROMPT, OPENCODE2_MODEL_SELECTION, OPENCODE2_NESTED_BACKGROUND_PROMPT, OPENCODE2_PERMISSION_PROMPT, OPENCODE2_QUESTION_PROMPT, OPENCODE2_QUEUED_PROMPT, OPENCODE2_RESTART_PROMPT, OPENCODE2_RESTART_RECALL_PROMPT, OPENCODE2_REVERT_FIRST_PROMPT, OPENCODE2_REVERT_SECOND_PROMPT, OPENCODE2_SIMPLE_PROMPT, OPENCODE2_SKILL_PROMPT, OPENCODE2_STEER_PROMPT, OPENCODE2_STEER_TEXT, OPENCODE2_SUBAGENT_PROMPT, OPENCODE2_TOOL_CALL_PROMPT, OPENCODE_MODEL_SELECTION, OPENCODE_SUBAGENT_PROMPT, OrchestratorFixtureInput, OrchestratorFixtureInputStep, OrchestratorReplayFixture, PI_MODEL_SELECTION, PLAN_QUESTIONS_PROMPT, PROPOSED_PLAN_PROMPT, PROVIDER_THREAD_RESUME_FIRST_PROMPT, PROVIDER_THREAD_RESUME_SECOND_PROMPT, ProviderOrchestratorReplayVariant, READ_ONLY_NEVER_POLICY, READ_ONLY_ON_REQUEST_POLICY, RESTRICTED_GRANULAR_POLICY, SIMPLE_PROMPT, SKILL_INVOCATION_CURSOR_MESSAGE, SKILL_INVOCATION_PROMPT, SUBAGENT_CONTINUE_CHILD_PROMPT, SUBAGENT_CONTINUE_PARENT_PROMPT, SUBAGENT_CONTINUE_PROMPT, SUBAGENT_PROMPT, SUBAGENT_V2_APPROVAL_PROMPT, SUBAGENT_V2_NESTED_APPROVAL_PROMPT, SUBAGENT_V2_NESTED_PROMPT, SUBAGENT_V2_PROMPT, THREAD_FORK_NATIVE_CONTINUE_FIRST_PROMPT, THREAD_FORK_NATIVE_CONTINUE_SECOND_PROMPT, THREAD_FORK_NATIVE_CONTINUE_SOURCE_PROMPT, THREAD_FORK_NATIVE_PRIOR_TURN_ALPHA_PROMPT, THREAD_FORK_NATIVE_PRIOR_TURN_BETA_PROMPT, THREAD_FORK_NATIVE_PRIOR_TURN_REPEAT_PROMPT, THREAD_FORK_NATIVE_SIBLINGS_FIRST_PROMPT, THREAD_FORK_NATIVE_SIBLINGS_SECOND_PROMPT, THREAD_FORK_NATIVE_SIBLINGS_SOURCE_PROMPT, THREAD_FORK_NATIVE_SOURCE_PROMPT, THREAD_FORK_NATIVE_TARGET_PROMPT, THREAD_MERGE_BACK_FORK_PROMPT, THREAD_MERGE_BACK_HANDOFF_PROMPT, THREAD_MERGE_BACK_RECALL_PROMPT, THREAD_MERGE_BACK_SIBLINGS_FIRST_FORK_PROMPT, THREAD_MERGE_BACK_SIBLINGS_FIRST_HANDOFF_PROMPT, THREAD_MERGE_BACK_SIBLINGS_RECALL, THREAD_MERGE_BACK_SIBLINGS_RECALL_PROMPT, THREAD_MERGE_BACK_SIBLINGS_SECOND_FORK_PROMPT, THREAD_MERGE_BACK_SIBLINGS_SECOND_HANDOFF_PROMPT, THREAD_MERGE_BACK_SIBLINGS_SOURCE_PROMPT, THREAD_MERGE_BACK_SOURCE_PROMPT, THREAD_ROLLBACK_AFTER_PROMPT, THREAD_ROLLBACK_FIRST_PROMPT, THREAD_ROLLBACK_SECOND_PROMPT, TODO_LIST_PROMPT, TOOL_CALL_READ_ONLY_PROMPT, TOOL_CALL_READ_ONLY_WORKSPACE_ROOT, TOOL_CALL_WRITE_PROMPT, TURN_INTERRUPT_MID_TOOL_PROMPT, TURN_INTERRUPT_PROMPT, TURN_INTERRUPT_RECOVERY_PROMPT, WEB_SEARCH_PROMPT, WORKSPACE_NEVER_POLICY, andanswerexactlytodolistfixturecomplete, assertAllRuntimeRequestsResolved, assertAssistantTextIncludes, assertBaseProjection, assertConversationMessageRoles, assertExecutionNodeKinds, assertNoAcpClientFileOrTerminalRequests, assertNoExtraAppRunsForProviderChildren, assertProviderNativeSubagentRootTurns, assertReplayLabelPrefixCount, assertRunOrdinals, assertRunProviderTurnCardinality, assertRuntimeRequestCounts, assertRuntimeRequestKinds, assertSemanticProjectionIntegrity, assertTurnItemTypeSequence, assertTurnItemTypes, assertUserMessageInputIntents, assertUserMessagesInclude, assertVisibleTurnItemTypeSequence, assertVisibleTurnItemsMirrorLocalTurnItems, assertVisibleUserMessagesExclude, assertVisibleUserMessagesInclude, backgroundNotifications, firstrepeattheexactfinalansweryougaveinthepreviousturnThenonanewlinewriteexactlyproviderthreadresumefixturesecondturncomplete, inspecttsconfigjson, materializeFixtureInput, offeringtheoptionsredandblueAfterIanswer, onetoreadpackagejsonandonetoreadtsconfigjson, oruseMCP, projectionFor, replyexactlyMIDDLE_OKandendyourturnwithoutwaitingforitWaitforthatsubagenttoreturn, replyexactlyPARENT_OKandendyourturnwithoutwaitingforit, replywithonlythechosencolor, reportcompletionThenreadpackagejsonandtsconfigjson, respondexactlyPARENT_OK, respondexactlyplanquestionsfixturecomplete, respondwithexactlyforkboundaryalpha, respondwithexactlyforkboundarybeta, respondwithexactlysteeringfixtureobserved, runechoSECONDwiththebashtoolThenreplywithwhathappened, separatedbyRespondwithonlythemarkersandseparator, separatedbyasinglecharacterRespondwithonlythemarkersandseparator, separatedbysinglecharactersRespondwithonlythemarkersandseparators, showingyourreasoning, thenanswerexactlyclaudelocalbashtaskfixturecomplete, thenanswerexactlyreadonlytoolfixturecomplete, thenanswerexactlywebsearchfixturecomplete, thenanswerinoneshortsentence, thenbrieflyreportwhathappenedDonotreadpackagemetadata, thenreplyDONE, thenreplyDONE_A, thenreplyexactlyGRANDCHILD_OKAssoonasitislaunched, thenreplyexactlyROOT_OK, thenreplywithexactlywhatitsaid, thenreplywithitsoutput, thenrespondwithexactlyinterruptfixtureshouldnotfinishnaturally, thenruntheshellcommandechoTOOL_OKwiththebashtool, thensummarizeitsanswerinoneline, useGitHub, usethequestiontooltoaskmewhichcolorIprefer, useweb, whichmustinturnspawnonemoresubagentwhoseonlytaskistoreplywithexactlyHelloEachagentwaitsforitschildandreplieswithexactlywhatthechildsaidWaitforyoursubagent, whoseonlytaskistorunthisexactshellcommandprintfnestedapprovalfixturenestedapprovaltxtandthenreplywithexactlyWrittenEachagentwaitsforitschildandreplieswithexactlywhatthechildsaidWaitforyoursubagent
+- `apps/server/src/orchestration-v2/testkit/fixtures/simple/claude_output.ts` — exports: assertSimpleClaudeOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/simple/codex_output.ts` — exports: assertSimpleOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/simple/input.ts` — exports: simpleInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/simple/pi_output.ts` — exports: assertPiSettledTokenUsage, assertPiSimpleOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/skill_invocation/cursor_output.ts` — exports: assertSkillInvocationCursorOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/skill_invocation/input.ts` — exports: SKILL_INVOCATION_FINAL, skillInvocationInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/stop_background_work_after_failed_turn/input.ts` — exports: STOP_BACKGROUND_WORK_AFTER_FAILED_TURN_PROMPT, stopBackgroundWorkAfterFailedTurnInput, stopBackgroundWorkAfterReleaseInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/stop_background_work_after_failed_turn/output.ts` — exports: assertStopBackgroundWorkAfterFailedTurnOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/subagent/claude_output.ts` — exports: assertClaudeSubagentOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/subagent/codex_output.ts` — exports: assertSubagentOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/subagent/cursor_output.ts` — exports: assertCursorSubagentOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/subagent/input.ts` — exports: subagentInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/subagent_continue/codex_output.ts` — exports: assertSubagentContinueOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/subagent_continue/input.ts` — exports: subagentContinueInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/subagent_v2/codex_output.ts` — exports: assertSubagentV2Output
+- `apps/server/src/orchestration-v2/testkit/fixtures/subagent_v2/input.ts` — exports: subagentV2Input, subagentV2NestedInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/subagent_v2/muse_output.ts` — exports: assertMuseSubagentV2Output
+- `apps/server/src/orchestration-v2/testkit/fixtures/subagent_v2_approval/codex_output.ts` — exports: assertSubagentV2ApprovalOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/subagent_v2_approval/input.ts` — exports: SUBAGENT_APPROVAL_PENDING_SHELL_KEY, SUBAGENT_V2_APPROVAL_POLICY, subagentV2ApprovalInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/subagent_v2_nested/codex_output.ts` — exports: assertSubagentV2NestedOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/subagent_v2_nested_approval/codex_output.ts` — exports: assertSubagentV2NestedApprovalOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/subagent_v2_nested_approval/input.ts` — exports: NESTED_SUBAGENT_APPROVAL_PENDING_SHELL_KEY, subagentV2NestedApprovalInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/thread_rollback/claude_output.ts` — exports: assertClaudeThreadRollbackOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/thread_rollback/codex_output.ts` — exports: assertThreadRollbackOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/thread_rollback/input.ts` — exports: threadRollbackInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/thread_rollback/pi_output.ts` — exports: assertPiThreadRollbackOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/thread_rollback_after_restart/codex_output.ts` — exports: assertThreadRollbackAfterRestartOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/thread_rollback_after_restart/input.ts` — exports: threadRollbackAfterRestartInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/thread_rollback_after_stop/input.ts` — exports: threadRollbackAfterStopInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/thread_rollback_after_stop/pi_output.ts` — exports: assertPiThreadRollbackAfterStopOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/thread_rollback_to_stopped_turn/codex_output.ts` — exports: assertThreadRollbackToStoppedTurnOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/thread_rollback_to_stopped_turn/input.ts` — exports: threadRollbackToStoppedTurnInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/todo_list/codex_output.ts` — exports: assertTodoListOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/todo_list/cursor_output.ts` — exports: assertTodoListCursorOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/todo_list/grok_output.ts` — exports: assertTodoListGrokOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/todo_list/input.ts` — exports: todoListInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/tool_call_denied_write/claude_output.ts` — exports: assertToolCallDeniedWriteClaudeOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/tool_call_denied_write/input.ts` — exports: DENIED_WRITE_POLICY, TOOL_CALL_DENIED_WRITE_PROMPT, TOOL_CALL_DENIED_WRITE_TARGET, donotretryoruseanothertool, toolCallDeniedWriteInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/tool_call_read_only/claude_output.ts` — exports: assertToolCallReadOnlyClaudeOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/tool_call_read_only/cursor_output.ts` — exports: assertToolCallReadOnlyCursorOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/tool_call_read_only/input.ts` — exports: toolCallReadOnlyInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/tool_call_read_only_on_request/input.ts` — exports: toolCallReadOnlyOnRequestInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/tool_call_read_only_on_request/output.ts` — exports: assertToolCallReadOnlyOnRequestGrokOutput, assertToolCallReadOnlyOnRequestOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/tool_call_restricted_granular/claude_output.ts` — exports: assertToolCallRestrictedGranularClaudeOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/tool_call_restricted_granular/codex_output.ts` — exports: assertToolCallRestrictedGranularOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/tool_call_restricted_granular/input.ts` — exports: toolCallRestrictedGranularInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/tool_call_workspace_never/claude_output.ts` — exports: assertToolCallWorkspaceNeverClaudeOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/tool_call_workspace_never/codex_output.ts` — exports: assertToolCallWorkspaceNeverOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/tool_call_workspace_never/input.ts` — exports: toolCallWorkspaceNeverInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/turn_interrupt/claude_output.ts` — exports: assertTurnInterruptClaudeOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/turn_interrupt/codex_output.ts` — exports: assertTurnInterruptOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/turn_interrupt/input.ts` — exports: turnInterruptInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/turn_interrupt/muse_output.ts` — exports: assertMuseTurnInterruptOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/turn_interrupt_mid_tool/claude_output.ts` — exports: assertTurnInterruptMidToolClaudeOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/turn_interrupt_mid_tool/codex_output.ts` — exports: assertTurnInterruptMidToolCodexOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/turn_interrupt_mid_tool/cursor_output.ts` — exports: assertTurnInterruptMidToolCursorOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/turn_interrupt_mid_tool/input.ts` — exports: turnInterruptMidToolInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/turn_interrupt_mid_tool/pi_output.ts` — exports: assertTurnInterruptMidToolPiOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/turn_interrupt_restart/claude_output.ts` — exports: assertTurnInterruptRestartClaudeOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/turn_interrupt_restart/input.ts` — exports: turnInterruptRestartInput
+- `apps/server/src/orchestration-v2/testkit/fixtures/web_search/claude_output.ts` — exports: assertClaudeWebSearchOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/web_search/codex_output.ts` — exports: assertWebSearchOutput
+- `apps/server/src/orchestration-v2/testkit/fixtures/web_search/input.ts` — exports: webSearchInput
+- `apps/server/src/orchestration-v2/testkit/pullRequestFixtures.ts` — exports: PullRequestTestThread, v2PullRequestThread
+- `apps/server/src/orchestration-v2/threadHistoryPaging.ts` — exports: BoundedProjectionResult, InvalidThreadHistoryCursorError, OLDER_THREAD_USER_TURN_LIMIT, SelectTimelinePageResult, THREAD_HISTORY_MAX_RAW_TURNS, THREAD_HISTORY_PAGE_POLICY, THREAD_HISTORY_SNAPSHOT_ROW_LIMIT, ThreadHistoryCursorPayload, ThreadHistoryPagePolicy, boundedTimelineEncodedBytes, buildBoundedThreadProjection, computeLatestLocalTurnOrdinal, decodeThreadHistoryCursor, encodeThreadHistoryCursor, isConversationHistoryItem, isThreadHistoryUserTurn, projectedRowBoundedSnapshotEncodedBytes, projectedRowEncodedBytes, selectHistoryPageFromCursor, selectRecentTimelineWindow, threadHistoryTurnStarts
+- `apps/server/src/orchestration-v2/toolOutputImageBytes.ts` — exports: stripUnservedToolOutputImageBytes
+- `apps/server/src/orchestration-v2/unknownField.ts` — exports: field, text
+- `apps/server/src/orchestration-v2/workflowAgentTranscript.ts` — exports: WorkflowAgentTranscriptCursor, initialWorkflowAgentTranscriptCursorWorkflowAgentTranscriptCursor
+- `apps/server/src/orchestration-v2/workflowFileRead.ts` — exports: WorkflowFileIdentity
+- `apps/server/src/orchestration-v2/workflowScriptQuery.ts` — exports: 
+- `apps/server/src/os-jank.ts` — exports: hydratePosixHome
+- `apps/server/src/outboundHttp.ts` — exports: builtinFetchUsesHttp2, extendConnectionAttemptTimeout, ignoreMacosTypeOfServiceEinval, installHttp1FetchDispatcher, keepOutboundFetchOnHttp1
+- `apps/server/src/persistence/AuthPairingLinks.ts` — exports: AuthPairingLinkRecord, AuthPairingLinkRepository, ConsumeAuthPairingLinkInput, CreateAuthPairingLinkInput, GetAuthPairingLinkByCredentialInput, ListActiveAuthPairingLinksInput, RevokeAuthPairingLinkInput, layer
+- `apps/server/src/persistence/AuthSessions.ts` — exports: AuthSessionClientMetadataRecord, AuthSessionRecord, AuthSessionRepository, CreateAuthSessionInput, CreateReplacingActiveAuthSessionInput, GetAuthSessionByIdInput, ListActiveAuthSessionsInput, RevokeAuthSessionInput, RevokeOtherAuthSessionsInput, SetAuthSessionClientConnectionInput, SetAuthSessionLastConnectedAtInput, layer
+- `apps/server/src/persistence/DatabaseMaintenance.ts` — exports: DatabaseCompactError, DatabaseInUseError, DatabaseInspectError, DatabaseMaintenance, DatabaseMissingError, DatabaseProjectionsInvalidError, LegacyDatabaseRemoveError, layer
+- `apps/server/src/persistence/DatabaseStorage.ts` — exports: DatabaseStorage, layer
+- `apps/server/src/persistence/Errors.ts` — exports: AuthPairingLinkRepositoryError, AuthSessionRepositoryError, OrchestrationCommandReceiptRepositoryError, OrchestrationEventStoreError, PersistenceDecodeError, PersistenceErrorCorrelation, PersistenceSqlError, ProjectionRepositoryError, ProviderSessionRuntimeRepositoryError, PullRequestFilesViewedRepositoryError, PullRequestReviewGuideRepositoryError, toPersistenceDecodeError, toPersistenceSqlError
+- `apps/server/src/persistence/Migrations.ts` — exports: RunMigrationsOptions, migrationManifest
+- `apps/server/src/persistence/Migrations/001_OrchestrationEvents.ts` — exports: default
+- `apps/server/src/persistence/Migrations/002_OrchestrationCommandReceipts.ts` — exports: default
+- `apps/server/src/persistence/Migrations/003_CheckpointDiffBlobs.ts` — exports: default
+- `apps/server/src/persistence/Migrations/004_ProviderSessionRuntime.ts` — exports: default
+- `apps/server/src/persistence/Migrations/005_Projections.ts` — exports: default
+- `apps/server/src/persistence/Migrations/006_ProjectionThreadSessionRuntimeModeColumns.ts` — exports: default
+- `apps/server/src/persistence/Migrations/007_ProjectionThreadMessageAttachments.ts` — exports: default
+- `apps/server/src/persistence/Migrations/008_ProjectionThreadActivitySequence.ts` — exports: default
+- `apps/server/src/persistence/Migrations/009_ProviderSessionRuntimeMode.ts` — exports: default
+- `apps/server/src/persistence/Migrations/010_ProjectionThreadsRuntimeMode.ts` — exports: default
+- `apps/server/src/persistence/Migrations/011_OrchestrationThreadCreatedRuntimeMode.ts` — exports: default
+- `apps/server/src/persistence/Migrations/012_ProjectionThreadsInteractionMode.ts` — exports: default
+- `apps/server/src/persistence/Migrations/013_ProjectionThreadProposedPlans.ts` — exports: default
+- `apps/server/src/persistence/Migrations/014_ProjectionThreadProposedPlanImplementation.ts` — exports: default
+- `apps/server/src/persistence/Migrations/015_ProjectionTurnsSourceProposedPlan.ts` — exports: default
+- `apps/server/src/persistence/Migrations/016_CanonicalizeModelSelections.ts` — exports: default
+- `apps/server/src/persistence/Migrations/017_ProjectionThreadsArchivedAt.ts` — exports: default
+- `apps/server/src/persistence/Migrations/018_ProjectionThreadsArchivedAtIndex.ts` — exports: default
+- `apps/server/src/persistence/Migrations/019_ProjectionSnapshotLookupIndexes.ts` — exports: default
+- `apps/server/src/persistence/Migrations/020_AuthAccessManagement.ts` — exports: default
+- `apps/server/src/persistence/Migrations/021_AuthSessionClientMetadata.ts` — exports: default
+- `apps/server/src/persistence/Migrations/022_AuthSessionLastConnectedAt.ts` — exports: default
+- `apps/server/src/persistence/Migrations/023_ProjectionThreadShellSummary.ts` — exports: default
+- `apps/server/src/persistence/Migrations/024_BackfillProjectionThreadShellSummary.ts` — exports: default
+- `apps/server/src/persistence/Migrations/025_CleanupInvalidProjectionPendingApprovals.ts` — exports: default
+- `apps/server/src/persistence/Migrations/026_CanonicalizeModelSelectionOptions.ts` — exports: default
+- `apps/server/src/persistence/Migrations/027_ProviderSessionRuntimeInstanceId.ts` — exports: default
+- `apps/server/src/persistence/Migrations/028_ProjectionThreadSessionInstanceId.ts` — exports: default
+- `apps/server/src/persistence/Migrations/029_ProjectionThreadDetailOrderingIndexes.ts` — exports: default
+- `apps/server/src/persistence/Migrations/030_ProjectionThreadShellArchiveIndexes.ts` — exports: default
+- `apps/server/src/persistence/Migrations/031_AuthAuthorizationScopes.ts` — exports: default
+- `apps/server/src/persistence/Migrations/032_AuthPairingProofKeyThumbprint.ts` — exports: default
+- `apps/server/src/persistence/Migrations/033_ProjectionThreadsSettled.ts` — exports: default
+- `apps/server/src/persistence/Migrations/034_ProjectionThreadsSnoozed.ts` — exports: default
+- `apps/server/src/persistence/Migrations/035_ProjectionThreadTitleRegeneration.ts` — exports: default
+- `apps/server/src/persistence/Migrations/036_ProjectionThreadsPinned.ts` — exports: default
+- `apps/server/src/persistence/Migrations/037_ProjectionTurnsKeysetIndex.ts` — exports: default
+- `apps/server/src/persistence/Migrations/038_ProjectionThreadsPinOrderKey.ts` — exports: default
+- `apps/server/src/persistence/Migrations/039_ProjectionProjectsDefaultThreadEnvMode.ts` — exports: default
+- `apps/server/src/persistence/Migrations/040_ProjectionProjectFaviconPath.ts` — exports: default
+- `apps/server/src/persistence/Migrations/041_AuthSessionClientConnection.ts` — exports: default
+- `apps/server/src/persistence/Migrations/042_ProjectionThreadLinkedPullRequest.ts` — exports: default
+- `apps/server/src/persistence/Migrations/043_ProjectionThreadsUnsettledAt.ts` — exports: default
+- `apps/server/src/persistence/Migrations/044_ClearAutomaticProjectModelDefaults.ts` — exports: default
+- `apps/server/src/persistence/Migrations/045_ProjectionProjectsAutoPull.ts` — exports: default
+- `apps/server/src/persistence/Migrations/046_RepairAutomaticSettlementTimestamps.ts` — exports: default
+- `apps/server/src/persistence/Migrations/047_ProjectionProjectIcon.ts` — exports: default
+- `apps/server/src/persistence/Migrations/048_ProjectionThreadBranchPullRequest.ts` — exports: default
+- `apps/server/src/persistence/Migrations/049_ProjectionThreadsActiveOrderKey.ts` — exports: default
+- `apps/server/src/persistence/Migrations/050_ProjectionThreadPullRequests.ts` — exports: default
+- `apps/server/src/persistence/Migrations/051_ProjectionThreadMessageContext.ts` — exports: default
+- `apps/server/src/persistence/Migrations/052_ProjectionThreadTitleState.ts` — exports: default
+- `apps/server/src/persistence/Migrations/053_PullRequestFilesViewed.ts` — exports: default
+- `apps/server/src/persistence/Migrations/054_ProjectionThreadsAutoSettleDisabledAt.ts` — exports: default
+- `apps/server/src/persistence/Migrations/055_OrchestrationV2.ts` — exports: default
+- `apps/server/src/persistence/Migrations/056_RemoveRedundantProjectionIndexes.ts` — exports: default
+- `apps/server/src/persistence/Migrations/057_ScheduledTaskWebhooks.ts` — exports: default
+- `apps/server/src/persistence/Migrations/058_WebhookRelayDeliveries.ts` — exports: default
+- `apps/server/src/persistence/Migrations/059_McpAppModelContext.ts` — exports: default
+- `apps/server/src/persistence/Migrations/060_ThreadSnapshotWindowIndexes.ts` — exports: default
+- `apps/server/src/persistence/Migrations/061_PullRequestReviewGuides.ts` — exports: default
+- `apps/server/src/persistence/Migrations/062_ThreadFailureLookupIndex.ts` — exports: default
+- `apps/server/src/persistence/Migrations/063_DropUnusedV1Projections.ts` — exports: default
+- `apps/server/src/persistence/Migrations/064_CanonicalizeThreadPullRequestLinks.ts` — exports: default
+- `apps/server/src/persistence/Migrations/065_CodexUsageNativeTurnIndex.ts` — exports: default
+- `apps/server/src/persistence/Migrations/066_RepairClientSettlementTimestamps.ts` — exports: default
+- `apps/server/src/persistence/Migrations/067_WebhookDedupe.ts` — exports: default
+- `apps/server/src/persistence/Migrations/OrchestrationV2/ApplicationEventSequenceIndexes.ts` — exports: default
+- `apps/server/src/persistence/Migrations/OrchestrationV2/ApplicationEventSource.ts` — exports: default
+- `apps/server/src/persistence/Migrations/OrchestrationV2/EffectCancellation.ts` — exports: default
+- `apps/server/src/persistence/Migrations/OrchestrationV2/Foundation.ts` — exports: default
+- `apps/server/src/persistence/Migrations/OrchestrationV2/LegacyV1ImportState.ts` — exports: default
+- `apps/server/src/persistence/Migrations/OrchestrationV2/ProviderSessionBindings.ts` — exports: default
+- `apps/server/src/persistence/Migrations/OrchestrationV2/RecoveryIndexes.ts` — exports: default
+- `apps/server/src/persistence/Migrations/OrchestrationV2/ScheduledTasks.ts` — exports: default
+- `apps/server/src/persistence/Migrations/OrchestrationV2/ShellIndexes.ts` — exports: default
+- `apps/server/src/persistence/Migrations/OrchestrationV2/Subagents.ts` — exports: default
+- `apps/server/src/persistence/Migrations/OrchestrationV2/ThreadLaunchWorkflows.ts` — exports: default
+- `apps/server/src/persistence/OrchestrationCommandReceipts.ts` — exports: GetByCommandIdInput, OrchestrationCommandReceipt, OrchestrationCommandReceiptRepository, layer
+- `apps/server/src/persistence/OrchestrationEventStore.ts` — exports: OrchestrationEventStore, UnsequencedProjectEvent, layer
+- `apps/server/src/persistence/ProviderSessionRuntime.ts` — exports: DeleteProviderSessionRuntimeInput, GetProviderSessionRuntimeInput, ProviderSessionRuntime, ProviderSessionRuntimeRepository, ProviderSessionRuntimeUpsertOptions, RecordImportedTranscriptInput, layer
+- `apps/server/src/persistence/PullRequestFilesViewed.ts` — exports: MAX_FILES_VIEWED_ROWS, PullRequestFileViewedMark, PullRequestFilesViewedPage, PullRequestFilesViewedRepository, PullRequestFilesViewedScope, SetPullRequestFilesViewedInput, layer
+- `apps/server/src/persistence/PullRequestReviewGuides.ts` — exports: PullRequestReviewGuideRepository, layer
+- `apps/server/src/persistence/Sqlite.ts` — exports: layerMemory
+- `apps/server/src/persistence/initializeV2Database.ts` — exports: V2DatabaseImportError
+- `apps/server/src/persistence/reconcileV2PreviewMigration.ts` — exports: 
+- `apps/server/src/preview/DesktopBrowserChannel.ts` — exports: DesktopBrowserChannel, DesktopTabKey, layer
+- `apps/server/src/preview/Manager.ts` — exports: PreviewManager, layer
+- `apps/server/src/preview/PdfDocumentNavigation.ts` — exports: installPdfDocumentNavigation
+- `apps/server/src/preview/PortScanner.ts` — exports: PortDiscovery, layer
+- `apps/server/src/preview/PreviewBrowser.ts` — exports: PreviewBrowser, PreviewBrowserInstallError, PreviewBrowserInstallingError, PreviewBrowserOptions, PreviewBrowserRelease, PreviewBrowserUnsupportedError
+- `apps/server/src/preview/PreviewBrowserHost.ts` — exports: APPARMOR_PROFILE, APPARMOR_PROFILE_PATH, DEBIAN_PACKAGESReadonlyArrayReadonlyArraystring, NO_SANDBOX_SIGNATURE, PreviewBrowserHostError, PreviewBrowserLibrariesError, PreviewBrowserRootError, PreviewBrowserSandboxError, SETUP_SUBCOMMAND, includetunablesglobalprofilet3chromeheadlessshelltoolschromeheadlessshellchromeheadlessshellflags, sandboxDisabled
+- `apps/server/src/preview/ServerBrowser.ts` — exports: ServerBrowser, ServerBrowserLaunchError, ServerBrowserTabNotFoundError, ServerBrowserViewer, ServerBrowserViewerOutput, layer
+- `apps/server/src/preview/ServerBrowserContexts.ts` — exports: ServerBrowserContexts
+- `apps/server/src/preview/ServerBrowserPage.ts` — exports: DIAGNOSTIC_BUFFER_LIMIT, PointerReporter, ServerBrowserOperationError
+- `apps/server/src/preview/ServerBrowserStream.ts` — exports: 
+- `apps/server/src/preview/SessionControl.ts` — exports: BrowserControlInterrupted, SessionControl
+- `apps/server/src/process/agentScope.ts` — exports: ScopeState, classifyScope, layer, ownedAgentSlice
+- `apps/server/src/process/externalLauncher.ts` — exports: ExternalLauncher, ExternalLauncherBrowserSpawnError, ExternalLauncherCommandNotFoundError, ExternalLauncherEditorSpawnError, ExternalLauncherError, ExternalLauncherUnknownEditorError, ExternalLauncherUnsupportedEditorError, ExternalLauncherUnsupportedTargetError, LaunchEditorInput, layer
+- `apps/server/src/processRunner.ts` — exports: ProcessOutputLimitError, ProcessReadError, ProcessRunError, ProcessRunInput, ProcessRunOutput, ProcessRunner, ProcessSpawnError, ProcessStdinError, ProcessTimeoutError, isWindowsCommandNotFound, layer
+- `apps/server/src/project/AgentSessionImporter.ts` — exports: AgentSessionImporter, layer
+- `apps/server/src/project/AgentSessionJson.ts` — exports: TranscriptJsonLimitError, createTranscriptJsonReader, createTranscriptJsonSelector
+- `apps/server/src/project/AgentSessionScanner.ts` — exports: AgentSessionRecentThread, AgentSessionScanner, AgentSessionThread, AgentSessionThreadMessage, layer, parseAgentSessionTranscript
+- `apps/server/src/project/ManagedProjectFolders.ts` — exports: ManagedProjectFolders, NamedProjectCreateError, NamedProjectError, NamedProjectFolderError, ScratchError, ScratchFolderError, ScratchProjectError, ScratchUnavailableError, layer
+- `apps/server/src/project/ProjectCloneTracker.ts` — exports: ProjectCloneHooks, ProjectCloneTracker, layer
+- `apps/server/src/project/ProjectEnrichmentService.ts` — exports: ProjectEnrichment, ProjectEnrichmentChange, ProjectEnrichmentService, ProjectEnrichmentServiceOptions, layer
+- `apps/server/src/project/ProjectFaviconResolver.ts` — exports: ProjectFaviconResolutionError, ProjectFaviconResolver, isMissingWorkspaceRoot, layer
+- `apps/server/src/project/ProjectMutation.ts` — exports: 
+- `apps/server/src/project/ProjectService.ts` — exports: ProjectBootstrapInput, ProjectConflictError, ProjectCreateInput, ProjectDeleteInput, ProjectNotEmptyError, ProjectNotFoundError, ProjectOperationError, ProjectService, ProjectServiceError, ProjectUpdateInput, layer
+- `apps/server/src/project/ProjectSetupScriptRunner.ts` — exports: ProjectSetupScriptCompletion, ProjectSetupScriptOperationError, ProjectSetupScriptOutputLine, ProjectSetupScriptProjectNotFoundError, ProjectSetupScriptRunner, ProjectSetupScriptRunnerError, ProjectSetupScriptRunnerInput, ProjectSetupScriptRunnerResult, ProjectSetupScriptRunnerResultNoScript, ProjectSetupScriptRunnerResultStarted, layer
+- `apps/server/src/project/RepositoryIdentityResolver.ts` — exports: RepositoryIdentityResolver, RepositoryIdentityResolverOptions, layer
+- `apps/server/src/project/T3ProjectFileLoader.ts` — exports: T3ProjectFileLoadError, T3ProjectFileLoader, layer
+- `apps/server/src/project/WorktreeSetupTracker.ts` — exports: WorktreeSetupTracker, layer
+- `apps/server/src/project/gitCloneProgress.ts` — exports: GitCloneProgressLine, parseGitCloneProgressLine
+- `apps/server/src/project/http.ts` — exports: 
+- `apps/server/src/project/threadWorkspaceRoot.ts` — exports: 
+- `apps/server/src/provider/AntigravityAuth.ts` — exports: AntigravityAuth, AntigravityAuthOptions, AntigravityAuthRuntime
+- `apps/server/src/provider/AntigravityInstallation.ts` — exports: AntigravityExecutable, AntigravityInstallation, AntigravityInstallationError, AntigravityInstallationOptions
+- `apps/server/src/provider/AntigravityProvider.ts` — exports: buildAntigravityModelsFromSession
+- `apps/server/src/provider/ClaudeModelCatalog.testFixtures.ts` — exports: SYNTHETIC_CLAUDE_CAPABLE_MODEL, SYNTHETIC_CLAUDE_COLLIDING_ALIAS, SYNTHETIC_CLAUDE_MODEL_CATALOGClaudeModelCatalog, SYNTHETIC_CLAUDE_STANDARD_MODEL
+- `apps/server/src/provider/ClaudeModelCatalog.ts` — exports: BUNDLED_CLAUDE_MODEL_CATALOG, ClaudeCatalogModel, ClaudeModelCatalog, formatClaudeVersionUpgradeMessage, getClaudeCatalogModelCapabilities, isClaudeCatalogUltracodeEffort, normalizeClaudeCatalogEffort, resolveClaudeCatalogApiModelId, resolveClaudeCatalogContextWindowTokens, resolveClaudeCatalogEffort, resolveClaudeModelCatalog, resolveClaudeModelSlug, resolveClaudeModelsForVersion, resolveClaudeUpdateRequiredModels, scopeClaudeModelCatalog
+- `apps/server/src/provider/ClaudeModelManifest.ts` — exports: ClaudeCodeCompatibility, ClaudeCodeProfile, ClaudeCodeProfileSchema, ClaudeModelAdapterSchema, ClaudeProfileAdapterSchema, decodeClaudeModelAdapter, decodeClaudeProfileAdapter, hasValidClaudeManifestAdapters
+- `apps/server/src/provider/ClaudeProvider.ts` — exports: ClaudeCapabilitiesProbe, buildClaudeCapabilitiesProbeQueryOptions, probeClaudeCapabilities
+- `apps/server/src/provider/ClaudeTurnTokenUsage.ts` — exports: normalizeClaudeTurnTokenUsage
+- `apps/server/src/provider/CodexAuthCallback.ts` — exports: subscribeCodexAuthCallback
+- `apps/server/src/provider/CodexAuthCallbackPage.ts` — exports: codexAuthCallbackPage, codexAuthReturnUrl
+- `apps/server/src/provider/CodexChatGptAuth.ts` — exports: CodexChatGptCredentials
+- `apps/server/src/provider/CodexChatGptHandoff.ts` — exports: subscribeChatGptHandoff
+- `apps/server/src/provider/CodexChatGptModels.ts` — exports: ChatGptCatalogError
+- `apps/server/src/provider/CodexChatGptSessionLock.ts` — exports: E, EProviderSetupError, REffectEffectA, withChatGptSessionLock
+- `apps/server/src/provider/CodexDeveloperInstructions.ts` — exports: CODEX_ADDITIONAL_CONTEXT_VALUE_MAX_BYTES, CodexRuntimeInfo, T3CodeToolAvailability, buildCodexAdditionalContext, buildCodexDeveloperInstructions
+- `apps/server/src/provider/CodexInstallation.ts` — exports: CodexExecutable, CodexInstallation, CodexInstallationError, CodexInstallationOptions, CodexReleaseAsset
+- `apps/server/src/provider/CodexManagedErrors.ts` — exports: classifyCodexManagedError
+- `apps/server/src/provider/CodexManagedHome.ts` — exports: 
+- `apps/server/src/provider/CodexManagedRuntime.ts` — exports: CodexEffectiveRuntime
+- `apps/server/src/provider/CodexMcpElicitation.ts` — exports: describeMcpElicitation, toMcpElicitationResponse
+- `apps/server/src/provider/CodexProvider.ts` — exports: CodexAppServerProviderSnapshot, applyPreferredCodexDefaultModel, buildCodexInitializeParams, codexAppServerEnvironment, codexDefaultReasoningEffortOverride, codexPlanLabel, makePendingCodexProvider, mapCodexModelCapabilities
+- `apps/server/src/provider/CodexThreadRevert.ts` — exports: 
+- `apps/server/src/provider/CodexToolPresentation.ts` — exports: McpToolPresentation
+- `apps/server/src/provider/CodexTurnTokenUsage.ts` — exports: CodexTurnTokenUsageState, accumulateCodexTurnTokenUsage, completeCodexTurnTokenUsage, getCodexTurnAccumulator, makeCodexTurnTokenUsageState
+- `apps/server/src/provider/Drivers/AntigravityDriver.ts` — exports: AntigravityDriverEnv, AntigravityDriverProviderDriverAntigravitySettings
+- `apps/server/src/provider/Drivers/AntigravitySkills.ts` — exports: AntigravitySkillsProbeError, antigravityUserSkillDirectories, resolveAntigravityUserHome
+- `apps/server/src/provider/Drivers/AntigravityUsage.ts` — exports: AntigravityUsage, antigravityUsageReaderProviderUsageReaderAntigravitySettings, layer
+- `apps/server/src/provider/Drivers/ClaudeDriver.ts` — exports: ClaudeDriverEnv, ClaudeDriverProviderDriverClaudeSettings
+- `apps/server/src/provider/Drivers/ClaudeExecutable.ts` — exports: ClaudeExecutableFileCheck, ExecutableFileCheck, isWindowsClaudeLauncherShimPath
+- `apps/server/src/provider/Drivers/ClaudeHome.ts` — exports: 
+- `apps/server/src/provider/Drivers/ClaudeSkillDispatch.ts` — exports: ClaudeSkillDispatch, ClaudeSkillTarget, planClaudeSkillDispatch
+- `apps/server/src/provider/Drivers/ClaudeSkills.ts` — exports: 
+- `apps/server/src/provider/Drivers/CodexDriver.ts` — exports: CodexDriverEnv, CodexDriverProviderDriverCodexSettings
+- `apps/server/src/provider/Drivers/CodexHomeLayout.ts` — exports: CodexHomeLayout, CodexShadowHomeEntryConflictError, CodexShadowHomeError, CodexShadowHomeFileSystemError, CodexShadowHomePathConflictError, CodexShadowHomePrivateEntrySymlinkError, codexContinuationIdentity
+- `apps/server/src/provider/Drivers/CodexManagedProvider.ts` — exports: 
+- `apps/server/src/provider/Drivers/antigravityUsageReader.ts` — exports: CachedDatabase, makeAntigravityUsageCache
+- `apps/server/src/provider/Drivers/claudeUsage.ts` — exports: CLAUDE_SYNTHETIC_MODEL, claudeUsageFormatTranscriptUsageFormatvoid, claudeUsageReaderProviderUsageReaderClaudeSettings, parseClaudeLine
+- `apps/server/src/provider/Drivers/codexUsage.ts` — exports: CodexScanState, codexUsageFormatTranscriptUsageFormatCodexScanState, codexUsageReaderProviderUsageReaderCodexSettings, initialCodexScanState, parseCodexLine
+- `apps/server/src/provider/Errors.ts` — exports: ProviderDriverError, ProviderInstanceNotFoundError, ProviderWorkspaceMissingError
+- `apps/server/src/provider/EventNdjsonLogger.ts` — exports: EventNdjsonLogConfigurationError, EventNdjsonLogDirectoryError, EventNdjsonLogStore, EventNdjsonLogStoreError, EventNdjsonLogStoreOptions, EventNdjsonLoggerOptions, EventNdjsonStream, PendingRecord, boundProviderEventForLogging, shouldPersistProviderEvent
+- `apps/server/src/provider/ModelManifest.ts` — exports: BUNDLED_MODEL_MANIFESTModelManifestData, ModelManifest, ModelManifestData, encodeManifestCache, layer, layerTest, resolveProviderCatalog
+- `apps/server/src/provider/ProjectSettingsOverrideSweep.ts` — exports: 
+- `apps/server/src/provider/ProviderAuthService.ts` — exports: ProviderAuthController, ProviderAuthService, layer
+- `apps/server/src/provider/ProviderCredentialStore.ts` — exports: 
+- `apps/server/src/provider/ProviderHostLive.ts` — exports: 
+- `apps/server/src/provider/ProviderInstanceRegistry.ts` — exports: ProviderInstanceRegistry
+- `apps/server/src/provider/ProviderInstanceRegistryHydration.ts` — exports: layerLayerLayerProviderInstanceRegistryProviderInstanceRegistry, never
+- `apps/server/src/provider/ProviderInstanceRegistryMutator.ts` — exports: ProviderInstanceRegistryMutator, ProviderInstanceRegistryMutatorShape
+- `apps/server/src/provider/ProviderOrchestrationAdapterInfrastructure.ts` — exports: ProviderOrchestrationAdapterInfrastructure, layer
+- `apps/server/src/provider/ProviderRegistry.ts` — exports: ProviderMaintenanceActionKind, ProviderRegistry, upsertProviderWorkspaceSnapshot
+- `apps/server/src/provider/ProviderUsageLimitsIngestion.ts` — exports: layer
+- `apps/server/src/provider/acp/AntigravityAcpSupport.ts` — exports: AntigravityAcpRuntimeInput, antigravityPermissionMode
+- `apps/server/src/provider/acp/AntigravityClientFiles.ts` — exports: 
+- `apps/server/src/provider/acp/AntigravityProtocol.ts` — exports: antigravityApprovalOptions, antigravitySubagentOutput, classifyAntigravitySubagentToolCall, extractAntigravityUserInputQuestion, isAntigravityOpenCommand, isAntigravitySubagentReplayStart, isAntigravityUserInputRequest, makeAntigravityUserInputResponse, normalizeAntigravitySessionUpdate, normalizeAntigravityToolCall, sanitizeAntigravityToolPayload, selectAntigravityPermissionOptionId
+- `apps/server/src/provider/acp/AntigravitySessionFiles.ts` — exports: 
+- `apps/server/src/provider/antigravityAuthSupport.ts` — exports: ANTIGRAVITY_AUTH_BROWSER_MARKER, ANTIGRAVITY_AUTH_STDOUT_PREFIX, ANTIGRAVITY_SIGN_IN_REQUIRED_MESSAGE, AntigravityAuthConfig, AntigravityAuthorizationUrl, AntigravityInstanceDirectories, AntigravityProfile, antigravityAuthConfigIssue, antigravityAuthLabel, antigravityAuthUsesBrowser, buildAntigravityAcpSpawnInput, isAntigravitySignInRequiredError, makeAntigravityStderrHandler, makeAntigravityStdoutTransform
+- `apps/server/src/provider/antigravityCallback.ts` — exports: AntigravityPendingCallback, ProviderSetupError, forwardAntigravityCallback
+- `apps/server/src/provider/antigravityRelease.ts` — exports: AntigravityReleaseAsset, resolveAntigravityReleaseAsset
+- `apps/server/src/provider/antigravityUsageLimits.ts` — exports: 
+- `apps/server/src/provider/builtInDrivers.ts` — exports: BUILT_IN_DRIVERSReadonlyArrayAnyProviderDriverBuiltInDriversEnv, BUILT_IN_USAGE_DRIVERSReadonlyArrayAnyProviderDriverBuiltInDriversEnv, BuiltInDriversEnv, BuiltInUsageReadersEnv
+- `apps/server/src/provider/builtInProviderCatalog.ts` — exports: ProviderSnapshotSource
+- `apps/server/src/provider/claudeResetCredits.ts` — exports: claudeResetCreditsToContract, isSettledClaudeResetCreditFailure, readClaudeOrganizationId
+- `apps/server/src/provider/claudeUsageLimits.ts` — exports: ClaudeScopedLimitNames, claudeRateLimitEventToUpdate, claudeUsageResponseToLimits, makeClaudeScopedLimitNames
+- `apps/server/src/provider/codexLaunchArgs.ts` — exports: codexAppServerArgs, resolveCodexLaunchArgs
+- `apps/server/src/provider/codexModelCatalog.ts` — exports: applyCodexModelCatalog
+- `apps/server/src/provider/codexUsageLimits.ts` — exports: CodexRateLimitSnapshot, CodexResetCreditsSummary, codexRateLimitsFailureMessage, codexRateLimitsToLimits, codexRateLimitsToUpdate, codexUsageLimitMessage, codexUsageLimitResetAt, mergeCodexRateLimits
+- `apps/server/src/provider/providerCompatibility.ts` — exports: ProviderCompatibilityPolicy, applyProviderCompatibility, resolveProviderCompatibility
+- `apps/server/src/provider/providerInstallation.ts` — exports: 
+- `apps/server/src/provider/providerMaintenanceCommandCoordinator.ts` — exports: ProviderMaintenanceCommandCoordinatorShape
+- `apps/server/src/provider/providerMaintenanceRunner.ts` — exports: ProviderMaintenanceCommandResult, ProviderMaintenanceRunner, ProviderMaintenanceRunnerShape, layer, splitOutputLines, toProgressLine
+- `apps/server/src/provider/providerStatusCache.ts` — exports: orderProviderSnapshots
+- `apps/server/src/provider/resetCreditCoordinator.ts` — exports: ResetCreditCoordinator, layer
+- `apps/server/src/provider/testFixtures/codexCollabMockPeer.mjs` — exports: 
+- `apps/server/src/provider/testFixtures/grok-text-mock-agent.mjs` — exports: 
+- `apps/server/src/provider/testUtils/providerRegistryMock.ts` — exports: layer
+- `apps/server/src/provider/testing/ProviderInstanceRegistryLive.fixture.mjs` — exports: 
+- `apps/server/src/provider/unavailableProviderSnapshot.ts` — exports: UnavailableProviderSnapshotInput
+- `apps/server/src/provider/userInputAttachments.ts` — exports: 
+- `apps/server/src/pullRequest/PullRequestProviderRegistry.ts` — exports: PullRequestProviderRegistry, fromProviders, layer
+- `apps/server/src/pullRequest/PullRequestReadCache.ts` — exports: PullRequestReadCache
+- `apps/server/src/pullRequest/PullRequestReviewGuideService.ts` — exports: PullRequestReviewGuideService, layer
+- `apps/server/src/pullRequest/PullRequestService.ts` — exports: PullRequestError, PullRequestMergeEvent, PullRequestService, SupportedProject, layer
+- `apps/server/src/pullRequest/http.ts` — exports: 
+- `apps/server/src/pullRequest/linkedThreads.ts` — exports: 
+- `apps/server/src/pullRequest/pullRequestChangeBreakdown.ts` — exports: toChangeBreakdown
+- `apps/server/src/pullRequest/pullRequestReviewGuideInput.ts` — exports: reviewGuideInputFromPullRequest
+- `apps/server/src/pullRequest/pullRequestReviewGuideNormalize.ts` — exports: ReviewGuideChange, normalizeReviewGuide, parseReviewGuideChange
+- `apps/server/src/pullRequest/pullRequestSyncKey.ts` — exports: pullRequestSyncKey
+- `apps/server/src/pullRequest/pullRequestViewedFiles.ts` — exports: Dependencies
+- `apps/server/src/relay/AgentAwarenessRelay.ts` — exports: AgentAwarenessRelay, layer, resolveAgentAwarenessRelayActiveThreadIds
+- `apps/server/src/relay/HeldHooksWaker.ts` — exports: 
+- `apps/server/src/relay/relayEnvironmentClient.ts` — exports: 
+- `apps/server/src/resourceTelemetry/DesktopTelemetryReceiver.ts` — exports: DesktopTelemetryControlError, DesktopTelemetryControlFailed, DesktopTelemetryControlStalled, DesktopTelemetryDecodeFailed, DesktopTelemetryDescriptorUnavailable, DesktopTelemetryProtocolMismatch, DesktopTelemetryReceiver, DesktopTelemetryReceiverError, DesktopTelemetryReceiverHealth, DesktopTelemetryStale, DesktopTelemetryStreamClosed, DesktopTelemetryStreamFailed, layer, requireDesktopTelemetryWriteProgress
+- `apps/server/src/resourceTelemetry/HostResources.ts` — exports: HostResources, layer
+- `apps/server/src/resourceTelemetry/Model.ts` — exports: GroupCounters, MergeProcessesInput, MergeProcessesResult, ProcessDelta, ProcessState, TelemetryCounters, emptyTelemetryCounters, mergeProcesses, processIdentityKey
+- `apps/server/src/resourceTelemetry/NativeTelemetryClient.ts` — exports: CollectionControl, NativeTelemetryClient, NativeTelemetryClientError, NativeTelemetryClientHealth, NativeTelemetryCommandFailed, NativeTelemetryDecodeFailed, NativeTelemetryExited, NativeTelemetryHandshakeTimedOut, NativeTelemetryProtocolMismatch, NativeTelemetrySnapshot, NativeTelemetrySpawnFailed, NativeTelemetryUnavailable, layer, synchronizeCollectionControlOnStart
+- `apps/server/src/resourceTelemetry/ProcessGroupMetrics.ts` — exports: ProcessGroupTotals, groupProcesses
+- `apps/server/src/resourceTelemetry/ResourceAttribution.ts` — exports: ResourceAttribution, ResourceAttributionRecord, layer
+- `apps/server/src/resourceTelemetry/ResourceMonitorBinary.ts` — exports: ResourceMonitorBinary, ResourceMonitorBinaryError, ResourceMonitorBinaryNotExecutable, ResourceMonitorBinaryNotFound, ResourceMonitorBinaryUnsupported, ResourceMonitorHostLinuxLibc, ResourceMonitorLinuxLibc, layer
+- `apps/server/src/resourceTelemetry/ResourceTelemetry.ts` — exports: ResourceTelemetry, ResourceTelemetryRefreshFailed, layer
+- `apps/server/src/resourceTelemetry/ResourceTelemetryHistory.ts` — exports: BuildResourceTelemetryHistoryInput, ResourceTelemetryHistoryWithLegacyBuckets, buildResourceTelemetryHistory, normalizeResourceTelemetryHistoryInput
+- `apps/server/src/review/ReviewService.ts` — exports: ReviewService, layer
+- `apps/server/src/rpcInitialItems.ts` — exports: rpcInitialItems
+- `apps/server/src/scheduledTasks/RelayDeliveryProof.ts` — exports: RelayDeliveryProof, layer
+- `apps/server/src/scheduledTasks/Schedule.ts` — exports: isMissedFixedTimeRun, isSameSchedule, nextScheduledRunAt
+- `apps/server/src/scheduledTasks/ScheduledTaskService.ts` — exports: ScheduledTaskService, ScheduledTaskWebhookOrigin, WEBHOOK_ROUTE_PREFIX, WebhookDeliveryOutcome, WebhookTriggerRequest, WebhookTriggerResult, relayHookBaseUrl
+- `apps/server/src/scheduledTasks/webhookDedupe.ts` — exports: decodePendingRequest, decodePendingTask, dedupeError
+- `apps/server/src/scheduledTasks/webhookFilter.ts` — exports: FailedWebhookFilter, describeFailedWebhookFilter, findFailedWebhookFilter
+- `apps/server/src/scheduledTasks/webhookRoute.ts` — exports: WEBHOOK_MAX_BODY_BYTES
+- `apps/server/src/scheduledTasks/webhookTemplate.ts` — exports: RenderedWebhookPrompt, WebhookRequest, redactHeaders, redactQuery, renderWebhookPrompt, webhookExpressionResolver
+- `apps/server/src/scheduledTasks/webhookVerification.ts` — exports: constantTimeEquals, verifyWebhookSignature
+- `apps/server/src/scheduling/Scheduler.ts` — exports: Scheduler, layer
+- `apps/server/src/secrets/SecretRequests.ts` — exports: SecretRequests, layer
+- `apps/server/src/server.ts` — exports: runServer
+- `apps/server/src/serverActivation.ts` — exports: E, REffectEffectvoid, ScopeScopeR, ServerActivation, forkParked, never
+- `apps/server/src/serverLifecycleEvents.ts` — exports: ServerLifecycleEvents, layer
+- `apps/server/src/serverLogger.ts` — exports: 
+- `apps/server/src/serverOwnership.ts` — exports: OlderBootServiceError, ServerAlreadyRunningError, ServerOwnershipError
+- `apps/server/src/serverRuntimeStartup.ts` — exports: ServerRuntimeStartup, ServerRuntimeStartupError, announceStartupPairingUrl, layerWithOptions, logBrowserAutoOpenUnavailable
+- `apps/server/src/serverRuntimeState.ts` — exports: PersistedServerRuntimeState, ServerRuntimeStateError
+- `apps/server/src/serverSettings.ts` — exports: ServerSettingsService, applyProviderInstanceMutation, layer, layerTest, redactServerSettingsForClient, resolveReviewGuideModelSelection, resolveSourceControlWriterModelSelection
+- `apps/server/src/serviceLauncher.ts` — exports: BackupSpaceProbe, Launcher, databaseBackupBlocker, main, readServiceEnvironment, readServiceState, writeServiceState
+- `apps/server/src/settingsSecrets.ts` — exports: SECRET_REDACTED, SettingsSecret, mapSettingsSecrets
+- `apps/server/src/sourceControl/ServerSourceControlHost.ts` — exports: 
+- `apps/server/src/sourceControl/SourceControlDiscovery.ts` — exports: SourceControlDiscovery, layer
+- `apps/server/src/sourceControl/SourceControlProviderRegistry.ts` — exports: SourceControlProviderHandle, SourceControlProviderRegistration, SourceControlProviderRegistry, layer
+- `apps/server/src/sourceControl/SourceControlRepositoryService.ts` — exports: SourceControlCloneOptions, SourceControlPreparedClone, SourceControlRepositoryService, layer
+- `apps/server/src/sourceControl/builtInDrivers.ts` — exports: BUILT_IN_SOURCE_CONTROL_DRIVERSReadonlyArraySourceControlDriverBuiltInSourceControlDriversEnv, BuiltInSourceControlDriversEnv, layer
+- `apps/server/src/sourceControl/sourceControlHostSecrets.ts` — exports: SOURCE_CONTROL_HOST_SECRET_FIELDSReadonlyMapstring, SourceControlHostSecretSlot, readSecretFieldValues, sourceControlHostSecretName, writeSecretFieldValues
+- `apps/server/src/startupAccess.ts` — exports: HeadlessServeAccessInfo, formatHeadlessServeOutput, isWildcardHost, loopbackUrlHostForAddress
+- `apps/server/src/storageCleanup.ts` — exports: StorageCleanup, layer, storageCleanupActivityAt, storageCleanupPullRequestMerged, storageCleanupThreadIdle
+- `apps/server/src/telemetry/AnalyticsService.ts` — exports: AnalyticsService, layer
+- `apps/server/src/telemetry/DelegatedTaskAnalytics.ts` — exports: DelegatedTaskAnalytics, layer
+- `apps/server/src/telemetry/FeatureUsage.ts` — exports: FeatureUsage, featureUsage
+- `apps/server/src/telemetry/Identify.ts` — exports: TelemetryAnonymousIdGenerationError, TelemetryAnonymousIdPersistenceError, TelemetryIdentitySource, TelemetryOwner, TelemetryOwnerSource, getServerOwners, getTelemetryIdentity
+- `apps/server/src/telemetry/ProviderDimensions.ts` — exports: AgentThread, MAX_REPORTED_DEPTH, ProviderDimensions, agentToolProperties, crossProvider, handoffSettings, providerDimensions, toolOutcome
+- `apps/server/src/terminal/Manager.ts` — exports: BoundedTerminalHistory, ShellCandidate, TerminalCwdError, TerminalCwdNotDirectoryError, TerminalCwdNotFoundError, TerminalCwdStatError, TerminalError, TerminalHistoryError, TerminalManager, TerminalNotRunningError, TerminalProviderEnvironmentError, TerminalProviderInstanceNotFoundError, TerminalResizeError, TerminalSessionLookupError, TerminalStartInput, TerminalWriteError, layer
+- `apps/server/src/terminal/NodePtyAdapter.ts` — exports: NodePtyModuleLoadError, NodePtyModuleLoaderRef, layer
+- `apps/server/src/terminal/OutputProtocol.ts` — exports: terminalOutputStream, withTerminalOutputWindow
+- `apps/server/src/testUtils/gitConfig.setup.ts` — exports: 
+- `apps/server/src/testUtils/processProbe.ts` — exports: processProbeSource
+- `apps/server/src/testUtils/weightedShardSequencer.ts` — exports: WeightedShardSequencer
+- `apps/server/src/textGeneration/AntigravityTextGeneration.ts` — exports: AntigravityTextGenerationOptions
+- `apps/server/src/textGeneration/ClaudeTextGeneration.ts` — exports: 
+- `apps/server/src/textGeneration/CodexTextGeneration.ts` — exports: 
+- `apps/server/src/textGeneration/OpenCode2TextGeneration.fixture.ts` — exports: OPENCODE2_TITLE_GENERATIONReadonlyArrayProviderReplayEntry
+- `apps/server/src/textGeneration/TextGeneration.ts` — exports: BranchNameGenerationInput, BranchNameGenerationResult, CommitMessageGenerationInput, CommitMessageGenerationResult, PrContentGenerationInput, PrContentGenerationResult, ReviewGuideGenerationInput, ReviewGuideGenerationResult, TextGeneration, ThreadTitleGenerationInput, ThreadTitleGenerationResult, layer
+- `apps/server/src/textGeneration/TextGenerationPresets.ts` — exports: conventionalCommitsTextGenerationPolicyTextGenerationPolicy, customTextGenerationPolicy, repositoryConventionsTextGenerationPolicyTextGenerationPolicy
+- `apps/server/src/textGeneration/ThreadTitleLinks.ts` — exports: 
+- `apps/server/src/textGeneration/testing/ClaudeTextGeneration.fixture.mjs` — exports: 
+- `apps/server/src/usage/CodexUsageHistory.ts` — exports: CodexUsageHistory, CodexUsageHistoryReadError, CodexUsageHistoryRequest, layer
+- `apps/server/src/usage/UsageLimitSources.ts` — exports: UsageLimitSources, layer
+- `apps/server/src/usage/UsageService.ts` — exports: UsageService, layer
+- `apps/server/src/usage/cliproxyApi.ts` — exports: 
+- `apps/server/src/usage/usageAggregation.ts` — exports: AggregateOptions, AggregateResult, UsageAggregator, resolveModelAliases
+- `apps/server/src/usage/usagePricing.ts` — exports: ModelRate, PricedRecord, PricedUsage, RateTable, TokenRates, cacheSavingsUsd, createOverrideRateTable, lookupRate, parseRateTable, priceUsage
+- `apps/server/src/usage/usageScanCache.ts` — exports: CachedFile, LEGACY_SCAN_CACHE_FILE_NAMES, SCAN_CACHE_FILE_NAME, ScanCache, decodeScanCache, dedupeWithinFile, encodeScanCache, makeScanCacheWriter, pruneScanCache
+- `apps/server/src/usage/usageTestFormats.ts` — exports: TEST_FORMATSRecordclaudecodexgrokpi, TEST_FORMAT_MAP, TranscriptUsageFormatunknown
+- `apps/server/src/usage/usageTranscriptReader.ts` — exports: GUARD_LENGTH, TranscriptFile, TranscriptParsePosition, TranscriptParseResult, listTranscriptFiles, readDirectoryVolumeId, readTranscriptRecords, transcriptLineGate
+- `apps/server/src/utils/subscribeBeforeSnapshot.ts` — exports: SnapshotSubscription
+- `apps/server/src/vcs/GitVcsDriver.ts` — exports: CreateWorktreeOptions, CreateWorktreeProgress, ExecuteGitInput, ExecuteGitProgress, ExecuteGitResult, GitCommitOptions, GitCommitProgress, GitDeleteLocalBranchInput, GitEnsureRemoteInput, GitFetchPullRequestBranchInput, GitFetchPullRequestHeadCommitInput, GitFetchRemoteBranchInput, GitFetchRemoteInput, GitFetchRemoteTrackingBranchInput, GitFetchWorktreeBaseCommitInput, GitLocalStatusOptions, GitPreparedCommitContext, GitPushResult, GitRangeContext, GitRefreshCheckedOutBranchInput, GitRefreshCheckedOutBranchResult, GitRemoteBranchExistsInput, GitRemoteExistsInput, GitRemoteStatusDetails, GitRemoteStatusOptions, GitRenameBranchInput, GitRenameBranchResult, GitResolveCommitInput, GitResolveCommitResult, GitResolveRemoteTrackingCommitInput, GitResolveRemoteTrackingCommitResult, GitSetBranchUpstreamInput, GitStatusDetails, GitVcsDriver, layer, layerVcs
+- `apps/server/src/vcs/GitVcsDriverCore.ts` — exports: PATCH_RENDER_PREFIX_ARGS, parseGitCheckoutProgressLine, splitNullSeparatedGitStdoutPaths, windowsLongPathConfigEnv
+- `apps/server/src/vcs/VcsDriver.ts` — exports: CHECKPOINT_DIFF_MAX_OUTPUT_BYTES, VcsCaptureCheckpointInput, VcsCheckpointOps, VcsDeleteCheckpointRefsInput, VcsDiffCheckpointsInput, VcsDriver, VcsListAuthoredPathsInput, VcsRestoreCheckpointInput
+- `apps/server/src/vcs/VcsDriverRegistry.ts` — exports: VcsDriverHandle, VcsDriverRegistry, VcsDriverResolveInput, layer
+- `apps/server/src/vcs/VcsProcess.ts` — exports: CHECKPOINT_CAPTURE_OPERATION, GIT_INDEX_LOCKED_DETAIL, VcsProcess, VcsProcessInput, VcsProcessOutput, explicitBareRepositoryEnv, layer, thentryagain
+- `apps/server/src/vcs/VcsProjectConfig.ts` — exports: VcsProjectConfig, VcsProjectConfigError, VcsProjectConfigResolveInput, layer
+- `apps/server/src/vcs/VcsProvisioningService.ts` — exports: VcsProvisioningService, layer
+- `apps/server/src/vcs/VcsStatusBroadcaster.ts` — exports: VcsAutoPullPolicy, VcsAutomaticFetchInterval, VcsStatusBroadcaster, layer
+- `apps/server/src/vcs/removeEmptyDirectory.ts` — exports: removeEmptyDirectory
+- `apps/server/src/vcs/testing/VcsDriverContractHarness.ts` — exports: VcsDriverContractSuiteInput, VcsDriverFixture, included, runVcsDriverContractSuite, tracked, untracked, value
+- `apps/server/src/vcs/worktreeRemoval.ts` — exports: 
+- `apps/server/src/workspace/KnownWorkspaces.ts` — exports: KnownWorkspaces, UnknownWorkspaceError, layer
+- `apps/server/src/workspace/WorkspaceEntries.ts` — exports: WorkspaceEntries, WorkspaceEntriesBrowseError, WorkspaceEntriesCurrentProjectRequiredError, WorkspaceEntriesError, WorkspaceEntriesReadDirectoryError, WorkspaceEntriesWindowsPathUnsupportedError, layer
+- `apps/server/src/workspace/WorkspaceFileSystem.ts` — exports: WorkspaceBinaryFileError, WorkspaceFilePathEscapeError, WorkspaceFileSystem, WorkspaceFileSystemError, WorkspaceFileSystemOperationError, WorkspacePathNotFileError, layer
+- `apps/server/src/workspace/WorkspacePaths.ts` — exports: WorkspacePathOutsideRootError, WorkspacePaths, WorkspacePathsError, WorkspaceRootCreateFailedError, WorkspaceRootNotDirectoryError, WorkspaceRootNotExistsError, WorkspaceRootStatFailedError, layer
+- `apps/server/src/workspace/WorkspaceSearchIndex.ts` — exports: WORKSPACE_SEARCH_INDEX_VARIANTS, WorkspaceSearchIndex, WorkspaceSearchIndexCreateFailed, WorkspaceSearchIndexDestroyFailed, WorkspaceSearchIndexMap, WorkspaceSearchIndexRefreshFailed, WorkspaceSearchIndexScanTimedOut, WorkspaceSearchIndexSearchFailed, WorkspaceSearchIndexVariant, workspaceSearchIndexKey
+- `apps/server/src/workspace/fileHeaderMimeType.ts` — exports: fileHeaderMimeType
+- `apps/server/src/workspace/workspaceLease.ts` — exports: E, REffectEffectA, withWorkspaceLease
+- `apps/server/src/worktreesDirectory.ts` — exports: isFilesystemRoot, managedWorktreesDirectories, resolveWorktreesDirectory
+- `apps/server/src/ws.ts` — exports: WS_RPC_SERVER_OPTIONS, withLateEditorConfig
+- `apps/server/src/zipArchive.ts` — exports: 
+- `apps/server/vite.config.ts` — exports: default, shouldBundleCliDependency
+- `apps/web/scripts/warm-dep-cache.ts` — exports: 
+- `apps/web/src/AppRoot.tsx` — exports: AppRoot
+- `apps/web/src/appearanceContrast.ts` — exports: applyAppearanceContrast
+- `apps/web/src/appearanceFonts.ts` — exports: AppearanceFontPreferences, BlinkMacSystemFont, Consolas, DEFAULT_CODE_FONT_STACK, DEFAULT_SANS_FONT_STACK, InstalledFontFamiliesResult, LiberationMono, Menlo, SFMonoRegular, SegoeUI, TYPOGRAPHY_ADVANCED_STORAGE_KEY, appearanceFontStack, applyAppearanceFontVariables, isFontFamilyAvailable, isMonospaceFamily, monospace, queryInstalledFontFamilies, resolveDefaultFamilyLabel, resolveTerminalFontPreference, resolveTerminalFontSizePreference, sansserif, systemui
+- `apps/web/src/assets/assetUrls.ts` — exports: AssetUrlState, resolveAssetUrl, useAssetUrlRefresh, useAssetUrlState, useAssetUrls
+- `apps/web/src/assets/projectFaviconCache.ts` — exports: 
+- `apps/web/src/bootstrap.ts` — exports: 
+- `apps/web/src/branding.logic.ts` — exports: formatAppDisplayName, resolveServerBackedAppDisplayName, resolveServerBackedAppStageLabel
+- `apps/web/src/branding.ts` — exports: APP_BASE_NAME, APP_DISPLAY_NAME, APP_STAGE_LABEL, APP_VERSION, DESKTOP_DOWNLOAD_URL, HOSTED_APP_CHANNEL, HOSTED_APP_CHANNEL_LABEL
+- `apps/web/src/browser/BrowserDeviceToolbar.tsx` — exports: BrowserDeviceToolbar
+- `apps/web/src/browser/BrowserProfileReporter.tsx` — exports: BrowserProfileReporter
+- `apps/web/src/browser/BrowserSurfaceSlot.tsx` — exports: BrowserSurfaceSlot
+- `apps/web/src/browser/BrowserViewportResizeHandles.tsx` — exports: BrowserViewportResizeHandles
+- `apps/web/src/browser/ElectronBrowserHost.tsx` — exports: ElectronBrowserHost
+- `apps/web/src/browser/HostedBrowserWebview.tsx` — exports: HostedBrowserWebview
+- `apps/web/src/browser/ScreenRotationIcon.tsx` — exports: ScreenRotationIcon
+- `apps/web/src/browser/ServerBrowserSurface.tsx` — exports: ServerBrowserHandle, ServerBrowserSurface
+- `apps/web/src/browser/annotationTheme.ts` — exports: readPreviewAnnotationTheme
+- `apps/web/src/browser/browserDefaults.ts` — exports: BrowserDefaults, FALLBACK_RESPONSIVE_VIEWPORT_SIZE, browserDefaultOpenProfileId, browserDefaultOpenViewport, browserDefaultTabState, browserResponsiveViewportForToggle, getBrowserDefaults, resolveBrowserDefaults, useBrowserDefaults
+- `apps/web/src/browser/browserDeviceToolbarState.ts` — exports: commitViewportAndAspectRatio
+- `apps/web/src/browser/browserLinkTarget.ts` — exports: ResolveLinkTargetInput, canOpenLinksInApp, isWebUrl, resolveBrowserLinkTargetPreference, resolveLinkTarget
+- `apps/web/src/browser/browserPointerStore.ts` — exports: 
+- `apps/web/src/browser/browserRecording.ts` — exports: ActiveBrowserRecordingTarget, BROWSER_RECORDING_PAINT_SETTLE_TIMEOUT_MS, BROWSER_RECORDING_STARTUP_SETTLE_TIMEOUT_MS, BrowserRecordingCaptureTimeoutError, BrowserRecordingConflictError, BrowserRecordingFormatUnavailableError, BrowserRecordingOperationError, BrowserRecordingStartCancelledError, BrowserRecordingUnavailableError, findActiveBrowserRecordingRuntimeTabId, isBrowserRecordingStartCancelledError, readActiveBrowserRecordingTabIds, readActiveBrowserRecordingTargets, startBrowserRecording, stopBrowserRecording, stopBrowserRecordingForUpload, useActiveBrowserRecordingTabIds
+- `apps/web/src/browser/browserSurfaceStore.ts` — exports: BrowserSurfaceContentPresentation, BrowserSurfaceLease, BrowserSurfacePresentation, BrowserSurfaceRect, acquireBrowserSurface, acquireBrowserSurfaceActivity, resolveBrowserSurfacePanelRect
+- `apps/web/src/browser/browserTargetResolver.ts` — exports: isLocalLoopbackHost, isPrivateNetworkHost, isPublicFaviconHost, normalizeHostname, resolveBrowserNavigationTarget, resolveDiscoveredServerUrl
+- `apps/web/src/browser/browserViewportActions.ts` — exports: BROWSER_VIEWPORT_COMMIT_TIMEOUT_MS, commitBrowserViewportChange, runBrowserViewportMutation, subscribeBrowserViewportChange
+- `apps/web/src/browser/browserViewportLayout.ts` — exports: BROWSER_DEVICE_TOOLBAR_HEIGHT, BROWSER_VIEWPORT_RESIZE_RAIL_SIZE, BrowserViewportLayout, BrowserViewportResizeDirection, browserViewportSettingKey, resizeBrowserViewportFromRail, resizeFreeformViewport, resolveBrowserDeviceViewportArea, resolveBrowserDeviceViewportLayout, resolveBrowserLayoutZoomFactor, resolveBrowserViewportLayout, resolveFittedBrowserViewport, resolveResponsiveBrowserViewportSize
+- `apps/web/src/browser/desktopTabLifetime.ts` — exports: AcquiredDesktopTab, acquireDesktopTab, withDesktopTab
+- `apps/web/src/browser/hostedBrowserWebviewStyle.ts` — exports: HostedBrowserWebviewSize, HostedBrowserWebviewWrapperStyle, resolveHostedBrowserWebviewWrapperStyle
+- `apps/web/src/browser/openFileInPreview.ts` — exports: BrowserPreviewUnavailableError, BrowserSettingsReadError, OpenPreviewMutation, isBrowserPreviewFile, openFileInPreview, openUrlInPreview
+- `apps/web/src/browser/previewRuntime.ts` — exports: alternatePreviewRuntime, isPreviewAvailableFor, previewRuntimeFor, rendersServerTabNatively, usePreviewAvailable, useRendersServerTabNatively
+- `apps/web/src/browser/previewRuntimeTabId.ts` — exports: isCurrentPreviewRuntimeTab, previewRuntimeTabId
+- `apps/web/src/browser/previewWebviewConfigState.ts` — exports: PreviewWebviewBridgeUnavailableError, PreviewWebviewConfigError, PreviewWebviewConfigLoadError, usePreviewWebviewConfig
+- `apps/web/src/browser/recordingCompositor.ts` — exports: createRecordingCompositor
+- `apps/web/src/browser/serverPictureInPicture.ts` — exports: closeServerPictureInPicture, openServerPictureInPicture, serverPictureInPictureKey, supportsServerPictureInPicture, useServerPictureInPictureKey
+- `apps/web/src/browser/useBrowserLayoutZoomFactor.ts` — exports: useBrowserLayoutZoomFactor
+- `apps/web/src/browser/useBrowserViewportResize.ts` — exports: useBrowserViewportResize
+- `apps/web/src/browser/useOpenLink.ts` — exports: useOpenLink
+- `apps/web/src/browser/webviewCrashRecovery.ts` — exports: INITIAL_WEBVIEW_CRASH_RECOVERY_STATEWebviewCrashRecoveryState, WebviewCrashRecoveryPlan, WebviewCrashRecoveryState, planWebviewCrashRecovery
+- `apps/web/src/browserFaviconLogic.ts` — exports: BROWSER_FAVICON_MAX_ALIASES_PER_ENTRY, BROWSER_FAVICON_MAX_ENTRIES, BrowserFaviconEntry, canCanonicalizeFaviconWithoutEnvironment, evictExcessFavicons, faviconKey, faviconStorageLocation, isStorableFaviconDataUrl, isValidFaviconCapturedAt, migratePersistedBrowserFaviconState
+- `apps/web/src/browserFaviconStore.ts` — exports: BrowserFaviconStoreState, flushPendingFaviconsForThread, lookupFavicon, recordFaviconForProject, recordFaviconForThread, registerFaviconProjectForThread, resetBrowserFaviconsForTests, resolveBrowserFaviconStorage, useFaviconForThreadUrl, useFaviconProjectRefForThread
+- `apps/web/src/browserHistoryStore.ts` — exports: BROWSER_HISTORY_MAX_ENTRIES_PER_PROJECT, BROWSER_HISTORY_MAX_PROJECTS, BROWSER_HISTORY_MAX_TITLE_LENGTH, BrowserHistoryEntry, evictExcessProjects, isValidHistoryTimestamp, mergeBrowserHistoryState, migratePersistedBrowserHistoryState, normalizeHistoryUrl, recordVisitForThread, removeUrlForThread, resetBrowserHistoryForTests, setTitleForThreadUrl, upsertHistoryEntry, useThreadRecentHistory
+- `apps/web/src/clientPersistenceStorage.ts` — exports: readBrowserClientSettings, writeBrowserClientSettings
+- `apps/web/src/closedViewStore.ts` — exports: ClosedView, ClosedViewEntry
+- `apps/web/src/cloud/connectCliAuth.ts` — exports: buildConnectCliClerkAuthorizeUrl, connectCliAuthRoutesEnabled, connectCliSignInRedirectUrl
+- `apps/web/src/cloud/connectOnboarding.ts` — exports: CONNECT_ONBOARDING_OPT_OUT_STORAGE_KEY, ConnectOnboardingOptOutSchema, ConnectOnboardingOptOutState, EMPTY_CONNECT_ONBOARDING_OPT_OUT_STATEConnectOnboardingOptOutState
+- `apps/web/src/cloud/dpop.ts` — exports: BrowserDpopError, BrowserDpopKey, readStoredBrowserDpopKey, writeStoredBrowserDpopKey
+- `apps/web/src/cloud/linkEnvironment.ts` — exports: CloudEnvironmentLinkError, CloudLinkMode, CloudLinkState, CloudLinkTarget
+- `apps/web/src/cloud/linkEnvironmentAtoms.ts` — exports: 
+- `apps/web/src/cloud/managedAuth.tsx` — exports: ManagedRelayAuthProvider, activateManagedRelayAuthentication, deactivateManagedRelayAuthentication
+- `apps/web/src/cloud/managedRelayLayer.ts` — exports: layer
+- `apps/web/src/cloud/managedRelayState.ts` — exports: useManagedRelayDevices, useManagedRelayEnvironments
+- `apps/web/src/cloud/primaryCloudLinkState.ts` — exports: readCachedPrimaryCloudLinkState, usePrimaryCloudLinkState
+- `apps/web/src/cloud/publicConfig.ts` — exports: CloudPublicConfig, CloudPublicConfigMissingError, hasCloudPublicConfig, resolveCloudPublicConfig, resolveRelayClerkTokenOptions, resolveRelayTracingConfig, trimNonEmpty
+- `apps/web/src/cloud/relayClientInstallDialog.ts` — exports: RelayClientInstallConfirmationConflictError, RelayClientInstallDialogState, completeRelayClientInstallDialogClose, finishRelayClientInstall, readRelayClientInstallDialogState, reportRelayClientInstallProgress, requestRelayClientInstallConfirmation, resetRelayClientInstallDialogForTests, respondToRelayClientInstallConfirmation, subscribeRelayClientInstallDialog
+- `apps/web/src/cloud/useCloudLinkController.ts` — exports: CloudLinkDesiredState, useCloudLinkController
+- `apps/web/src/commandPaletteBus.ts` — exports: CommandPaletteLinkedThreads, CommandPaletteOpenDetail, isCommandPaletteOpen, onOpenCommandPalette, openCommandPalette
+- `apps/web/src/components/AddProjectToMachineDialog.tsx` — exports: AddProjectToMachineDialogHost, openAddProjectToMachine
+- `apps/web/src/components/AnimatedHeight.tsx` — exports: AnimatedHeight
+- `apps/web/src/components/AnimatedWidth.tsx` — exports: AnimatedWidth
+- `apps/web/src/components/AppSidebarLayout.tsx` — exports: AppSidebarLayout, NavigationHistoryShortcuts
+- `apps/web/src/components/BranchPicker.tsx` — exports: BranchPicker, BranchPickerRefItem
+- `apps/web/src/components/BranchToolbar.logic.ts` — exports: ADD_TO_MACHINE_LABEL_CLASS, EnvMode, EnvironmentOption, PreviousWorktreeSeed, WORKTREE_SUBMODULES_LABELSRecordWorktreeSubmodules, dedupeRemoteBranchesWithLocalMatches, deriveLocalBranchNameFromRemoteRef, resolveBranchSelectionTarget, resolveBranchToolbarPrBranch, resolveBranchToolbarValue, resolveBranchTriggerLabel, resolveContextStripLabelsCompact, resolveCurrentWorkspaceLabel, resolveDraftEnvModeAfterBranchChange, resolveEffectiveEnvMode, resolveEnvModeLabel, resolveEnvironmentOptionLabel, resolveLocalCheckoutBranchMismatch, resolveLockedWorkspaceLabel, resolvePreviousWorktreeLabel, resolvePreviousWorktreeSeed, sanitizeNewRefName, shouldIncludeBranchPickerItem, shouldShowComposerContextStrip, shouldShowEnvironmentIndicator, string
+- `apps/web/src/components/BranchToolbar.tsx` — exports: BranchToolbarHandle
+- `apps/web/src/components/BranchToolbarBranchSelector.tsx` — exports: BranchToolbarBranchSelector, BranchToolbarBranchSelectorHandle
+- `apps/web/src/components/BranchToolbarEnvModeSelector.tsx` — exports: 
+- `apps/web/src/components/BranchToolbarEnvironmentSelector.tsx` — exports: 
+- `apps/web/src/components/ChatMarkdown.tsx` — exports: ChatMarkdownContextReference, default
+- `apps/web/src/components/ChatView.logic.ts` — exports: ComposerSendContents, ComposerSendSnapshot, HeldThreadTimeline, LAST_INVOKED_SCRIPT_BY_PROJECT_KEY, LastInvokedScriptByProjectSchema, LocalDispatchSnapshot, LocalThreadErrorEntry, MAX_HIDDEN_MOUNTED_TERMINAL_THREADS, PlanFollowUpComposerSnapshot, agentControlledBrowserCloseConfirmation, boundAttachmentIds, branchMismatchKey, buildExpiredTerminalContextToastCopy, buildLocalDraftThread, chatActionErrorMessage, cloneComposerImageForRetry, codexArtifactTemplatePromptToAppend, collectUserMessageBlobPreviewUrls, createLocalDispatchSnapshot, deriveAvailableRevertTurnCounts, deriveCommittedServerUserMessageIds, deriveComposerSendState, deriveLockedProvider, deriveThreadPendingBackgroundTasks, deriveWorkspaceMutationId, dismissBranchMismatchForSession, findRecordedWorktreeSetup, formatOutgoingPrompt, getAntigravitySendBlockReason, getStartedThreadModelChangeBlockReason, hasEnvironmentReconnectWarningGraceElapsed, hasServerAcknowledgedLocalDispatch, isBranchMismatchDismissedForSession, isCompactCommandMessage, isPaintOnlyThreadTimeline, isThreadWokeUnseen, makeModelDisabledReason, makeThreadErrorSetter, mergeDirectPreviewAnnotation, observeProactivePanelUserChoice, optimisticMessageAttachments, peekHeldThreadTimeline, peekRememberedThreadTimeline, planComposerTurn, prepareRevertedMessageAttachments, presentThreadShellFromProjection, readFileAsDataUrl, recallCheckoutIsRepo, reconcileMountedTerminalThreadIds, releaseChatTimelineAnchor, rememberCheckoutIsRepo, rememberReadyThreadTimeline, resetHeldThreadTimeline, resolveBackgroundDraftWorkspaceOptions, resolveComposerInteractionMode, resolveComposerProviderSelection, resolveDraftHeroState, resolveDraftPromotionNavigationTarget, resolveExplicitDiffOpenOnActivate, resolveFileAttachmentUrl, resolveProactiveTurnDiffAction, resolveSendEnvMode, resolveTerminalWorktreePath, resolveThreadMetadataUpdateForNextTurn, resolveThreadSwitchTimeline, resolveVisibleWorktreeSetup, resolveWorktreeSetupProgress, restorePlanFollowUpComposer, revokeBlobPreviewUrl, revokeUserMessagePreviewUrls, scheduleEnvironmentReconnectWarning, sendTitleFallbackLabels, shouldDockDraftHeroForSubmission, shouldOpenProactivePullRequest, shouldOpenProactiveTurnDiff, shouldRefocusComposerOnWindowFocus, shouldReleaseTimelineAnchorForToolActivity, shouldRenderPreviewMiniPlayer, shouldRetargetThreadPullRequestPanel, shouldShowBranchMismatchBanner, shouldShowPlanFollowUpPrompt, snapshotComposerSend, startNewThreadForProject, threadHasStarted, threadKeysShareEnvironment, threadShellHasStarted, timelineHasEphemeralPreviewUrls, waitForRevertedMessage, waitForStartedServerThread, withMessageContext
+- `apps/web/src/components/ChatView.tsx` — exports: ChatView, default
+- `apps/web/src/components/CommandBlock.tsx` — exports: CommandBlock
+- `apps/web/src/components/CommandPalette.logic.ts` — exports: ADDON_ICON_CLASS, AddProjectCloneFlow, AddProjectEnvironmentOption, BuildThreadActionItemsThread, CommandPaletteActionItem, CommandPaletteGroup, CommandPaletteItem, CommandPaletteMode, CommandPaletteOpenIntent, CommandPaletteProject, CommandPaletteReturnContext, CommandPaletteRow, CommandPaletteSearchState, CommandPaletteSubmenuItem, CommandPaletteThreadContentMatch, CommandPaletteUiAction, CommandPaletteUiState, CommandPaletteView, ITEM_ICON_CLASS, RECENT_THREAD_LIMIT, SearchOverlayMode, browseInputEndPaddingClass, buildBrowseGroups, buildCommandPaletteProjectMetadata, buildCommandPaletteRows, buildLinkedThreadActionItems, buildPaletteRemoteSourceReadiness, buildProjectActionItems, buildRootGroups, buildThreadActionItems, createCommandPaletteSearchState, enumerateCommandPaletteItems, errorMessage, filterCommandPaletteGroups, filterPinnedBrowseEntries, findHighlightedCommandPaletteItem, getCommandPaletteInputPlaceholder, getCommandPaletteMode, getEnvironmentBrowsePlatform, overlayModeForCommand, reduceCommandPaletteSearchState, reduceCommandPaletteUiState, remoteProjectInputPlaceholder
+- `apps/web/src/components/CommandPalette.tsx` — exports: CommandPalette
+- `apps/web/src/components/CommandPaletteAddProject.tsx` — exports: CommandPaletteSubmitButton, NewProjectPublishHostPicker, NewProjectSummary, RemoteRepositorySummary, remoteProjectSourceIcon, sourceControlHostIcon
+- `apps/web/src/components/CommandPaletteContent.tsx` — exports: CommandPaletteContent
+- `apps/web/src/components/CommandPaletteLookups.ts` — exports: selectCommandPaletteClientSettings, useEnvironmentLookups, useProjectLookups, useSortedProjectGroups
+- `apps/web/src/components/CommandPaletteProjectItems.tsx` — exports: CommandPaletteProjectLocation, buildNewThreadInProjectItems, buildProjectSearchItems
+- `apps/web/src/components/CommandPaletteResults.tsx` — exports: CommandPaletteResults, CommandPaletteTitleIcon, CommandPaletteVirtualizedResults, scrollCommandPaletteRowIntoView
+- `apps/web/src/components/CommandPaletteThemeItems.tsx` — exports: APPEARANCE_OPTIONS, notifyThemeSaveFailure, useCommandPaletteThemeItems
+- `apps/web/src/components/CommandPaletteThreadItems.tsx` — exports: useCommandPaletteThreadItems
+- `apps/web/src/components/ComposerContextLabel.tsx` — exports: ComposerContextLabel
+- `apps/web/src/components/ComposerPromptEditor.tsx` — exports: ComposerCitationCommentRequest, ComposerPromptEditor, ComposerPromptEditorHandle, ComposerPromptEditorProps
+- `apps/web/src/components/ComposerPromptEditorTiptap.tsx` — exports: ComposerCitationCommentRequest, ComposerPromptEditorHandle, ComposerPromptEditorProps, ComposerPromptEditorTiptap
+- `apps/web/src/components/ConfirmDialogHost.tsx` — exports: ConfirmDialogHost
+- `apps/web/src/components/ConnectionStatusDot.tsx` — exports: ConnectionStatusDot, connectionPhaseDotClassName, connectionPhasePingClassName
+- `apps/web/src/components/ContextChip.tsx` — exports: ContextChip, ContextChipAction, ContextChipKind, ContextChipLabel
+- `apps/web/src/components/CustomSnoozeDialog.tsx` — exports: CustomSnoozeDialogHost, requestCustomSnooze
+- `apps/web/src/components/DiffFilePathCopyButton.tsx` — exports: DiffFilePathCopyButton
+- `apps/web/src/components/DiffPanel.tsx` — exports: DiffPanel, default
+- `apps/web/src/components/DiffPanelShell.tsx` — exports: DiffFileHeaderSkeleton, DiffPanelLoadingState, DiffPanelMode, DiffPanelShell
+- `apps/web/src/components/DiffWorkerPoolProvider.tsx` — exports: DiffWorkerError, DiffWorkerPoolProvider
+- `apps/web/src/components/EnvironmentMachineIcon.tsx` — exports: ENVIRONMENT_MACHINE_KIND_LABELSRecordEnvironmentMachineKind, EnvironmentMachineIcon, environmentMachineIcon, string
+- `apps/web/src/components/GitActionsControl.logic.ts` — exports: DefaultBranchActionDialogCopy, DefaultBranchConfirmableAction, GIT_ACTION_SUCCESS_VISIBLE_MS, GitActionIconName, GitActionMenuItem, GitActionProgressPresentation, GitActionResultToastTiming, GitDialogAction, GitQuickAction, buildMenuItems, formatGitActionElapsed, requiresDefaultBranchConfirmation, resolveAutoFeatureBranchName, resolveDefaultBranchActionDialogCopy, resolveFeatureBranchUnavailableReason, resolveGitActionProgressPresentation, resolveGitActionResultToastTiming, resolveLiveThreadBranchUpdate, resolveQuickAction, resolveThreadBranchMetadataPatch, resolveThreadBranchUpdate
+- `apps/web/src/components/GitActionsControl.tsx` — exports: GitActionsControl, default
+- `apps/web/src/components/HostFreezeToastCoordinator.tsx` — exports: HostFreezeToastCoordinator
+- `apps/web/src/components/HostedEmptyState.tsx` — exports: HostedEmptyState
+- `apps/web/src/components/Icons.tsx` — exports: ACPRegistryIconIcon, AndroidIconIcon, AntigravityIconIcon, AppleIconIcon, ClaudeAIIcon, CursorIconIcon, FileExplorerIconIcon, FinderIconIcon, ForgejoIconIcon, GitCafeIconIcon, GitHubIconIcon, GitIconIcon, GitLabIcon, Icon, KiroIconIcon, LinuxIconIcon, OpenAIIcon, TraeIconIcon, UltrafastIconIcon
+- `apps/web/src/components/JetBrainsIcons.tsx` — exports: 
+- `apps/web/src/components/KeybindingsConfigWarning.tsx` — exports: KeybindingsConfigWarning
+- `apps/web/src/components/KeybindingsUpdateToast.logic.ts` — exports: KeybindingsUpdateToastController, KeybindingsUpdateToastDecision, createKeybindingsUpdateToastController
+- `apps/web/src/components/LegacySidebar.tsx` — exports: LegacySidebar, default
+- `apps/web/src/components/LegacyThreadMigrationToast.tsx` — exports: LegacyThreadMigrationToast
+- `apps/web/src/components/MorphIcon.tsx` — exports: MorphIcon
+- `apps/web/src/components/NoActiveThreadState.tsx` — exports: NoActiveThreadState
+- `apps/web/src/components/NoProjectsHero.tsx` — exports: NoProjectsHero
+- `apps/web/src/components/PermissionUpdateNotice.tsx` — exports: PermissionUpdateNotice
+- `apps/web/src/components/PersistentThreadTerminals.tsx` — exports: PersistentTerminalLaunchContext, PersistentThreadTerminalPanelProps
+- `apps/web/src/components/PreviousWorktreeItemContent.tsx` — exports: PreviousWorktreeItemContent
+- `apps/web/src/components/ProjectCloneToastCoordinator.tsx` — exports: ProjectCloneToastCoordinator
+- `apps/web/src/components/ProjectEnvironmentBadge.tsx` — exports: ProjectEnvironmentBadge
+- `apps/web/src/components/ProjectFavicon.tsx` — exports: ProjectFavicon, ProjectFaviconProject
+- `apps/web/src/components/ProjectMonogram.tsx` — exports: ProjectMonogram
+- `apps/web/src/components/ProjectScriptsControl.tsx` — exports: NewProjectScriptInput, ProjectScriptActionResult, ProjectScriptsControl, default
+- `apps/web/src/components/ProviderUpdateEnvironmentRows.tsx` — exports: ProviderUpdateEnvironmentRows
+- `apps/web/src/components/ProviderUpdateLaunchNotification.environments.ts` — exports: useLocalEnvironmentUpdateGroups
+- `apps/web/src/components/ProviderUpdateLaunchNotification.logic.ts` — exports: EnvironmentUpdateConnectionState, LocalEnvironmentProvidersInput, LocalEnvironmentUpdateGroup, LocalProviderUpdateOutcome, ProviderSettingsUpdateCandidate, ProviderUpdateCandidate, ProviderUpdateRowStatus, ProviderUpdateRowStatusKind, ProviderUpdateRun, ProviderUpdateSidebarPillTone, ProviderUpdateSidebarPillView, ProviderUpdateToastPhase, ProviderUpdateToastType, ProviderUpdateToastView, buildLocalEnvironmentUpdateGroups, canOneClickUpdateProviderCandidate, collectProviderUpdateCandidates, collectProviderUpdateOutcomeSnapshots, collectUpdatedProviderSnapshots, deriveEnvironmentDisplayLabel, environmentGroupsWithUpdates, firstFailedProviderUpdateMessage, firstRejectedProviderUpdateMessage, getProviderUpdateInitialToastView, getProviderUpdateProgressToastView, getProviderUpdateRejectedToastView, getProviderUpdateRunOutcome, getProviderUpdateRunToastView, getProviderUpdateSidebarPillView, hasOneClickUpdateProviderCandidate, isProviderSettingsUpdateCandidate, isProviderUpdateActive, isProviderUpdateCandidate, isTerminalProviderUpdatePhase, localEnvironmentUpdateNotificationKey, providerUpdateNotificationKey, resolveEnvironmentUpdateRowStatus, shouldShowPrimaryProviderUpdateToast
+- `apps/web/src/components/ProviderUpdateLaunchNotification.tsx` — exports: ProviderUpdateLaunchNotification
+- `apps/web/src/components/ProviderUpdatePrimaryNotification.tsx` — exports: ProviderUpdatePrimaryNotification
+- `apps/web/src/components/ProviderUpdatesAction.tsx` — exports: ProviderUpdatesAction, useProviderUpdates
+- `apps/web/src/components/PullRequestContextDetails.tsx` — exports: PullRequestContextDetails
+- `apps/web/src/components/PullRequestThreadDialog.tsx` — exports: PullRequestThreadDialog
+- `apps/web/src/components/QuitHoldOverlay.tsx` — exports: QuitHoldOverlay
+- `apps/web/src/components/RelativeTime.tsx` — exports: RelativeTime
+- `apps/web/src/components/RenderErrorBoundary.tsx` — exports: RenderErrorBoundary
+- `apps/web/src/components/ReopenClosedViewShortcut.tsx` — exports: ReopenClosedViewShortcut
+- `apps/web/src/components/RightPanelSheet.tsx` — exports: RightPanelSheet
+- `apps/web/src/components/RightPanelTabs.tsx` — exports: PullRequestTabStatus, PullRequestTabStatusSeed, RightPanelTabs, RightPanelTabsProps, resolvePullRequestTabLink, surfaceShortcutActionForKey, surfaceShortcutTargetsTypingContext
+- `apps/web/src/components/ServerUpdateAction.tsx` — exports: OutdatedServerUpdateAction, ServerUpdateAction, ServerUpdateOutcome, ServerUpdateProgress, ServerUpdateTarget, ServerUpdatesAction, canUpdateServer, serverUpdateStageLabel, useServerUpdate
+- `apps/web/src/components/Sidebar.drag.ts` — exports: createSidebarCollisionDetection, createSidebarSortingStrategy, restrictBelowSidebarLabel
+- `apps/web/src/components/Sidebar.logic.ts` — exports: SidebarDropTarget, SidebarDropVerb, SidebarListItem, SidebarListMarker, SidebarProjectScopeMenuAction, SidebarProjectScopeMenuState, SidebarSection, SidebarThreadDropPlan, SidebarThreadStatus, SidebarV2TopStatusKind, ThreadJumpHintVisibilityController, ThreadStatusPill, ThreadTraversalDirection, animateSidebarLayoutChangesAnimateLayoutChanges, applySidebarThreadDrop, archiveSelectedThreadEntries, buildBulkTitleRegenerationContextMenuItem, buildBulkUnpinContextMenuItem, buildMultiSelectThreadContextMenuItems, deleteSelectedThreadEntries, filterSidebarProjectScopeItems, filterSidebarV2VisibleThreads, firstValidTimestampMs, getFallbackThreadIdAfterDelete, getSidebarThreadIdsToPrewarm, hasUnseenCompletion, isContextMenuPointerDown, isSidebarNestedLinkClick, isSidebarThreadWorking, isTrailingDoubleClick, orderItemsByPreferredIds, pinOrderKeyBetween, planSidebarThreadDrop, pullRequestMatchesSearchQuery, reduceSidebarProjectScopeMenuState, resolveAdjacentThreadId, resolveProjectStatusIndicator, resolveSidebarDropTarget, resolveSidebarDropVerb, resolveSidebarRowAccessibility, resolveSidebarRowThreadId, resolveSidebarSweepKeys, resolveSidebarThreadSection, resolveSidebarThreadStatus, resolveSidebarV2TopStatus, resolveThreadLastVisitedAt, resolveThreadStatusPill, resolveWorkingStartedAt, searchSidebarThreads, shouldClearThreadSelectionOnMouseDown, shouldCreateNewThreadInCurrentProject, shouldNavigateAfterThreadPark, shouldRecedeSidebarThread, sidebarListItemId, sidebarMarkerId, sidebarThreadKeyAtY, sortInboxThreadsByReturn, sortLogicalProjectsForSidebar, sortPinnedThreadsForSidebar, sortProjectsForSidebar, sortScopedProjectsForSidebar, sortSidebarV2ProjectGroups, sortThreadsForSidebar, sortWorkingThreadsBySend, useRetainedValue, useSidebarRowSubscriptionLease, useThreadJumpHintVisibility
+- `apps/web/src/components/Sidebar.motion.ts` — exports: createSidebarListMotion
+- `apps/web/src/components/Sidebar.pointer.ts` — exports: SidebarDragLifecycle, SidebarPointerSensor
+- `apps/web/src/components/Sidebar.snooze.ts` — exports: SnoozePreset, resolveSnoozePresets, snoozeWakeLabel
+- `apps/web/src/components/Sidebar.tsx` — exports: Sidebar, default
+- `apps/web/src/components/SidebarStageBackdrop.tsx` — exports: EnvironmentIdentificationPillLabel, SidebarStageBackdrop, SidebarStageBackdropVariant, StageBackdropArt, StageBackdropButtonArt, resolveEnvironmentIdentificationPillLabel, resolveSidebarStageBackdropVariant, useEnvironmentStageLabel, useSidebarStageBackdropVariant
+- `apps/web/src/components/SlowRpcRequestToastCoordinator.tsx` — exports: SlowRpcRequestToastCoordinator
+- `apps/web/src/components/StartTruncatedPath.tsx` — exports: StartTruncatedPath
+- `apps/web/src/components/T3Wordmark.tsx` — exports: T3Wordmark
+- `apps/web/src/components/ThreadCommandSubtitle.tsx` — exports: COMMAND_PALETTE_META_ICON_CLASS, CommandPaletteMetaDot, ThreadCommandSubtitle, ThreadCommandSubtitleVariant
+- `apps/web/src/components/ThreadContextChip.tsx` — exports: ThreadContextChip
+- `apps/web/src/components/ThreadHoverCard.tsx` — exports: ThreadHoverCard, ThreadHoverCardPopup
+- `apps/web/src/components/ThreadNotificationCoordinator.tsx` — exports: ThreadNotificationCoordinator
+- `apps/web/src/components/ThreadRouteView.tsx` — exports: ThreadRouteView
+- `apps/web/src/components/ThreadSearchMatch.tsx` — exports: ThreadSearchMatchExcerpt
+- `apps/web/src/components/ThreadStatusIndicators.tsx` — exports: ChangeRequestStatusIcon, LinkedThreadPullRequestStatus, PrStatusIndicator, PrStatusTooltipContent, TerminalStatusIndicator, ThreadChangeRequestSnapshot, ThreadChangeRequestSnapshotpipe, ThreadPr, ThreadPullRequestBadge, ThreadPullRequestBadgeControl, ThreadPullRequestBadgePresentation, ThreadPullRequestsMiniList, ThreadRowLeadingStatus, ThreadRowTrailingStatus, ThreadSearchPullRequestNumber, ThreadStatusLabel, ThreadTerminalStatusButton, ThreadWorktreeIndicator, linkedPullRequestSnapshotStatus, nextThreadChangeRequestSnapshot, prStatusIndicator, resolveDisplayedThreadPr, resolveDisplayedThreadPrProvider, resolveThreadPr, resolveThreadPullRequestBadge, terminalStatusFromRunningIds, threadChangeRequestSnapshotsAtom, threadChangeRequestSnapshotsEqual, useLinkedThreadPullRequest
+- `apps/web/src/components/ThreadTerminalDrawer.tsx` — exports: TerminalContextMenuAction, TerminalViewport, ThreadTerminalDrawer, default, shouldClearTerminalSelectionAction, shouldHandleTerminalExit, synchronizeTerminalOutput, terminalThemeFromApp, writeTerminalOutputUpdate
+- `apps/web/src/components/WorkspaceBreadcrumb.tsx` — exports: WorkspaceBreadcrumb, WorkspaceBreadcrumbItem, WorkspaceBreadcrumbSeparator, WorkspaceBreadcrumbText
+- `apps/web/src/components/WorkspacePageContainer.tsx` — exports: WorkspacePageContainer, WorkspacePageWidth
+- `apps/web/src/components/WorkspacePageHeader.tsx` — exports: WorkspacePageHeader
+- `apps/web/src/components/WorktreeBaseBranchPicker.tsx` — exports: WorktreeBaseBranchPicker
+- `apps/web/src/components/auth/AuthSurfaceShell.tsx` — exports: AuthSurfaceShell
+- `apps/web/src/components/auth/ConnectAgentSurface.tsx` — exports: ConnectAgentSurface
+- `apps/web/src/components/auth/PairingRouteSurface.tsx` — exports: HostedPairingRouteSurface, PairingPendingSurface, PairingRouteSurface
+- `apps/web/src/components/chat/AgentElapsed.tsx` — exports: AgentElapsed
+- `apps/web/src/components/chat/AssistantCitationChip.tsx` — exports: AssistantCitationChip
+- `apps/web/src/components/chat/AssistantCitationCommentEditor.tsx` — exports: AssistantCitationCommentEditor
+- `apps/web/src/components/chat/AssistantCitationSource.tsx` — exports: AssistantCitationRequest, AssistantCitationSource, AssistantCitationTarget, observeAssistantCitationCommentSource, observeAssistantCitationSource
+- `apps/web/src/components/chat/AssistantSelectionToolbar.tsx` — exports: AssistantSelectionToolbar
+- `apps/web/src/components/chat/ChangedFilesTree.tsx` — exports: ChangedFileContextMenuHandler
+- `apps/web/src/components/chat/ChatBannerLane.tsx` — exports: ChatBannerLane
+- `apps/web/src/components/chat/ChatCanvas.tsx` — exports: ChatCanvas
+- `apps/web/src/components/chat/ChatCanvasContext.ts` — exports: useChatCanvas
+- `apps/web/src/components/chat/ChatComposer.tsx` — exports: ChatComposerHandle, ChatComposerProps
+- `apps/web/src/components/chat/ChatGptSharingControl.tsx` — exports: ChatGptSharingControl
+- `apps/web/src/components/chat/ChatHeader.tsx` — exports: 
+- `apps/web/src/components/chat/ChatMarkdownMedia.tsx` — exports: ChatMarkdownImage, ChatMarkdownImageFallback, ChatMarkdownVideo, MarkdownLinkContext, authoredImageSizeStyle, markdownImageCopy
+- `apps/web/src/components/chat/ChatOverlayHosts.tsx` — exports: BranchRestoreConfirmHost, DeviceSetupDialogHost, PullRequestThreadDialogHost, RevertConfirmHost, openBranchRestoreConfirm, openDeviceSetupDialog, openPullRequestThreadDialog, openRevertConfirm
+- `apps/web/src/components/chat/ChatRightPanel.tsx` — exports: ChatRightPanel
+- `apps/web/src/components/chat/ChatTerminalDrawers.tsx` — exports: ChatTerminalDrawers
+- `apps/web/src/components/chat/CommandOutputPanel.tsx` — exports: CommandOutputPanel, useCommandOutputStreaming
+- `apps/web/src/components/chat/CompactComposerControlsMenu.tsx` — exports: 
+- `apps/web/src/components/chat/ComposerActivityStatus.tsx` — exports: ComposerActivityRow
+- `apps/web/src/components/chat/ComposerAttachmentStrip.tsx` — exports: ComposerAttachButton, ComposerAttachmentFileList, ComposerAttachmentMediaRow, ComposerFilePreviewDialog, ComposerQueuedAttachmentRow, ComposerRestingImagePreviews
+- `apps/web/src/components/chat/ComposerBanner.tsx` — exports: ComposerBanner, ComposerBannerVariant
+- `apps/web/src/components/chat/ComposerBannerStack.tsx` — exports: ComposerBannerStack, ComposerBannerStackContent, ComposerBannerStackItem
+- `apps/web/src/components/chat/ComposerCodeBlockLanguagePicker.tsx` — exports: ComposerCodeBlockLanguagePicker
+- `apps/web/src/components/chat/ComposerCodeBlockNodeView.tsx` — exports: ComposerCodeBlockNodeView
+- `apps/web/src/components/chat/ComposerCommandMenu.tsx` — exports: ComposerCommandItem, composerSuggestionOptionId
+- `apps/web/src/components/chat/ComposerCommandMenuLayer.tsx` — exports: ComposerCommandMenuLayer
+- `apps/web/src/components/chat/ComposerControl.tsx` — exports: ComposerControl, ComposerControlChevron, ComposerControlIcon, ComposerControlSeparator, ComposerControlSize, ComposerSelectControl
+- `apps/web/src/components/chat/ComposerControlsBar.tsx` — exports: ComposerControlsBar
+- `apps/web/src/components/chat/ComposerFeedback.tsx` — exports: feedbackBannerItem
+- `apps/web/src/components/chat/ComposerFooterControls.tsx` — exports: ComposerModelPicker, RuntimeModeOption
+- `apps/web/src/components/chat/ComposerImageThumbnail.tsx` — exports: 
+- `apps/web/src/components/chat/ComposerPendingApprovalActions.tsx` — exports: 
+- `apps/web/src/components/chat/ComposerPendingApprovalPanel.tsx` — exports: 
+- `apps/web/src/components/chat/ComposerPendingTerminalContexts.tsx` — exports: ComposerPendingTerminalContextChip
+- `apps/web/src/components/chat/ComposerPendingUserInputPanel.tsx` — exports: 
+- `apps/web/src/components/chat/ComposerPlanFollowUpBanner.tsx` — exports: 
+- `apps/web/src/components/chat/ComposerPrimaryActions.tsx` — exports: 
+- `apps/web/src/components/chat/ComposerPromptLengthValidation.tsx` — exports: ComposerPromptLengthValidation
+- `apps/web/src/components/chat/ComposerServerUpdateStatus.tsx` — exports: ComposerServerUpdateIcon
+- `apps/web/src/components/chat/ComposerStashBadge.tsx` — exports: 
+- `apps/web/src/components/chat/ComposerStashMenu.tsx` — exports: 
+- `apps/web/src/components/chat/ComposerSurface.tsx` — exports: ComposerSurface
+- `apps/web/src/components/chat/ComposerTasksBadge.tsx` — exports: ComposerTaskStep, ComposerTasksProgress
+- `apps/web/src/components/chat/ComposerUsageLimits.tsx` — exports: usageLimitsBannerItem
+- `apps/web/src/components/chat/ContextWindowMeter.logic.ts` — exports: formatContextWindowCompactionMessage, formatContextWindowCost, hasAvailableCompactionProvider, hasDismissedResumeCompaction, providerSupportsManualCompaction, resolveContextWindowModelDisplayName, shouldOfferResumeCompaction, shouldReserveContextWindowMeter
+- `apps/web/src/components/chat/ContextWindowMeter.tsx` — exports: ContextWindowMeter, ContextWindowMeterPlaceholder
+- `apps/web/src/components/chat/DiffStatLabel.tsx` — exports: hasNonZeroStat
+- `apps/web/src/components/chat/DraftHeroHeadline.tsx` — exports: DraftHeroHeadline
+- `apps/web/src/components/chat/DraftHeroProjectHeading.tsx` — exports: DraftHeroProjectHeading
+- `apps/web/src/components/chat/DraftProjectName.tsx` — exports: DraftProjectName
+- `apps/web/src/components/chat/ExpandedImageDialog.tsx` — exports: ExpandedImageDialogHost, openExpandedImagePreview
+- `apps/web/src/components/chat/ExpandedImagePreview.tsx` — exports: ExpandedImageItem, ExpandedImagePreview, attachVideoThumbnail, buildAttachmentVideoAsset, buildAttachmentVideoPreview, buildExpandedImagePreview, expandedImageKey, resolveMarkdownMediaPreview
+- `apps/web/src/components/chat/FileTagChip.tsx` — exports: FileTagChipContent
+- `apps/web/src/components/chat/HighlightedCodeLines.tsx` — exports: HighlightedCodeLines
+- `apps/web/src/components/chat/HighlightedTokens.tsx` — exports: HighlightedTokens, keyedLines, withEmbeddedScripts, wordsOf
+- `apps/web/src/components/chat/HtmlRenderDialog.tsx` — exports: HtmlRenderDialog
+- `apps/web/src/components/chat/HtmlRenderFrame.tsx` — exports: HtmlRenderFrame
+- `apps/web/src/components/chat/MarkdownCodeBlock.logic.ts` — exports: createHighlightCacheKey, estimateHighlightedSize, extractCodeBlock, extractFenceLanguage, extractFenceTitle, extractPreCodeMeta, isClosedCodeFence, nodeToPlainText
+- `apps/web/src/components/chat/MarkdownCodeBlock.tsx` — exports: MarkdownCodeBlock, MarkdownCodeBlockFrame, SuspenseShikiCodeBlock
+- `apps/web/src/components/chat/MarkdownDetails.tsx` — exports: MarkdownDetails
+- `apps/web/src/components/chat/MarkdownExternalLink.tsx` — exports: MarkdownExternalLinkContent
+- `apps/web/src/components/chat/MarkdownFileLink.logic.ts` — exports: canUseMarkdownFileShellActions, hasMarkdownFilePrimaryAction, markdownFileCopyMenuItems, shouldUseMarkdownFileBrowserPrimaryAction
+- `apps/web/src/components/chat/MarkdownFileLink.tsx` — exports: 
+- `apps/web/src/components/chat/MarkdownMath.tsx` — exports: 
+- `apps/web/src/components/chat/MarkdownMermaidCodeBlock.tsx` — exports: MarkdownMermaidCodeBlock
+- `apps/web/src/components/chat/MarkdownTable.tsx` — exports: MarkdownTable
+- `apps/web/src/components/chat/MarkdownThreadLink.tsx` — exports: MarkdownThreadLink
+- `apps/web/src/components/chat/MathTypeset.tsx` — exports: MathTypeset, default
+- `apps/web/src/components/chat/McpAppFrame.tsx` — exports: McpAppFrame
+- `apps/web/src/components/chat/MermaidDiagram.tsx` — exports: MermaidDiagram
+- `apps/web/src/components/chat/MessageCopyButton.tsx` — exports: 
+- `apps/web/src/components/chat/MessagesTimeline.logic.ts` — exports: MessagesTimelineRow, MessagesTimelineRowsInput, MessagesTimelineRowsProjection, StableMessagesTimelineRowsState, TIMELINE_MINIMAP_MIN_ITEMS, TimelineDurationMessage, TimelineEndState, TimelineLatestRun, TimelineToolPresentation, WorkGroupScrollAnchor, computeMessageDurationStart, computeStableMessagesTimelineRows, deriveMessagesTimelineRows, deriveMessagesTimelineRowsWithState, handoffRunsSignature, isTimelineMinimapRowVisible, liveWorkEntryLabel, resolveAssistantMessageCopyState, resolveTimelineIsAtEnd, resolveTimelineMinimapCurrentIndex, resolveTimelineMinimapHasPersistentGutter, resolveTimelineMinimapHeightStyle, resolveTimelineMinimapHitStripWidth, resolveTimelineMinimapIndexFromPointer, resolveTimelineMinimapInteractiveWidth, resolveTimelineMinimapNavigationInteractive, resolveTimelineMinimapTopPercent, resolveTimelineMinimapVisibleRange, resolveWorkGroupScrollIndex, sameRowsInput, shouldCollapseUserMessage, shouldFollowWorkGroupAppend, threadReadLabelPrefix, threadReadTargetId, threadReadTargetTitle, timelineEntryTurnFoldRunId, timelineTurnFoldRunIdsByEntryId, toolGroupAction, workEntryDisplayLabel, workEntryIsVisibleInGroup, workEntryReadOutput, worktreeSetupAgentStarted
+- `apps/web/src/components/chat/MessagesTimeline.tsx` — exports: MessagesTimeline, MessagesTimelineHistoryControls
+- `apps/web/src/components/chat/ModelListRow.tsx` — exports: 
+- `apps/web/src/components/chat/ModelPickerContent.tsx` — exports: resolveModelPickerSelectedModel
+- `apps/web/src/components/chat/ModelPickerSidebar.tsx` — exports: 
+- `apps/web/src/components/chat/OpenInPicker.logic.ts` — exports: shouldShowOpenInPicker
+- `apps/web/src/components/chat/OpenInPicker.tsx` — exports: 
+- `apps/web/src/components/chat/OpenInPickerShortcut.ts` — exports: useOpenFavoriteEditorShortcut
+- `apps/web/src/components/chat/PanelLayoutControls.tsx` — exports: PanelLayoutControlsProps, ThreadPanelHeaderControl, WorkspaceTitlebarControls
+- `apps/web/src/components/chat/PierreEntryIcon.tsx` — exports: 
+- `apps/web/src/components/chat/ProposedPlanCard.tsx` — exports: 
+- `apps/web/src/components/chat/ProviderInstanceIcon.tsx` — exports: providerTextColor, resolveProviderInstanceAcpRegistryIconUrl
+- `apps/web/src/components/chat/ProviderModelPicker.tsx` — exports: 
+- `apps/web/src/components/chat/ProviderPackageIcon.tsx` — exports: ProviderPackageIcon
+- `apps/web/src/components/chat/ProviderStatusBanner.tsx` — exports: getProviderStatusBannerKey, getProviderStatusMessage, hasProviderSetup, shouldShowProviderStatusBanner
+- `apps/web/src/components/chat/ProviderSubagentBar.tsx` — exports: ProviderSubagentBar
+- `apps/web/src/components/chat/QueuedRunsControl.tsx` — exports: EditQueuedRunRequest, QueuedRunsControl, QueuedRunsControlHandle
+- `apps/web/src/components/chat/RightPanelSurfaceContent.tsx` — exports: RightPanelFileProps, RightPanelPullRequestProps, RightPanelSurfaceContent, RightPanelTerminalProps
+- `apps/web/src/components/chat/SecretRequestCard.tsx` — exports: SecretRequestCard
+- `apps/web/src/components/chat/ShellCommandBlock.tsx` — exports: ShellCommandBlock
+- `apps/web/src/components/chat/SkillInlineText.tsx` — exports: SkillChipIcon, renderSkillInlineMarkdownChildren
+- `apps/web/src/components/chat/SnapShotAttachmentDetails.tsx` — exports: SNAP_SHOT_ATTACHMENT_FRAME_CLASS, SnapShotAccessibilityData, SnapShotAccessibilityDetails, SnapShotAttachmentDetails, SnapShotContentsButton, snapShotAccessibilityDetails
+- `apps/web/src/components/chat/SubagentTooltipContent.tsx` — exports: SubagentTooltipContent
+- `apps/web/src/components/chat/TerminalContextInlineChip.tsx` — exports: TerminalContextInlineChip
+- `apps/web/src/components/chat/ThreadActivityBanners.tsx` — exports: backgroundWorkBannerItem, branchMismatchBannerItem, childInputBannerItem, goalBannerItem
+- `apps/web/src/components/chat/ThreadAutomationsPanel.tsx` — exports: ThreadAutomationsPanel
+- `apps/web/src/components/chat/ThreadContextDragGhost.tsx` — exports: ThreadContextDragGhost
+- `apps/web/src/components/chat/ThreadDetailsCard.tsx` — exports: ThreadDetailsCard
+- `apps/web/src/components/chat/ThreadDetailsControl.tsx` — exports: ThreadDetailsControl
+- `apps/web/src/components/chat/ThreadDetailsPanel.tsx` — exports: ThreadDetailsPanel, ThreadDetailsPanelProps
+- `apps/web/src/components/chat/ThreadDetailsPrRow.tsx` — exports: ThreadDetailsPrRow
+- `apps/web/src/components/chat/ThreadDetailsPrRows.tsx` — exports: ThreadDetailsPrRows
+- `apps/web/src/components/chat/ThreadDetailsSection.tsx` — exports: ThreadDetailsSection
+- `apps/web/src/components/chat/ThreadErrorBanner.tsx` — exports: dismissThreadErrorBannerForSession, getThreadErrorBannerKey, getThreadErrorBannerMessage, isThreadErrorBannerDismissedForSession, shouldShowThreadErrorBanner
+- `apps/web/src/components/chat/ThreadFindBar.tsx` — exports: THREAD_FIND_BAR_RESERVED_HEIGHT, ThreadFindBar
+- `apps/web/src/components/chat/ThreadFindProvider.tsx` — exports: ThreadFind, ThreadFindCanvas, ThreadFindControls, ThreadFindTimelineContext
+- `apps/web/src/components/chat/ThreadLineageWorkflowRow.tsx` — exports: ThreadLineageWorkflowRow
+- `apps/web/src/components/chat/ThreadRelationshipIcon.tsx` — exports: ThreadRelationshipIcon, threadRelationshipStatusLabel
+- `apps/web/src/components/chat/ThreadRelationshipsControl.tsx` — exports: ThreadRelationshipsPanel
+- `apps/web/src/components/chat/ThreadStatusLine.tsx` — exports: ThreadStatusLine
+- `apps/web/src/components/chat/ThreadVisitWatermark.tsx` — exports: ThreadVisitWatermark
+- `apps/web/src/components/chat/TimelineAssistantRows.tsx` — exports: AssistantMetaTimelineRow, AssistantTimelineRow, HtmlRenderTimelineRow, McpAppTimelineRow, ProposedPlanTimelineRow
+- `apps/web/src/components/chat/TimelineMinimap.tsx` — exports: TimelineMinimap
+- `apps/web/src/components/chat/TimelineOverlays.tsx` — exports: ScrollToEndButton, WorkspaceFileDropOverlay
+- `apps/web/src/components/chat/TimelineRowParts.tsx` — exports: ActivityShimmerOverlay, MESSAGE_HEADING_LEVEL, MessageAuthorHeading, TimelineRowTimestamp
+- `apps/web/src/components/chat/TimelineSystemDivider.tsx` — exports: TimelineSystemDivider
+- `apps/web/src/components/chat/TimelineToolActivityIcon.tsx` — exports: ToolActivityIconView, WorkEntryIconName, failedToolIconClassName, toolIconAcceptsTint
+- `apps/web/src/components/chat/TimelineUserMessageRow.logic.ts` — exports: resolvePreviewAnnotationImage
+- `apps/web/src/components/chat/TimelineUserMessageRow.tsx` — exports: UserMessageRow
+- `apps/web/src/components/chat/TimelineV2EventRow.logic.ts` — exports: subagentGroupTiming, v2EventPresentation
+- `apps/web/src/components/chat/TimelineV2EventRow.tsx` — exports: V2EventTimelineRow
+- `apps/web/src/components/chat/TimelineWorkEntryRow.logic.ts` — exports: buildToolCallExpandedBody, remarkThoughtPreview, toolGroupSummaryIconName, workEntryIconName, workEntryRawCommand, workToneIcon
+- `apps/web/src/components/chat/TimelineWorkEntryRow.tsx` — exports: ReasoningTraceContent, ThreadReadLabel, threadReadLabel, useThreadReadTarget
+- `apps/web/src/components/chat/TimelineWorkGroupRows.logic.ts` — exports: formatWorkingTimerNow
+- `apps/web/src/components/chat/TimelineWorkGroupRows.tsx` — exports: LiveWorkEntryTimelineRow, ThinkingTimelineRow, WorkGroupToggleTimelineRow, WorkingTimelineRow
+- `apps/web/src/components/chat/TraitsPicker.tsx` — exports: PromptUltrathink, TraitsMenuContentProps, getReasoningTraitStep, readPromptUltrathink, shouldRenderTraitsControls
+- `apps/web/src/components/chat/TraitsSpeed.tsx` — exports: TraitsSpeedIcon, getTraitsSpeedDisplay
+- `apps/web/src/components/chat/UsageLimitRecoveryBanner.tsx` — exports: usageLimitRecoveryBannerItem
+- `apps/web/src/components/chat/UserMessageContextChips.tsx` — exports: UserMessageContextReferenceChip
+- `apps/web/src/components/chat/V2ItemInspector.tsx` — exports: FetchedToolOutput
+- `apps/web/src/components/chat/V2LifecycleRow.logic.ts` — exports: subagentResumedSince
+- `apps/web/src/components/chat/V2LifecycleRow.tsx` — exports: EnvironmentSubagentAvatar, HandoffRow, HandoffTimelineRun, SubagentElapsed, SubagentNotificationLink, V2LifecycleRow, isV2LifecycleItem
+- `apps/web/src/components/chat/WorkLog.tsx` — exports: WorkLogBlock, WorkLogButton, WorkLogDetails, WorkLogList, WorkLogRow
+- `apps/web/src/components/chat/WorkflowOpeningBlock.tsx` — exports: WorkflowOpeningBlock
+- `apps/web/src/components/chat/WorkspaceEntryIcon.tsx` — exports: WorkspaceEntryIcon, WorkspaceEntryTooltip
+- `apps/web/src/components/chat/WorktreeSetupCard.tsx` — exports: WorktreeSetupCard
+- `apps/web/src/components/chat/ZoomableImage.tsx` — exports: ZoomableImage, ZoomableImageHandle
+- `apps/web/src/components/chat/agentSpawnSummary.ts` — exports: deriveAgentSpawnSummary
+- `apps/web/src/components/chat/assistantCitationCommentDismissal.ts` — exports: AssistantCitationCommentDismissal, resolveAssistantCitationCommentDismissal
+- `apps/web/src/components/chat/chatCanvasLayout.ts` — exports: ChatCanvasPreview, DETAILS_CARD_CLEARANCE, resolveChatCanvasLayout
+- `apps/web/src/components/chat/chatViewSend.ts` — exports: MultipleModelTarget, draftFanoutSelectionsAtom, draftSendState, prepareTurnAttachments, resolveMultipleModelTargets, restoreComposerDraft, rewindToMessage, startFanoutThread
+- `apps/web/src/components/chat/composerAttachmentFiles.ts` — exports: attachmentsToReleaseOnUploadCapabilityLoss, classifyComposerAttachmentFile, composerOtherFilesForPresentation, fileAttachmentCapabilityBlockReason, fileAttachmentStagingLimit, isPreviewableComposerVideo, normalizeComposerImageFileMimeType, shouldHandleComposerAttachmentPaste
+- `apps/web/src/components/chat/composerAttachmentReferences.ts` — exports: insertAttachmentReferencesForDraft
+- `apps/web/src/components/chat/composerContextUndo.ts` — exports: RetainedAttachmentContextPayloads, RetainedContextPayloads, reconcileAttachmentContextReferences, useRetainedContextPayloads
+- `apps/web/src/components/chat/composerEventScope.ts` — exports: composerFloatingLayerProps, isInsideCollapsedComposerControls, isInsideRestingComposerControlScope, useComposerMenuProps
+- `apps/web/src/components/chat/composerFocusRedirect.ts` — exports: TYPE_TO_FOCUS_EDITABLE_SELECTOR, TYPE_TO_FOCUS_FLOATING_LAYER_SELECTOR, eventPathContainsSelector, pasteTextToFocusComposer, shouldRedirectInputToComposer, shouldTypeToFocusComposer
+- `apps/web/src/components/chat/composerMentionDrag.ts` — exports: COMPOSER_MENTION_DRAG_TYPE, COMPOSER_PULL_REQUEST_DRAG_TYPE, ComposerMentionDragEvent, ComposerMentionDragHandlers, ComposerMentionDragTransfer, ComposerMentionDropHost, composerMentionFromTreePath, dataTransferHasComposerMention, encodePullRequestDragPayload, makeComposerMentionDragHandlers
+- `apps/web/src/components/chat/composerMenuHighlight.ts` — exports: resolveComposerMenuActiveItemId
+- `apps/web/src/components/chat/composerPromptHistory.ts` — exports: ComposerPromptHistoryEntry, ComposerPromptHistoryMessage, ComposerPromptHistoryPosition, ComposerPromptHistoryStep, buildComposerPromptHistoryEntries, recallableComposerPrompt, stepComposerPromptHistory
+- `apps/web/src/components/chat/composerProviderState.tsx` — exports: ComposerPromptInjectionState, ComposerProviderState, ComposerProviderStateInput, getComposerPromptInjectionState, getComposerProviderState, getComposerReasoningStep, renderProviderTraitsMenuContent, renderProviderTraitsPicker, withImplicitFastModeDefault
+- `apps/web/src/components/chat/composerScrollGesture.ts` — exports: ComposerScrollGestureState, createComposerScrollGestureState, recordComposerScrollGestureEvent, resetComposerScrollGesture, shouldCollapseComposerForScrollKey, suppressActiveComposerScrollGesture
+- `apps/web/src/components/chat/composerSend.logic.ts` — exports: approvalRedirectNotice, loadBalancingSendWarning, multipleModelSendBlock, referencedThreadContexts
+- `apps/web/src/components/chat/composerShortcuts.ts` — exports: composerShortcutCommands
+- `apps/web/src/components/chat/composerSlashCommandSearch.ts` — exports: searchSlashCommandItems, slashCommandItemsForPromptPosition
+- `apps/web/src/components/chat/composerSubmission.ts` — exports: getComposerPromptLengthValidationMessage, getComposerSubmissionValidationMessage, submitComposerDraft
+- `apps/web/src/components/chat/composerThreadImport.ts` — exports: importComposerThreadAttachment, remainingComposerAttachmentSlots
+- `apps/web/src/components/chat/composerTypingGuard.ts` — exports: COMPOSER_TYPING_IDLE_MS, createComposerTypingGuardState, updateComposerTypingGuard
+- `apps/web/src/components/chat/draftHeroTransition.ts` — exports: DRAFT_HERO_TRANSITION_ANIMATION_ID, DRAFT_HERO_TRANSITION_EASING, MOBILE_COMPOSER_VIEW_TRANSITION_NAME, MOBILE_DRAFT_HEADLINE_VIEW_TRANSITION_NAME, runMobileComposerTransition, waitForDraftHeroTransition
+- `apps/web/src/components/chat/externalLinkContextMenu.ts` — exports: ExternalLinkContextMenuAction, ExternalLinkContextMenuFailureOperation, resolveExternalWebLinkHost, resolveExternalWebLinkHref, showExternalLinkContextMenu
+- `apps/web/src/components/chat/folderDrop.ts` — exports: folderDropTarget, resolveDroppedFolderPath
+- `apps/web/src/components/chat/markdownActionFailure.ts` — exports: reportMarkdownActionFailure
+- `apps/web/src/components/chat/markdownFindContext.ts` — exports: MarkdownFindContext, findRevealRef
+- `apps/web/src/components/chat/markdownFragments.ts` — exports: handleMarkdownFragmentClick, rehypeHeadingIds
+- `apps/web/src/components/chat/markdownHast.logic.ts` — exports: hastHasText, hastPlainTextDeep, plainHastText
+- `apps/web/src/components/chat/markdownImageGallery.ts` — exports: ExpandedImageItem, markdownImageGallery, markdownImageItems
+- `apps/web/src/components/chat/modelPickerKeys.ts` — exports: modelPickerLegacySectionKey, modelPickerModelKey, parseModelPickerLegacySectionKey, parseModelPickerModelKey
+- `apps/web/src/components/chat/modelPickerSearch.ts` — exports: rankModelPickerSearch, scoreModelPickerSearch
+- `apps/web/src/components/chat/pageScrollController.ts` — exports: PageScrollKey, createPageScrollController, getTimelinePageScrollKey
+- `apps/web/src/components/chat/pendingDraftWork.ts` — exports: pendingDraftWork
+- `apps/web/src/components/chat/providerIconUtils.ts` — exports: ModelEsque, getDisplayModelName, getProviderRowLabel, getTriggerDisplayModelLabel, getTriggerDisplayModelName
+- `apps/web/src/components/chat/queuedMessageEdit.ts` — exports: prepareQueuedEditAttachments, recoverQueuedMessageEdit
+- `apps/web/src/components/chat/restingComposerControlsMeasurement.ts` — exports: measureRestingComposerControls
+- `apps/web/src/components/chat/runtimeModeConfig.ts` — exports: runtimeModeConfigRecordRuntimeMode, runtimeModeOptions
+- `apps/web/src/components/chat/threadContextDrag.ts` — exports: THREAD_CONTEXT_DROP_EVENT, ThreadContextDragGhost, dropThreadContext, endThreadContextDrag, moveThreadContextDrag, threadContextDropTargetProps, useThreadContextDragGhost, useThreadContextDrop
+- `apps/web/src/components/chat/threadDetailsCardLayout.ts` — exports: THREAD_DETAILS_CARD_GAP, resolveThreadDetailsCardDensity, resolveThreadDetailsCardLayout
+- `apps/web/src/components/chat/threadDetailsPanelStyles.ts` — exports: THREAD_DETAILS_PANEL_CHEVRON_CLASS, THREAD_DETAILS_PANEL_ICON_ACTION_CLASS, THREAD_DETAILS_PANEL_ICON_CLASS, THREAD_DETAILS_PANEL_LABEL_CLASS, THREAD_DETAILS_PANEL_LOCKED_ROW_CLASS, THREAD_DETAILS_PANEL_META_ACTION_CLASS, THREAD_DETAILS_PANEL_ROW_CLASS, THREAD_DETAILS_PANEL_ROW_CONTENT_CLASS, THREAD_DETAILS_PANEL_SELECT_ICON_CLASS, THREAD_DETAILS_PANEL_SELECT_LABEL_CLASS, THREAD_DETAILS_PANEL_SELECT_ROW_CLASS, THREAD_DETAILS_PANEL_SPLIT_GROUP_CLASS, THREAD_DETAILS_PANEL_SPLIT_PRIMARY_CLASS, THREAD_DETAILS_PANEL_SPLIT_SECONDARY_CLASS, THREAD_DETAILS_PANEL_SPLIT_SEPARATOR_CLASS
+- `apps/web/src/components/chat/threadFind.ts` — exports: ThreadFindMatch, ThreadFindPositionReader, ThreadFindStart, formatThreadFindCount, stepThreadFindIndex
+- `apps/web/src/components/chat/threadFindActionBus.ts` — exports: requestThreadFindOpen, subscribeThreadFindOpen
+- `apps/web/src/components/chat/threadFindHighlights.ts` — exports: collectThreadFindRanges, useThreadFindHighlights
+- `apps/web/src/components/chat/threadFindPosition.ts` — exports: readThreadFindPosition
+- `apps/web/src/components/chat/timelineMinimapItems.ts` — exports: TimelineMinimapItem, deriveTimelineMinimapItems, resolveTimelineMinimapPreview
+- `apps/web/src/components/chat/timelineMinimapWheel.ts` — exports: forwardWheelToTimeline
+- `apps/web/src/components/chat/timelineRowContext.ts` — exports: TimelineRow, TimelineRowActivityCtx, TimelineRowActivityState, TimelineRowCtx, TimelineRowSharedState, TimelineWorkEntry, WorkGroupViewState
+- `apps/web/src/components/chat/timelineScrollAnchoring.ts` — exports: AnchoredTurnMetrics, CHAT_TIMELINE_ANCHOR_OFFSET, RememberedTimelinePosition, TimelineListMeasurementState, TimelineRunObservation, TimelineScrollMode, getAnchoredTurnMetrics, observeTimelineRun, readTimelinePosition, rememberTimelinePosition, timelineContentOverflowsViewport
+- `apps/web/src/components/chat/timelineScrollTarget.ts` — exports: createUpwardScrollDetector, isTimelineScrollTarget
+- `apps/web/src/components/chat/useAssistantCitationTarget.ts` — exports: CitationHistoryPage, useAssistantCitationTarget
+- `apps/web/src/components/chat/useAttachmentPreviewHandoff.ts` — exports: useAttachmentPreviewHandoff
+- `apps/web/src/components/chat/useAutoBalanceUpdateBanner.tsx` — exports: useAutoBalanceUpdateBanner
+- `apps/web/src/components/chat/useChatShortcuts.ts` — exports: ChatShortcutCommands, ChatShortcutHandler, ChatShortcutsInput, useChatShortcuts
+- `apps/web/src/components/chat/useChatTerminalActions.ts` — exports: TerminalLaunchContext, useChatTerminalActions
+- `apps/web/src/components/chat/useComposerAttachmentIntake.ts` — exports: useComposerAttachmentIntake
+- `apps/web/src/components/chat/useComposerCommandKey.ts` — exports: useComposerCommandKey
+- `apps/web/src/components/chat/useComposerContextImport.ts` — exports: useComposerContextImport
+- `apps/web/src/components/chat/useComposerFocusState.ts` — exports: useComposerFocusState
+- `apps/web/src/components/chat/useComposerImageGroups.ts` — exports: useComposerImageGroups
+- `apps/web/src/components/chat/useComposerMenuItems.ts` — exports: useComposerMenuItems
+- `apps/web/src/components/chat/useComposerMenuState.ts` — exports: useComposerMenuState
+- `apps/web/src/components/chat/useComposerMultilinePrompt.ts` — exports: useComposerMultilinePrompt
+- `apps/web/src/components/chat/useComposerProviderModel.ts` — exports: useComposerProviderModel
+- `apps/web/src/components/chat/useComposerRestingTransition.ts` — exports: useComposerRestingTransition
+- `apps/web/src/components/chat/useComposerResume.ts` — exports: useComposerResume
+- `apps/web/src/components/chat/useComposerSelection.ts` — exports: useComposerSelection
+- `apps/web/src/components/chat/useComposerSend.ts` — exports: useComposerSend
+- `apps/web/src/components/chat/useComposerStash.ts` — exports: useComposerStash
+- `apps/web/src/components/chat/useComposerTriggerState.ts` — exports: useComposerTriggerState
+- `apps/web/src/components/chat/useComposerTypingGuard.ts` — exports: useComposerTypingGuard
+- `apps/web/src/components/chat/useDraftEnvironmentRouting.ts` — exports: useDraftEnvironmentRouting
+- `apps/web/src/components/chat/useDraftHeroLayoutTransition.ts` — exports: useDraftHeroLayoutTransition
+- `apps/web/src/components/chat/useLocalDispatchState.ts` — exports: useLocalDispatchState
+- `apps/web/src/components/chat/useMultipleModelSend.ts` — exports: useMultipleModelSend
+- `apps/web/src/components/chat/usePasteToFocusComposer.ts` — exports: usePasteToFocusComposer
+- `apps/web/src/components/chat/usePendingThreadRequests.ts` — exports: usePendingThreadRequests
+- `apps/web/src/components/chat/useProjectCloneBanner.tsx` — exports: useProjectCloneBanner
+- `apps/web/src/components/chat/useProjectScriptEditing.ts` — exports: useProjectScriptEditing
+- `apps/web/src/components/chat/useProposedPlanSend.ts` — exports: useImplementPlanInNewThread, usePlanFollowUpSend
+- `apps/web/src/components/chat/useProviderWorkspaceSnapshotRefresh.ts` — exports: useProviderWorkspaceSnapshotRefresh
+- `apps/web/src/components/chat/usePullRequestDraftThread.ts` — exports: usePullRequestDraftThread
+- `apps/web/src/components/chat/useQueuedRunEdit.ts` — exports: QueuedRunEditContent, useQueuedRunEdit
+- `apps/web/src/components/chat/useRestingComposerControlsLayout.ts` — exports: useRestingComposerControlsLayout
+- `apps/web/src/components/chat/useRightPanelActions.ts` — exports: useRightPanelActions
+- `apps/web/src/components/chat/useSystemComposerBanners.tsx` — exports: EnvironmentUnavailableState, useSystemComposerBanners
+- `apps/web/src/components/chat/useThreadFind.ts` — exports: useThreadFind
+- `apps/web/src/components/chat/useThreadFindNavigation.ts` — exports: useThreadFindNavigation
+- `apps/web/src/components/chat/useThreadFindPositionReader.ts` — exports: useThreadFindPositionReader
+- `apps/web/src/components/chat/useThreadLifecycle.tsx` — exports: useThreadLifecycle
+- `apps/web/src/components/chat/useTimelineFollow.ts` — exports: useTimelineFollow
+- `apps/web/src/components/chat/useTimelinePositionRestore.ts` — exports: useTimelinePositionRestore
+- `apps/web/src/components/chat/useTimelineRewind.ts` — exports: useTimelineRewind
+- `apps/web/src/components/chat/useTimelineRows.ts` — exports: useIncrementalTimelineRows, useStableHandoffRuns, useStableRows
+- `apps/web/src/components/chat/useUsageLimitsPanel.ts` — exports: useUsageLimitsPanel
+- `apps/web/src/components/chat/useWorktreeSetup.ts` — exports: useWorktreeSetup
+- `apps/web/src/components/chat/workspaceFileDrop.ts` — exports: WorkspaceFileDragEvent, WorkspaceFileDropHost, makeWorkspaceFileDropHandlers, splitTransferredFiles
+- `apps/web/src/components/clerk/BrowserManagedAuthShell.tsx` — exports: BrowserManagedAuthShell, default
+- `apps/web/src/components/clerk/ClerkUserProfilePage.tsx` — exports: ClerkUserProfilePage, ClerkUserProfileRefreshButton, ClerkUserProfileRow
+- `apps/web/src/components/clerk/ElectronManagedAuthShell.tsx` — exports: ElectronManagedAuthShell, default
+- `apps/web/src/components/clerk/MobileClientsUserProfilePage.logic.ts` — exports: mobileClientNotificationDetail, mobileClientPlatformLabel, mobileClientUpdatedAtLabel
+- `apps/web/src/components/clerk/MobileClientsUserProfilePage.tsx` — exports: MobileClientsUserProfilePage
+- `apps/web/src/components/clerk/RemoveT3ConnectEnvironmentDialog.tsx` — exports: RemoveT3ConnectEnvironmentDialog
+- `apps/web/src/components/clerk/T3ConnectAccountPages.tsx` — exports: T3_CONNECT_ACCOUNT_PAGES, useT3ConnectAccountPage
+- `apps/web/src/components/clerk/T3ConnectSidebarSignIn.tsx` — exports: T3ConnectSidebarAvatar, T3ConnectSidebarSignIn
+- `apps/web/src/components/clerk/T3ConnectUserProfilePage.tsx` — exports: T3ConnectUserProfilePage
+- `apps/web/src/components/clerk/authRedirect.ts` — exports: ClerkSignInProps, resolveClerkSignInProps
+- `apps/web/src/components/clerk/clerkAppearance.ts` — exports: clerkAppearance
+- `apps/web/src/components/clerk/useT3ConnectAuthPrompt.tsx` — exports: useT3ConnectAuthPrompt
+- `apps/web/src/components/cloud/CloudEnvironmentConnectList.tsx` — exports: CloudEnvironmentConnectRows, SavedCloudEnvironmentConnection
+- `apps/web/src/components/cloud/ConnectCliAuthSurface.tsx` — exports: ConnectCliAuthorizeSurface
+- `apps/web/src/components/cloud/ConnectOnboardingDialog.tsx` — exports: ConnectOnboardingDialog
+- `apps/web/src/components/cloud/RelayClientInstallDialog.tsx` — exports: RelayClientInstallDialog
+- `apps/web/src/components/cloud/cloudEnvironmentConnectionPresentation.ts` — exports: SavedCloudEnvironmentConnectionPresentation, presentSavedCloudEnvironmentConnection
+- `apps/web/src/components/composerCodeBlockHighlight.ts` — exports: composerCodeBlockHighlight, tokenizeBlock
+- `apps/web/src/components/composerContextPresentation.tsx` — exports: ComposerContextActions, ComposerContextActionsContext, ComposerContextRecordsContext, ComposerContextReferenceChip, ComposerDraftContextRecord, ComposerDraftContextRecords, EMPTY_COMPOSER_CONTEXT_RECORDSComposerDraftContextRecords, composerContextRecordsFromDraft, uploadedContextRecordFromDraft
+- `apps/web/src/components/composerFooterLayout.ts` — exports: RestingComposerControlsMeasurement, getRestingComposerImagePreviewCounts, overlayComposerIsResting, resolveComposerTimelineInset, resolveRestingComposerControlsLayout, resolveRestingComposerControlsNaturalWidth, resolveScrollToEndClearance, shouldAnimateComposerRestingTransition, shouldUseCompactComposerFooter, shouldUseCompactComposerPrimaryActions, shouldUseRestingComposerLayout
+- `apps/web/src/components/composerInlineChip.ts` — exports: SKILL_CHIP_ICON_SVG, middleTruncateAttachmentName
+- `apps/web/src/components/composerInlineTokenPaste.ts` — exports: importPastedComposerText, readPastedComposerContext
+- `apps/web/src/components/composerSelection.ts` — exports: ComposerSelectionRange, didComposerSelectionChangeVisibly
+- `apps/web/src/components/contextChipParts.tsx` — exports: ContextChipKind, ContextChipPopover, ContextChipShell, FileChip, ImageChipButton, PULL_REQUEST_CHIP_KINDS, PullRequestChip, UnresolvedChip
+- `apps/web/src/components/contextPresentationRegistry.ts` — exports: ContextPresentationCapability, ContextPresentationDefinition, ContextPresentationHandler, ContextPresentationRegistry, createContextPresentationRegistry
+- `apps/web/src/components/desktop/DesktopAppActivationCoordinator.tsx` — exports: DesktopAppActivationCoordinator
+- `apps/web/src/components/desktop/DesktopWebLinkCoordinator.tsx` — exports: DesktopWebLinkCoordinator
+- `apps/web/src/components/desktop/RunningThreadKeepAlive.tsx` — exports: RunningThreadKeepAlive
+- `apps/web/src/components/desktop/SnapShotCoordinator.tsx` — exports: SnapShotCoordinator, beginSnapShotAnimationWhenReady, deliverSnapShot, dismissFailedSnapShot, resolveExistingSnapShotTarget, resolveSnapShotAttachmentTarget, resolveSnapShotDeliveryTarget
+- `apps/web/src/components/desktop/SnapShotShortcutKeys.tsx` — exports: SnapShotShortcutKeys
+- `apps/web/src/components/desktop/SshPasswordPromptDialog.tsx` — exports: SshPasswordPromptDialog
+- `apps/web/src/components/desktopUpdate.logic.ts` — exports: DesktopUpdateButtonAction, canCheckForUpdate, getArm64IntelBuildWarningDescription, getDesktopUpdateActionError, getDesktopUpdateButtonTooltip, getDesktopUpdateDisabledReason, getDesktopUpdateDownloadedVersion, getDesktopUpdateIdleTooltip, getDesktopUpdateInstallConfirmationMessage, getDesktopUpdateReleaseHistoryUrl, getDesktopUpdateReleaseUrl, isDesktopUpdateButtonDisabled, resolveDesktopUpdateButtonAction, shouldShowArm64IntelBuildWarning, shouldToastDesktopUpdateActionResult
+- `apps/web/src/components/desktopUpdate.toast.tsx` — exports: openDesktopUpdateReleaseNotes, showDesktopUpdateDownloadedToast
+- `apps/web/src/components/device/DeviceAndroidFoldControls.tsx` — exports: DeviceAndroidFoldControls
+- `apps/web/src/components/device/DeviceControlsRail.tsx` — exports: DeviceControlsRail
+- `apps/web/src/components/device/DeviceDuoControls.tsx` — exports: DeviceDuoControls
+- `apps/web/src/components/device/DeviceDuoGlyph.tsx` — exports: DeviceDuoGlyph
+- `apps/web/src/components/device/DeviceDuoViewport.tsx` — exports: DeviceDuoViewport
+- `apps/web/src/components/device/DeviceHostAvailability.tsx` — exports: DeviceHostAvailability
+- `apps/web/src/components/device/DeviceHostUpdates.tsx` — exports: DeviceHostUpdates
+- `apps/web/src/components/device/DeviceLoadingView.tsx` — exports: DeviceLoadingView
+- `apps/web/src/components/device/DevicePanel.tsx` — exports: DevicePanel
+- `apps/web/src/components/device/DevicePhoneViewport.tsx` — exports: DevicePhoneViewport
+- `apps/web/src/components/device/DeviceSetup.tsx` — exports: AgentDeviceSetupStatus, DeviceHostDiagnostics, DeviceHubSetupStatus, DeviceSetup, PlatformStatus, agentDeviceDescription, deviceHubDescription, deviceHubReadiness, isAndroidDiscoveryUncertain, platformSetupStatus, whethertheyrunhereoronaremotedevicehost, withrequiredtoolssetupautomatically
+- `apps/web/src/components/device/DeviceStreamView.tsx` — exports: DeviceStreamHandle, DeviceStreamView, DeviceViewControls
+- `apps/web/src/components/device/DeviceToolVersions.tsx` — exports: DeviceToolVersions
+- `apps/web/src/components/device/DeviceToolsPanel.tsx` — exports: DeviceToolsPanel
+- `apps/web/src/components/device/DeviceWorkspace.tsx` — exports: DeviceWorkspace
+- `apps/web/src/components/device/deviceFold.ts` — exports: AndroidFoldError, AndroidFoldPosture, AndroidFoldState, readAndroidFold, setAndroidFold
+- `apps/web/src/components/device/deviceFrameLayout.ts` — exports: fitDeviceFrame
+- `apps/web/src/components/device/deviceHubApi.ts` — exports: DeviceAxElement, DeviceAxTree, DeviceEventLogEntry, DeviceForegroundInfo, fetchDeviceAxTree, subscribeDeviceEventLog, subscribeDeviceForeground
+- `apps/web/src/components/device/deviceModels.ts` — exports: deviceKeyboard, deviceModel
+- `apps/web/src/components/device/phoneTrackpad.ts` — exports: bindPhoneTrackpad
+- `apps/web/src/components/device/useDeviceControls.ts` — exports: DeviceControls, useDeviceControls
+- `apps/web/src/components/diffs/AnnotatableCodeView.tsx` — exports: AnnotatableCodeView, AnnotatableCodeViewHandle
+- `apps/web/src/components/diffs/DiffCommentAnnotation.tsx` — exports: DiffCommentAnnotation
+- `apps/web/src/components/diffs/DiffFileLoadingBoundary.tsx` — exports: DiffFileLoadingBoundary
+- `apps/web/src/components/diffs/DiffFileStatus.tsx` — exports: DiffFileStatus
+- `apps/web/src/components/diffs/DiffFileTree.tsx` — exports: DiffFileTree, DiffFileTreeEntry
+- `apps/web/src/components/diffs/StyledDiffCodeView.tsx` — exports: StyledDiffCodeView, StyledDiffCodeViewOptions
+- `apps/web/src/components/diffs/commentSubmitShortcut.ts` — exports: isCommentSubmitShortcut
+- `apps/web/src/components/diffs/diffFileTree.logic.ts` — exports: DiffFileTreeEntry, buildDiffFileTreeUpdates, collectDirectoryPaths, compareDiffFileTreeEntries, diffFileTreeEntries, diffFileTreeModel, diffFileTreePositions
+- `apps/web/src/components/diffs/useCodeViewFileReveal.ts` — exports: useCodeViewFileReveal
+- `apps/web/src/components/diffs/useReviewFilePatches.ts` — exports: useReviewFilePatches
+- `apps/web/src/components/files/AttachmentFilePreview.tsx` — exports: AttachmentFilePreview, ReadOnlySourcePreview
+- `apps/web/src/components/files/AudioPreview.tsx` — exports: AudioPreview
+- `apps/web/src/components/files/BrowserDocumentFrame.tsx` — exports: BrowserDocumentFrame, HtmlRenderDocument, isPdfPreviewFile
+- `apps/web/src/components/files/DelimitedTablePreview.tsx` — exports: DelimitedTablePreview
+- `apps/web/src/components/files/FileBreadcrumbs.tsx` — exports: FileBreadcrumbs
+- `apps/web/src/components/files/FileBrowserPanel.tsx` — exports: FileBrowserPanel, default
+- `apps/web/src/components/files/FileMarkdownPreview.tsx` — exports: FileMarkdownPreview
+- `apps/web/src/components/files/FilePreviewPanel.tsx` — exports: FilePreviewPanel, default
+- `apps/web/src/components/files/ProjectFilePicker.logic.ts` — exports: PROJECT_FILE_PICKER_RESULT_LIMIT, ProjectFilePickerMatch, getProjectFilePickerMatches
+- `apps/web/src/components/files/ProjectFilePicker.tsx` — exports: ProjectFilePicker
+- `apps/web/src/components/files/ReadOnlySourcePreview.tsx` — exports: ReadOnlySourcePreview, default
+- `apps/web/src/components/files/fileCommentAnnotations.ts` — exports: FileCommentAnnotationEntry, FileCommentAnnotationGroup, FileCommentLineAnnotation, formatFileCommentRange, nextFileCommentId, normalizeFileCommentRange, remapFileCommentAnnotations
+- `apps/web/src/components/files/fileContentRevision.ts` — exports: projectFileCacheKey
+- `apps/web/src/components/files/fileEditorDismissal.ts` — exports: installFileEditorDismissal
+- `apps/web/src/components/files/fileLineReveal.ts` — exports: resolveCenteredFileLineScrollTop
+- `apps/web/src/components/files/filePath.ts` — exports: FileBreadcrumb, FileBreadcrumbChild, breadcrumbPathOf, fileBreadcrumbChildren, fileBreadcrumbParent, fileBreadcrumbs, isListableHostFolder, joinHostPath, retainedBreadcrumbTrail, trailChildOf
+- `apps/web/src/components/files/filePreviewMode.ts` — exports: filePreviewReadErrorMessage, isMarkdownPreviewFile, resolveFilePreviewPath, setMarkdownTaskChecked, shouldShowFileExplorer, workspaceAssetResource
+- `apps/web/src/components/files/fileSaveCoordinator.ts` — exports: FileSaveCoordinator, FileSaveCoordinatorOptions
+- `apps/web/src/components/files/fileSurfaceChrome.tsx` — exports: FILE_LINK_REVEAL_ATTRIBUTE, FILE_SURFACE_SUBHEADER_CLASS, FileSurfaceAction, FileSurfaceFailure, FileSurfaceLoading, FileSurfaceNotice
+- `apps/web/src/components/files/fileTreeDragMention.ts` — exports: FileTreeDragMentionController, FileTreeDragMentionHost, FileTreeDragStartEvent, createFileTreeDragMentionController
+- `apps/web/src/components/files/fileTreeExpansion.ts` — exports: FileTreeExpansionModel, areAllDirectoriesExpanded, setAllDirectoriesExpanded
+- `apps/web/src/components/files/fileTreePathReconciliation.ts` — exports: buildFileTreePathUpdates
+- `apps/web/src/components/files/loadFileAncestors.ts` — exports: loadFileAncestors
+- `apps/web/src/components/files/projectFilesQueryState.ts` — exports: clearProjectFileQueryData, confirmProjectFileQueryData, getOptimisticProjectFileQueryData, getProjectFileContents, getProjectFileQueryAtom, getUnsavedProjectFileQueryData, optimisticFileAtom, resolveProjectFileQueryData, setProjectFileQueryData, useProjectEntriesQuery, useProjectFilePickerQuery, useProjectFileQuery
+- `apps/web/src/components/files/useDirectoryEntries.ts` — exports: useDirectoryEntries
+- `apps/web/src/components/files/useFileSaveCoordinator.ts` — exports: useFileSaveCoordinator
+- `apps/web/src/components/media/AttachmentImage.tsx` — exports: AttachmentImage
+- `apps/web/src/components/media/MediaActions.tsx` — exports: MediaActionSource, MediaActions, useMediaActions
+- `apps/web/src/components/media/MediaVideoPlayer.tsx` — exports: MediaVideoPlayer
+- `apps/web/src/components/media/OpenMediaLink.tsx` — exports: OpenMediaLink
+- `apps/web/src/components/media/mediaContent.ts` — exports: downloadMedia, readMediaPng, resolveProtocolRelativeMediaUrl
+- `apps/web/src/components/onboarding/FirstRunGate.tsx` — exports: FirstRunGate
+- `apps/web/src/components/onboarding/WelcomeWizard.tsx` — exports: WelcomeWizard
+- `apps/web/src/components/permissions/PermissionChecklist.tsx` — exports: PermissionChecklist, PermissionContinueButton, PermissionItem
+- `apps/web/src/components/permissions/usePermissionStatus.ts` — exports: usePermissionStatus
+- `apps/web/src/components/preview/AgentBrowserCursor.tsx` — exports: AgentBrowserCursor, AgentCursorMark
+- `apps/web/src/components/preview/BrowserMockup.tsx` — exports: BrowserMockup
+- `apps/web/src/components/preview/PreviewChromeRow.tsx` — exports: PreviewChromeRow
+- `apps/web/src/components/preview/PreviewEmptyState.tsx` — exports: PreviewEmptyState
+- `apps/web/src/components/preview/PreviewFaviconIcon.tsx` — exports: FaviconImage, PreviewFaviconIcon
+- `apps/web/src/components/preview/PreviewLocalServerCard.tsx` — exports: PreviewLocalServerCard
+- `apps/web/src/components/preview/PreviewMoreMenu.tsx` — exports: PreviewMoreMenu, PreviewMoreMenuActions
+- `apps/web/src/components/preview/PreviewPanel.tsx` — exports: PreviewPanel
+- `apps/web/src/components/preview/PreviewPanelShell.tsx` — exports: PreviewPanelMode, PreviewPanelShell
+- `apps/web/src/components/preview/PreviewRecentUrlCard.tsx` — exports: PreviewRecentUrlCard
+- `apps/web/src/components/preview/PreviewUnreachable.tsx` — exports: PreviewFileNotShown, PreviewUnreachable
+- `apps/web/src/components/preview/PreviewView.tsx` — exports: PreviewView
+- `apps/web/src/components/preview/RightPanelResizeHandle.tsx` — exports: RightPanelResizeHandle
+- `apps/web/src/components/preview/ThreadPreviewMiniPlayer.tsx` — exports: ThreadPreviewMiniPlayer
+- `apps/web/src/components/preview/ZoomIndicator.tsx` — exports: ZoomIndicator
+- `apps/web/src/components/preview/addBrowserSurface.ts` — exports: addBrowserSurface
+- `apps/web/src/components/preview/agentBrowserCursorLogic.ts` — exports: BrowserController, agentBrowserCursorOpacity
+- `apps/web/src/components/preview/closePreviewSession.ts` — exports: closePreviewSession
+- `apps/web/src/components/preview/errorCodeMessages.ts` — exports: describePreviewError
+- `apps/web/src/components/preview/fileExplorerLabel.ts` — exports: revealInFileExplorerLabel, revealInFileExplorerLabelForKind, revealInFileExplorerLabelForOs
+- `apps/web/src/components/preview/openDiscoveredPort.ts` — exports: openDiscoveredPort
+- `apps/web/src/components/preview/openPreviewSession.ts` — exports: openPreviewSession
+- `apps/web/src/components/preview/openTerminalLinkInPreview.ts` — exports: TerminalLinkPreviewOpenError, openTerminalLinkInPreview
+- `apps/web/src/components/preview/previewActionBus.ts` — exports: PreviewAction, dispatchPreviewAction, subscribePreviewAction
+- `apps/web/src/components/preview/previewBridge.ts` — exports: previewBridge
+- `apps/web/src/components/preview/previewConstants.ts` — exports: PREVIEW_ERROR_CODE_MESSAGESReadonlyRecordstring, PREVIEW_RECENT_URL_LIMIT, string
+- `apps/web/src/components/preview/previewEmptyStateLogic.ts` — exports: getConfiguredPreviewUrls, shouldShowPreviewEmptyState
+- `apps/web/src/components/preview/previewMiniPlayerLayout.ts` — exports: NO_PREVIEW_MINI_PLAYER_OBSTACLESPreviewMiniPlayerObstacles, PREVIEW_MINI_PLAYER_CORNER_RADIUS, PREVIEW_MINI_PLAYER_EDGE_GAP, PREVIEW_MINI_PLAYER_WEBVIEW_Z_INDEX, PreviewMiniPlayerFrame, PreviewMiniPlayerObstacles, clampPreviewMiniPlayerPosition, resizePreviewMiniPlayer, resolveDeviceMiniPlayerCornerRadius, resolveDeviceMiniPlayerSourceSize, resolvePreviewMiniPlayerFrame, resolvePreviewMiniPlayerSourceSize
+- `apps/web/src/components/preview/previewViewportRollback.ts` — exports: shouldRollbackPreviewViewport
+- `apps/web/src/components/preview/showPreviewPopup.ts` — exports: showPreviewPopup
+- `apps/web/src/components/preview/useAgentOpenedPreviews.ts` — exports: useAgentOpenedPreviews
+- `apps/web/src/components/preview/useDiscoveredLocalServers.ts` — exports: PreviewableServer, mergeServers, useDiscoveredLocalServers
+- `apps/web/src/components/preview/usePreviewBridge.ts` — exports: projectDesktopState, usePreviewBridge
+- `apps/web/src/components/preview/usePreviewSession.ts` — exports: useDesktopHostedPreviewSessions, usePreviewSession
+- `apps/web/src/components/projectScriptEditor.tsx` — exports: EMPTY_PROJECT_SCRIPT_INPUTNewProjectScriptInput, NewProjectScriptInput, ProjectScriptActionResult, ProjectScriptEditorDialog, ProjectScriptEditorRequest, ScriptIcon, editorRequestForScript
+- `apps/web/src/components/promptLinks/HostedPromptLinkLanding.tsx` — exports: useHostedPromptLinkLanding
+- `apps/web/src/components/promptLinks/NewThreadLinkView.tsx` — exports: NewThreadLinkView
+- `apps/web/src/components/promptLinks/ThreadLinkPrompt.tsx` — exports: ThreadLinkPrompt
+- `apps/web/src/components/promptLinks/copyPromptLink.ts` — exports: composerPromptLink, copyPromptLink, promptLinkFor, promptLinkRepositoryOf
+- `apps/web/src/components/promptLinks/linkedPrompt.ts` — exports: placeLinkedPrompt, warnAboutHiddenCharacters
+- `apps/web/src/components/pullRequest/LinkPullRequestDialog.tsx` — exports: LinkPullRequestDialogHost, openLinkPullRequestDialog
+- `apps/web/src/components/pullRequest/PullRequestActionsMenu.tsx` — exports: PullRequestActionsMenu
+- `apps/web/src/components/pullRequest/PullRequestActivityUnavailableState.tsx` — exports: PullRequestActivityUnavailableState
+- `apps/web/src/components/pullRequest/PullRequestBaseBranch.tsx` — exports: PullRequestBaseBranch
+- `apps/web/src/components/pullRequest/PullRequestCandidatePicker.tsx` — exports: PullRequestCandidatePicker
+- `apps/web/src/components/pullRequest/PullRequestChangeBreakdownStat.tsx` — exports: PullRequestChangeBreakdownRows, PullRequestChangeBreakdownStat
+- `apps/web/src/components/pullRequest/PullRequestChecksPopover.tsx` — exports: PullRequestChecksPopover
+- `apps/web/src/components/pullRequest/PullRequestCodeTab.tsx` — exports: PullRequestAgentSelectionInput, default
+- `apps/web/src/components/pullRequest/PullRequestCommentBody.tsx` — exports: PullRequestCommentBody
+- `apps/web/src/components/pullRequest/PullRequestCommentForm.tsx` — exports: PullRequestCommentForm
+- `apps/web/src/components/pullRequest/PullRequestCompactFilterMenu.tsx` — exports: PullRequestCompactFilterMenu
+- `apps/web/src/components/pullRequest/PullRequestComposer.tsx` — exports: PullRequestComposer
+- `apps/web/src/components/pullRequest/PullRequestCopyableCode.tsx` — exports: PullRequestCopyableCode
+- `apps/web/src/components/pullRequest/PullRequestDetailActions.tsx` — exports: ActOnEnvironmentPicker, PerformPullRequestAction, PullRequestApproveWorkflowsButton, PullRequestCheckoutMenu, PullRequestPrimaryAction, PullRequestResolveConflictsButton
+- `apps/web/src/components/pullRequest/PullRequestDetailCrumbs.tsx` — exports: PullRequestDetailCrumbs
+- `apps/web/src/components/pullRequest/PullRequestDetailLayout.tsx` — exports: PullRequestChecksStatusLine, PullRequestDetailHeaderBody, PullRequestDetailTabBar, PullRequestDetailTitleRow
+- `apps/web/src/components/pullRequest/PullRequestDetailPanel.tsx` — exports: PullRequestDetailPanel
+- `apps/web/src/components/pullRequest/PullRequestDiffUnavailableState.tsx` — exports: PullRequestDiffUnavailableState
+- `apps/web/src/components/pullRequest/PullRequestEditButton.tsx` — exports: PullRequestEditButton
+- `apps/web/src/components/pullRequest/PullRequestGhosts.tsx` — exports: PullRequestConversationGhost, PullRequestDetailGhost, PullRequestListGhost, PullRequestPeopleGhost, PullRequestTimelineGhost
+- `apps/web/src/components/pullRequest/PullRequestGuideTab.tsx` — exports: PullRequestGuideTab
+- `apps/web/src/components/pullRequest/PullRequestLabelPicker.tsx` — exports: PullRequestLabelPicker
+- `apps/web/src/components/pullRequest/PullRequestLinkPreview.tsx` — exports: PullRequestLinkPreview
+- `apps/web/src/components/pullRequest/PullRequestListEmptyState.tsx` — exports: PullRequestListEmptyState
+- `apps/web/src/components/pullRequest/PullRequestListFilters.tsx` — exports: PullRequestExpectedHost, PullRequestFilterOption, PullRequestFilterOptionIcon, PullRequestFiltersMenu, PullRequestSearchInput, pullRequestHostLabel
+- `apps/web/src/components/pullRequest/PullRequestListGroups.tsx` — exports: PullRequestListGroups
+- `apps/web/src/components/pullRequest/PullRequestListRow.tsx` — exports: PULL_REQUEST_ROW_CLASS, PULL_REQUEST_ROW_NUMBER_CLASS, PullRequestRowAuthor, PullRequestRowBranches, PullRequestRowGlyph, PullRequestRowLines
+- `apps/web/src/components/pullRequest/PullRequestMarkdown.tsx` — exports: PullRequestMarkdown
+- `apps/web/src/components/pullRequest/PullRequestMarkdownEditor.tsx` — exports: PullRequestMarkdownEditor
+- `apps/web/src/components/pullRequest/PullRequestMoreReplies.tsx` — exports: PullRequestMoreReplies
+- `apps/web/src/components/pullRequest/PullRequestReactions.tsx` — exports: PullRequestReactionBar
+- `apps/web/src/components/pullRequest/PullRequestReviewAnnotation.tsx` — exports: PendingReviewCommentCard, ReviewThreadCard, getReviewPositionAnchor, toViewerSide
+- `apps/web/src/components/pullRequest/PullRequestReviewForm.tsx` — exports: PullRequestReviewForm
+- `apps/web/src/components/pullRequest/PullRequestReviewerPicker.tsx` — exports: PullRequestReviewerPicker
+- `apps/web/src/components/pullRequest/PullRequestRow.tsx` — exports: PullRequestRow, PullRequestRowTarget
+- `apps/web/src/components/pullRequest/PullRequestSpeedActions.tsx` — exports: PullRequestSpeedActionResult, PullRequestSpeedActions, PullRequestSpeedModeContext, PullRequestSpeedModeProvider
+- `apps/web/src/components/pullRequest/PullRequestStackHeader.tsx` — exports: PullRequestStackHeader
+- `apps/web/src/components/pullRequest/PullRequestStackLayerContent.tsx` — exports: PullRequestStackLayerContent
+- `apps/web/src/components/pullRequest/PullRequestStackLayers.tsx` — exports: PullRequestStackLayers
+- `apps/web/src/components/pullRequest/PullRequestStackMenu.tsx` — exports: PullRequestStackMenu
+- `apps/web/src/components/pullRequest/PullRequestStackPopover.tsx` — exports: PullRequestStackPopover
+- `apps/web/src/components/pullRequest/PullRequestSummaryTab.tsx` — exports: PullRequestSummaryTab
+- `apps/web/src/components/pullRequest/PullRequestThreadLinks.tsx` — exports: PullRequestThreadLinks
+- `apps/web/src/components/pullRequest/PullRequestTimelineTab.tsx` — exports: PullRequestTimelineTab
+- `apps/web/src/components/pullRequest/PullRequestTitleEditor.tsx` — exports: PullRequestTitleEditor
+- `apps/web/src/components/pullRequest/PullRequestsColumn.tsx` — exports: PullRequestsColumn
+- `apps/web/src/components/pullRequest/PullRequestsPage.tsx` — exports: PullRequestsPage
+- `apps/web/src/components/pullRequest/PullRequestsUnavailableState.tsx` — exports: PullRequestsUnavailableState
+- `apps/web/src/components/pullRequest/ThreadPullRequestsPanel.tsx` — exports: ThreadPullRequestsPanel
+- `apps/web/src/components/pullRequest/guide/GuideExcerpt.tsx` — exports: ExcerptCommenting, ExcerptNoteMarker, GuideExcerpt
+- `apps/web/src/components/pullRequest/guide/GuideFileDiff.tsx` — exports: GuideFileDiff
+- `apps/web/src/components/pullRequest/guide/GuideNotes.tsx` — exports: GuideNoteMarker, GuideNotes
+- `apps/web/src/components/pullRequest/guide/GuideProse.tsx` — exports: GuideProse
+- `apps/web/src/components/pullRequest/guide/GuideRail.tsx` — exports: GuideRail
+- `apps/web/src/components/pullRequest/guide/GuideStop.tsx` — exports: GuideStop
+- `apps/web/src/components/pullRequest/guide/GuideTour.tsx` — exports: GuideTour
+- `apps/web/src/components/pullRequest/guide/PullRequestGuideRunCoordinator.tsx` — exports: PullRequestGuideRunCoordinator
+- `apps/web/src/components/pullRequest/guide/guideRunStore.ts` — exports: GuideProgress, GuideRunWatch, guideProgressKey, guideRunKey, useGuideProgress
+- `apps/web/src/components/pullRequest/guide/useGuideDiffFiles.ts` — exports: useGuideDiffFiles
+- `apps/web/src/components/pullRequest/guide/useReviewGuideWriter.ts` — exports: useReviewGuideWriter
+- `apps/web/src/components/pullRequest/pullRequestCheckoutToast.ts` — exports: OFF_HEAD_PULL_REQUEST_CHECKOUT_TOAST
+- `apps/web/src/components/pullRequest/pullRequestDetail.logic.ts` — exports: FixFindingsHandoff, PULL_REQUEST_MERGE_METHOD_LABELSRecordPullRequestMergeMethod, PullRequestActionableDetail, PullRequestChecksState, PullRequestConversationItem, PullRequestDetailSnapshotRef, PullRequestFinding, PullRequestPrimaryControl, PullRequestReplyAvailability, PullRequestReviewOutcome, PullRequestReviewOutcomeEntry, PullRequestTimelineEvent, PullRequestTimelineRow, PullRequestTimelineThread, ThreadPanelPullRequestAction, allowedPullRequestMergeMethods, allowsSinglePullRequestMerge, buildAddSelectionToAgentHandoff, buildAskAboutGuideStopHandoff, buildAskAboutPullRequestHandoff, buildExplainPullRequestHandoff, buildFixFindingHandoff, buildFixFindingsHandoff, buildPullRequestReferenceContext, buildPullRequestTimeline, buildResolveConflictsPrompt, canDeletePullRequestBranch, checkoutFailureDescription, classifyPullRequestChecks, describePullRequestChecks, editPullRequestThreadComment, filterPullRequestConversationItems, groupPullRequestChecks, groupPullRequestTimelineConversations, handoffPrompt, handoffReviewComments, isPullRequestCommentFinished, isPullRequestConflicting, isPullRequestNotFound, isPullRequestVerdictStale, isStackedPullRequestBase, latestPullRequestReviewOutcomes, loadingPullRequestCheckoutCommand, mergePullRequestThreadComments, newestPullRequestCommitAt, orderPullRequestComments, pagePullRequestConversationItems, pullRequestActionMenuHasGroup, pullRequestActionNeedsHostRefresh, pullRequestCheckoutCommand, pullRequestConversationItemComments, pullRequestConversationItems, pullRequestFindingKey, pullRequestHandoffLabels, pullRequestPanelContext, pullRequestReviewOutcome, readPullRequestDetailSnapshot, readableFailure, resolveBaseFreshness, resolveDisplayedPullRequestDetail, resolvePullRequestMergeMethod, resolvePullRequestPrimaryControl, resolvePullRequestReferenceHost, resolveThreadPanelPullRequestAction, shouldRefreshPullRequestActivity, string, stripPullRequestHandoffReferences, threadPullRequestPanelTarget, visibleBody, writePullRequestDetailSnapshot
+- `apps/web/src/components/pullRequest/pullRequestDiff.logic.ts` — exports: DiffFoldOverride, isFileDiffCollapsed, isLineInFileDiff, toggleFileDiffFoldForViewed
+- `apps/web/src/components/pullRequest/pullRequestDiffError.ts` — exports: describePullRequestDiffError
+- `apps/web/src/components/pullRequest/pullRequestEditing.logic.ts` — exports: canEditPullRequestChangeRequest, canEditPullRequestComment, canResolvePullRequestThread
+- `apps/web/src/components/pullRequest/pullRequestFileOrder.logic.ts` — exports: DiffFileTier, orderDiffFiles
+- `apps/web/src/components/pullRequest/pullRequestFilesViewed.logic.ts` — exports: FileViewedOverlay, FileViewedStates, isFileViewed, isStaleViewedState, revertFileViewedOverlay, settleFileViewedOverlay, toFileViewedBatch, toFileViewedStates
+- `apps/web/src/components/pullRequest/pullRequestIcons.tsx` — exports: PULL_REQUEST_STATE_PRESENTATION, PullRequestGlyph, PullRequestGlyphIcon, PullRequestStatePresentation
+- `apps/web/src/components/pullRequest/pullRequestLinkContextMenu.ts` — exports: PullRequestLinkContextMenuAction, openOnHostLabel, showPullRequestLinkContextMenu
+- `apps/web/src/components/pullRequest/pullRequestList.logic.ts` — exports: EnvironmentPullRequestEntry, EnvironmentPullRequestError, EnvironmentPullRequestStat, MergedPullRequestList, PullRequestAuthorFacet, PullRequestDiffStats, PullRequestGroup, PullRequestGroupKey, PullRequestLabelFacet, PullRequestListOverride, PullRequestListSnapshot, PullRequestPartitionsSnapshot, PullRequestQuickAction, PullRequestStatsBatch, PullRequestStatsPolicy, PullRequestStatsScope, PullRequestStatsTarget, PullRequestViewers, applyPullRequestOverrides, collectPullRequestListFacets, filterPullRequestsByInvolvement, findProjectForRepository, findScopedProject, groupPullRequestsByInvolvement, largestPullRequestReadCount, matchesPullRequestFilters, matchesPullRequestQuery, mergePullRequestDiffStats, mergePullRequestLists, narrowPullRequestsToFilters, partitionPullRequestsWithPriority, pullRequestEntryKey, pullRequestEntryViewer, pullRequestEnvironmentSetKey, pullRequestHostActions, pullRequestLabelColor, pullRequestOverrideAfterAction, pullRequestQuickActions, pullRequestStatsBatches, pullRequestStatsKeysToRequest, pullRequestStatsRefreshBatches, pullRequestStatsRequestBatches, rankPullRequestMatches, rankPullRequestsBlockedOnAuthor, rankPullRequestsByMergeReadiness, readPullRequestListSnapshot, resolveProjectScope, resolveQueryEnvironmentIds, resolveSelectedEnvironmentId, retainVisiblePullRequestStatsBatches, reusePullRequestEntries, scorePullRequestMatch, settlePullRequestOverrides, sortPullRequestGroups, withDiffStat, writePullRequestListSnapshot
+- `apps/web/src/components/pullRequest/pullRequestListGroups.logic.ts` — exports: pullRequestGroups, pullRequestListEntryId
+- `apps/web/src/components/pullRequest/pullRequestListOptions.ts` — exports: INVOLVEMENT_TABS, SORT_OPTIONS, STATE_TABS
+- `apps/web/src/components/pullRequest/pullRequestListPreferences.ts` — exports: PullRequestListPreferencePatch, PullRequestListPreferences, PullRequestListSort, pullRequestListPreferences, readPullRequestListPreferences, writePullRequestListPreferences
+- `apps/web/src/components/pullRequest/pullRequestMarkdown.logic.ts` — exports: PullRequestBodySegment, remarkPullRequestAutolinks, splitPullRequestBody
+- `apps/web/src/components/pullRequest/pullRequestPresentation.tsx` — exports: PullRequestActorAvatar, PullRequestActorLabel, PullRequestCheckStatusIcon, PullRequestConflictGlyph, PullRequestConflictPresentation, PullRequestDiffStat, PullRequestLabelChip, PullRequestMetaLine, PullRequestReviewDecisionGlyph, PullRequestReviewOutcomeBadge, PullRequestReviewOutcomeIcon, PullRequestStateGlyph, pullRequestCheckStatusLabel, pullRequestChecksState, pullRequestChecksStatePresentation, pullRequestReviewOutcomeLabel, pullRequestReviewOutcomeRingClassName, pullRequestReviewOutcomeStaleLabel, pullRequestReviewOutcomeToneClassName, resolvePullRequestState, summarizePullRequestChecks
+- `apps/web/src/components/pullRequest/pullRequestProjectAssignment.logic.ts` — exports: AssignableProject, PickableEnvironment, assignProjectsToEnvironments, resolvePickableEnvironments
+- `apps/web/src/components/pullRequest/pullRequestProjectFilter.logic.ts` — exports: pullRequestFilterProjects
+- `apps/web/src/components/pullRequest/pullRequestReactions.logic.ts` — exports: PULL_REQUEST_REACTION_ORDERReadonlyArrayPullRequestReactionContent, applyPendingPullRequestReactions, pullRequestReactionEmoji, pullRequestReactionName, pullRequestReactionTooltip
+- `apps/web/src/components/pullRequest/pullRequestReviewStore.ts` — exports: PendingReviewComment, nextPendingReviewCommentId, pullRequestReviewKey, usePendingReviewComments
+- `apps/web/src/components/pullRequest/pullRequestStackSnapshot.ts` — exports: pullRequestStackView, savedPullRequestStack
+- `apps/web/src/components/pullRequest/pullRequestSummaryScroll.logic.ts` — exports: sectionCollapseAnchorScrollTop
+- `apps/web/src/components/pullRequest/useInlineActionConfirm.ts` — exports: useInlineActionConfirm
+- `apps/web/src/components/pullRequest/usePullRequestActions.ts` — exports: PullRequestHandoffDetail, PullRequestThreadTask, usePullRequestActionRunner, usePullRequestCloseBatch, usePullRequestDefaultMergeMethodResolver, usePullRequestHandoffs
+- `apps/web/src/components/pullRequest/usePullRequestDetail.ts` — exports: pullRequestRefKey, usePullRequestDetail
+- `apps/web/src/components/pullRequest/usePullRequestFilesViewed.ts` — exports: PullRequestFilesViewedView, usePullRequestFilesViewed
+- `apps/web/src/components/pullRequest/usePullRequestListView.ts` — exports: PullRequestsSearch, usePullRequestDisplayGroups, usePullRequestQueryFilters, usePullRequestScope
+- `apps/web/src/components/pullRequest/useThreadLinkedPullRequest.ts` — exports: useThreadLinkedPullRequest
+- `apps/web/src/components/search/HighlightedSearchLine.tsx` — exports: 
+- `apps/web/src/components/search/ProjectContentSearchDialog.tsx` — exports: ProjectContentSearchDialog
+- `apps/web/src/components/settings/AcpRegistryIcon.tsx` — exports: AcpRegistryAgentIcon, loadCachedAcpRegistryIcon, officialAcpRegistryIconUrlForAgentId, resolveOfficialAcpRegistryIconUrl
+- `apps/web/src/components/settings/AcpRegistrySearchStep.tsx` — exports: AcpRegistrySearchStep
+- `apps/web/src/components/settings/AcpSessionManagementSection.tsx` — exports: AcpSessionManagementSection
+- `apps/web/src/components/settings/AddCodexAccountDialog.tsx` — exports: AddCodexAccountDialog
+- `apps/web/src/components/settings/AddEnvironmentDialog.tsx` — exports: AddEnvironmentDialog
+- `apps/web/src/components/settings/AddProviderInstanceDialog.logic.ts` — exports: ACP_REGISTRY_WIZARD_STEPS, ADD_PROVIDER_WIZARD_STEPS, LOCAL_ACP_WIZARD_STEPS, ProviderIdentityDraft, WizardNavigation, deriveAvailableInstanceId, getProviderIdentityDraft, isConfiguredAcpRegistryAgent, resolveAcpRegistryWizardNavigation, resolveWizardNavigation, updateProviderIdentityDraft
+- `apps/web/src/components/settings/AddProviderInstanceDialog.tsx` — exports: AddProviderInstanceDialog
+- `apps/web/src/components/settings/AddProviderInstanceWizardSteps.tsx` — exports: AddProviderInstanceWizardSteps
+- `apps/web/src/components/settings/AddUsageLimitSourceDialog.tsx` — exports: AddUsageLimitSourceDialog
+- `apps/web/src/components/settings/AppearanceSettingsPanel.tsx` — exports: AppearanceSettingsPanel
+- `apps/web/src/components/settings/ArchivedThreadsPanel.tsx` — exports: ArchivedThreadsPanel
+- `apps/web/src/components/settings/AuthorizedClientsSettings.tsx` — exports: AccessSectionPresentation, NetworkAccessDescription, accessRowClassName
+- `apps/web/src/components/settings/BackgroundActivitySettings.tsx` — exports: BackgroundActivitySettingsRow
+- `apps/web/src/components/settings/BranchNamingSettings.tsx` — exports: BranchNamingSettings
+- `apps/web/src/components/settings/BrowserImportWizard.tsx` — exports: BrowserImportWizard, WizardTarget
+- `apps/web/src/components/settings/CaptureShortcutConfig.tsx` — exports: CaptureShortcutConfig
+- `apps/web/src/components/settings/ChatGptAccountPicker.tsx` — exports: ChatGptAccountPicker
+- `apps/web/src/components/settings/ChatGptConnectionButton.tsx` — exports: ChatGptConnectionButton
+- `apps/web/src/components/settings/ChatGptUsageButton.tsx` — exports: ChatGptUsageButton
+- `apps/web/src/components/settings/ChatGptWelcomeCoordinator.tsx` — exports: ChatGptWelcomeCoordinator
+- `apps/web/src/components/settings/CliCommandSettingsRow.tsx` — exports: CliCommandSettingsRow
+- `apps/web/src/components/settings/CodexSetupSection.logic.ts` — exports: readCodexSetupMode
+- `apps/web/src/components/settings/CodexSetupSection.tsx` — exports: AddManagedCodexAccountDialog, CodexManagedRuntimeFields, CodexSetupSection
+- `apps/web/src/components/settings/ConnectionDiagnosisDetails.tsx` — exports: ConnectionDiagnosisHeadline, ConnectionDiagnosisPanel, ConnectionDiagnosisSummary, useConnectionDiagnosis
+- `apps/web/src/components/settings/ConnectionsSettings.logic.ts` — exports: QrEndpointOption, applyWslEnableSelection, canRevokeOtherClients, endpointDefaultPreferenceKey, endpointShareHint, formatAccessTimestamp, formatDesktopSshConnectionError, isHostedAppPairingUrl, isQrShareableEndpoint, isTailscaleHttpsEndpoint, isWslSettingsRowVisible, missingTailscaleEndpointDescription, parseManualDesktopSshTarget, parsePairingUrlFields, parseRemotePairingFields, resolveAdvertisedEndpointPairingUrl, resolveCurrentOriginPairingUrl, resolveLocalVersionStatusLabel, selectPairingEndpoint, selectQrEndpointOption, sortDesktopClientSessions, sortDesktopPairingLinks, summarizeAuthorizedClients, toDesktopClientSessionRecord, toDesktopPairingLinkRecord, togglePairingScopeSelection
+- `apps/web/src/components/settings/ConnectionsSettings.tsx` — exports: ConnectionsSettings
+- `apps/web/src/components/settings/CustomModelEditor.tsx` — exports: CustomModelEditor
+- `apps/web/src/components/settings/DatabaseStorageNotice.tsx` — exports: DatabaseStorageNotice
+- `apps/web/src/components/settings/DeviceHostEditor.tsx` — exports: DeviceHostEditor
+- `apps/web/src/components/settings/DeviceHostsSettings.tsx` — exports: DeviceHostsSettings
+- `apps/web/src/components/settings/DiagnosticsSettings.tsx` — exports: DiagnosticsSettingsPanel
+- `apps/web/src/components/settings/EasDeviceHostsSettings.tsx` — exports: EasDeviceHostsSettings
+- `apps/web/src/components/settings/EnvironmentIconPicker.tsx` — exports: EnvironmentIconMenu, resolveEnvironmentIconPickerLock
+- `apps/web/src/components/settings/EnvironmentRoutesList.tsx` — exports: EnvironmentRoutesList
+- `apps/web/src/components/settings/EnvironmentRow.tsx` — exports: EnvironmentRow, environmentTransportLabel, formatDesktopSshTarget
+- `apps/web/src/components/settings/ExpandableText.tsx` — exports: ExpandableText
+- `apps/web/src/components/settings/FoldedSettingsSection.tsx` — exports: FoldedSettingsSection
+- `apps/web/src/components/settings/FontFamilyPicker.tsx` — exports: FontFamilyPicker, discoverInstalledFonts, useFontEnumeration
+- `apps/web/src/components/settings/GitHubAccountSettings.logic.ts` — exports: GitHubDiscoveredAccount, GitHubHostGroup, groupGitHubAccounts, nextGitHubHosts
+- `apps/web/src/components/settings/GitHubAccountSettings.tsx` — exports: GitHubAccountSettings
+- `apps/web/src/components/settings/GitHubRoutingSettings.tsx` — exports: GitHubRoutingSettings
+- `apps/web/src/components/settings/GitHubTokenSettings.tsx` — exports: GitHubTokenSettings
+- `apps/web/src/components/settings/IntegrationsSettings.tsx` — exports: IntegrationsSettingsPanel, ServerProfileData, clearBrowserProfileData
+- `apps/web/src/components/settings/KeybindingsSettings.logic.ts` — exports: DEFAULT_WHEN_VARIABLE, KeybindingCommandOption, KeybindingGroup, KeybindingRow, KeybindingSource, WhenVariableOption, buildKeybindingCommandOptions, buildKeybindingRows, buildWhenVariableOptions, commandLabel, filterKeybindingRows, groupKeybindingRows, isKnownWhenVariable, keybindingConflictLabels, keybindingFromKeyboardEvent, parseWhenExpressionDraft, shortcutToKeybindingInput, unknownWhenVariables, whenAstToExpression, whenNodeRemoveLabel
+- `apps/web/src/components/settings/KeybindingsSettings.tsx` — exports: KeybindingsSettingsPanel
+- `apps/web/src/components/settings/LoadBalancingSettings.tsx` — exports: LoadBalancingSettings
+- `apps/web/src/components/settings/LocalEnvironmentSetting.tsx` — exports: LocalEnvironmentSetting
+- `apps/web/src/components/settings/MobileAppSettingsRow.tsx` — exports: MobileAppSettingsRow
+- `apps/web/src/components/settings/NotificationSettings.tsx` — exports: NotificationSettings
+- `apps/web/src/components/settings/OpenSourceLicenses.tsx` — exports: OpenSourceLicensesPanel
+- `apps/web/src/components/settings/PanelAnimationsPreview.tsx` — exports: PanelAnimationsPreview
+- `apps/web/src/components/settings/ProcessSignalActions.tsx` — exports: ProcessSignalActions
+- `apps/web/src/components/settings/ProjectActionsList.tsx` — exports: ProjectActionsList
+- `apps/web/src/components/settings/ProjectActionsSettings.tsx` — exports: ProjectActionsSettings
+- `apps/web/src/components/settings/ProjectDefaultsSettings.tsx` — exports: ProjectDefaultsSettings
+- `apps/web/src/components/settings/ProjectFaviconPickerDialog.tsx` — exports: ProjectFaviconPickerDialog, canPickExternalProjectFavicon
+- `apps/web/src/components/settings/ProjectFaviconThumbnail.tsx` — exports: ProjectFaviconThumbnail
+- `apps/web/src/components/settings/ProjectIconPickerDialog.tsx` — exports: ProjectIconPickerDialog
+- `apps/web/src/components/settings/ProjectSettingsPanel.logic.ts` — exports: projectGroupTitleNeedsUpdate
+- `apps/web/src/components/settings/ProjectSettingsPanel.tsx` — exports: ProjectSettingsCategory, ProjectSettingsPanel
+- `apps/web/src/components/settings/ProjectsSettings.tsx` — exports: ProjectsSettings
+- `apps/web/src/components/settings/ProviderAccentColorPicker.tsx` — exports: ProviderAccentColorPicker
+- `apps/web/src/components/settings/ProviderAuthCallbackCoordinator.tsx` — exports: ProviderAuthCallbackCoordinator
+- `apps/web/src/components/settings/ProviderAuthTerminal.tsx` — exports: ProviderAuthTerminal, default
+- `apps/web/src/components/settings/ProviderAuthenticationSection.tsx` — exports: ProviderAuthenticationSection
+- `apps/web/src/components/settings/ProviderInstanceCard.tsx` — exports: ProviderEnvironmentSection, ProviderInstanceCard, deriveProviderModelsForDisplay, nextProviderEnvironmentWithFieldValue
+- `apps/web/src/components/settings/ProviderModelsSection.tsx` — exports: ProviderModelsSection
+- `apps/web/src/components/settings/ProviderSettingsForm.tsx` — exports: ProviderSettingsFieldModel, ProviderSettingsForm, SettingsFormDefinition, deriveProviderSettingsFields, nextProviderConfigWithFieldValue
+- `apps/web/src/components/settings/ProviderSettingsPanel.logic.ts` — exports: ProviderEnvironmentAccess, ProviderEnvironmentOptionLike, ProviderOperateAccess, buildProviderEnvironmentOptions, buildProviderInstanceOverridePatch, classifyProviderEnvironmentAccess, isProviderSettingsEnvironmentAvailable, resolvePrimaryOperateAccess, resolveRemoteOperateAccess, resolveSelectedProviderEnvironmentId
+- `apps/web/src/components/settings/ProviderSettingsPanel.tsx` — exports: EnvironmentProviderSettings, ProviderSettingsPanel
+- `apps/web/src/components/settings/ProviderSetupSection.tsx` — exports: ProviderSetupSection, readAntigravityAuthMethod
+- `apps/web/src/components/settings/ProviderWizardAuthenticationStep.tsx` — exports: ProviderWizardAuthenticationStep
+- `apps/web/src/components/settings/RedactedSensitiveText.tsx` — exports: RedactedSensitiveText, redactedPlaceholder
+- `apps/web/src/components/settings/ResourceTelemetryDiagnostics.logic.ts` — exports: resourceHistoryBarHeight, resourceHistoryCpuScaleMax, shouldShowResourceMonitorRetry, visibleResourceTelemetryProcesses
+- `apps/web/src/components/settings/ResourceTelemetryDiagnostics.tsx` — exports: ResourceTelemetryDiagnostics
+- `apps/web/src/components/settings/SavedEnvironmentRows.tsx` — exports: CloudLinkRow, CloudRemoteEnvironmentRows, SavedBackendListRow
+- `apps/web/src/components/settings/ScheduledTasksSettings.tsx` — exports: ScheduledRelativeLabel, ScheduledTasksSettings, scheduleLabel
+- `apps/web/src/components/settings/ScopedSwitch.tsx` — exports: ScopedSwitch
+- `apps/web/src/components/settings/SecretInput.tsx` — exports: SecretInput
+- `apps/web/src/components/settings/SessionPermissions.tsx` — exports: SessionPermissions
+- `apps/web/src/components/settings/SettingInheritance.tsx` — exports: SettingInheritance, SettingInheritanceState, SettingOverridingProject, settingInheritanceLayers
+- `apps/web/src/components/settings/SettingsBreadcrumb.tsx` — exports: SettingsBreadcrumb
+- `apps/web/src/components/settings/SettingsFontPreviews.tsx` — exports: CodeFontPreview, PromptFontPreview, TerminalFontPreview, formatUser
+- `apps/web/src/components/settings/SettingsGroup.tsx` — exports: SettingsGroup
+- `apps/web/src/components/settings/SettingsPanels.logic.ts` — exports: BrowserDefaultSettings, PROVIDER_HEALTH_INTERVAL_STEP_SECONDS, backgroundActivityOverrideSettings, backgroundActivitySharedPolicySettings, buildProviderInstanceUpdatePatch, durationToSeconds, getChangedBrowserSettingLabels, getChangedTypographySettingLabels, hasChangedBackgroundActivitySettings, isProjectGroupingEnabled, normalizeIntervalSeconds, projectGroupingModeFromToggle, readLastEnabledProjectGroupingMode, rememberEnabledProjectGroupingMode, resolveBackgroundActivityProfileOption
+- `apps/web/src/components/settings/SettingsPanels.tsx` — exports: GeneralSettingsPanel, useSettingsRestore
+- `apps/web/src/components/settings/SettingsScopeContext.tsx` — exports: SettingsScopeProvider, useOptionalSettingsScope, useSettingsScope
+- `apps/web/src/components/settings/SettingsScopeNotice.tsx` — exports: SettingsScopeNotice
+- `apps/web/src/components/settings/SettingsScopeSentence.tsx` — exports: SETTINGS_DEVICE_ONLY_PATHSReadonlySetstring, SettingsScopeSentence
+- `apps/web/src/components/settings/SettingsSidebarNav.tsx` — exports: SettingsSidebarNav
+- `apps/web/src/components/settings/SnapShotSettings.logic.ts` — exports: SnapShotSoundSelection, createRecordingRequestTracker, snapShotAccessibilityUnavailableMessage, snapShotDescription, snapShotFeedbackUnavailableMessage, snapShotSetupButtonLabel, snapShotSetupComplete, snapShotSetupSummary, snapShotShortcutStatus, snapShotSoundPatch, snapShotStatus, snapShotUnavailableMessage
+- `apps/web/src/components/settings/SnapShotSettings.tsx` — exports: SnapShotSettings
+- `apps/web/src/components/settings/SnapShotSetupDialog.logic.ts` — exports: CaptureSetupStep, captureSetupAccessReady, captureSetupBackend, captureSetupCheckMessage, captureSetupDesktopName, captureSetupInitialStep, captureSetupMacPermissionsReady, captureSetupShortcutReady, captureSetupShouldDisableOnClose
+- `apps/web/src/components/settings/SnapShotSetupDialog.tsx` — exports: SnapShotSetupDialog
+- `apps/web/src/components/settings/SourceControlHostSettings.tsx` — exports: SourceControlHostSettings
+- `apps/web/src/components/settings/SourceControlSettings.tsx` — exports: SourceControlSettingsPanel
+- `apps/web/src/components/settings/SourceControlWritingSettings.tsx` — exports: SourceControlWritingSettingsSection
+- `apps/web/src/components/settings/StorageSettings.tsx` — exports: StorageSettingsPanel
+- `apps/web/src/components/settings/TelemetryExportSettings.tsx` — exports: TelemetryExportSettings
+- `apps/web/src/components/settings/ThemeColorPicker.tsx` — exports: getThemeRoleLabel
+- `apps/web/src/components/settings/ThemeEditorHost.tsx` — exports: ThemeEditorHost
+- `apps/web/src/components/settings/ThemeEditorPanel.tsx` — exports: ThemeEditorPanel
+- `apps/web/src/components/settings/ThemeImportDialog.tsx` — exports: ThemeImportDialog
+- `apps/web/src/components/settings/ThemePreviewCircles.tsx` — exports: STANDARD_THEME_CARDSReadonlyArrayThemeCardDefinition, ThemeCardDefinition, ThemeCardPreviewColors, ThemeMode, ThemePreviewCircle, ThemePreviewCircles, getThemeCardDefinition, previewColorsOf
+- `apps/web/src/components/settings/ThemeSearchSection.tsx` — exports: ThemeSearchSection
+- `apps/web/src/components/settings/ThemeSettings.tsx` — exports: ThemeLibrary
+- `apps/web/src/components/settings/ThemeWireframe.tsx` — exports: ThemeWireframe
+- `apps/web/src/components/settings/TypographySettings.tsx` — exports: TypographySection
+- `apps/web/src/components/settings/UsageProviderSettings.tsx` — exports: UsageProviderSettings
+- `apps/web/src/components/settings/browserImportWizard.logic.ts` — exports: ImportOutcome, WizardStep, WizardTarget, WizardTargetProfile, WizardTargetSelection, canCloseWizard, formatSkippedDomains, fullDiskAccessRecheckStep, initialTargetSelection, initialWizardStep, isRetryableReason, outcomeToStep, refreshedSourceProfileDirectory, refreshedSourceStep, resolveWizardTarget
+- `apps/web/src/components/settings/customModelEditor.logic.ts` — exports: CustomModelDraft, DESCRIPTOR_PRESETS_BY_KINDPartialRecordProviderDriverKind, DescriptorPreset, EditorChoice, EditorDescriptor, ReadonlyArrayDescriptorPreset, choiceFromPreset, definitionFromDraft, descriptorFromPreset, descriptorsFromCapabilities, draftFromDefinition, emptyEditorChoice, emptyEditorDescriptor, validateDraft
+- `apps/web/src/components/settings/deviceHostConnectionChecks.ts` — exports: DeviceHostCheck, DeviceHostCheckTarget, checkDeviceHostConnections, deviceHostConnectionKey, parseDeviceHostDraft
+- `apps/web/src/components/settings/deviceHostsSettings.logic.ts` — exports: DeviceHostEnvironment, DeviceHostGroup, groupDeviceHosts, updateDeviceHosts
+- `apps/web/src/components/settings/easDeviceHostsSettings.logic.ts` — exports: easSessionLimits, newEasDeviceHost, parseEasDeviceHostDraft, updateEasDeviceHosts
+- `apps/web/src/components/settings/itemRows.ts` — exports: ITEM_ROW_CLASSNAME, ITEM_ROW_INNER_CLASSNAME
+- `apps/web/src/components/settings/pairingUrls.ts` — exports: resolveDesktopPairingUrl, resolveHostedPairingUrl
+- `apps/web/src/components/settings/providerDriverMeta.ts` — exports: providerClients
+- `apps/web/src/components/settings/providerStatus.ts` — exports: PROVIDER_STATUS_STYLES, ProviderStatusKey, getProviderStatusKey, getProviderSummary, getProviderVersionAdvisoryPresentation, getProviderVersionLabel
+- `apps/web/src/components/settings/scheduledTasksSettings.logic.ts` — exports: DraftState, ScheduleMode, WEBHOOK_SIGNATURE_DEFAULTS, WorkspaceMode, matchesScheduledTaskScope, scheduleFromDraft, scheduledTaskDefaultModel, taskToDraft, validateScheduledTasksSearch, webhookDeliveryLabel, webhookDraftErrors
+- `apps/web/src/components/settings/scopedSettings.ts` — exports: ProjectOverrideEntry, ScopedSettingSource, ScopedSettingsPatch, ScopedSettingsTarget, isConnectedWithConfig, isProjectScopedSettingKey, listProjectOverrides, persistScopedSettingsPatch, planProjectOverridesClear, planScopedSettingsClear, planScopedSettingsPatch, resolveScopedSettingsTargets, scopedSettingsAreMixed, scopedSettingsSource, selectScopedSettingsEnvironments
+- `apps/web/src/components/settings/settingsLayout.tsx` — exports: PolicyTooltip, SETTINGS_PICKER_TRIGGER_CLASSNAME, SettingResetButton, SettingsPageContainer, SettingsRow, SettingsSearchTarget, SettingsSection, SettingsUnavailableGroup, scrollToSettingsTarget, useRelativeTimeTick, useSettingsSearchTarget, useSettingsSearchTargetId
+- `apps/web/src/components/settings/settingsScope.ts` — exports: ResolvedSettingsScope, SettingsScopeSearch, resolveSettingsScope, validateSettingsScopeSearch
+- `apps/web/src/components/settings/settingsScopeAxis.ts` — exports: ALL_ENVIRONMENTS_VALUE, ALL_PROJECTS_VALUE, environmentAxisValue, projectAxisValue, projectScopeMenuGroups, selectEnvironmentAxis, selectProjectAxis, selectSingleEnvironmentScope, settingsScopeEnvironmentAddress, settingsScopeEnvironmentLabel, settingsScopeEnvironmentLabels, settingsScopeProjectMachines
+- `apps/web/src/components/settings/settingsScopeNavigation.ts` — exports: validateSettingsRouteSearch
+- `apps/web/src/components/settings/settingsSearch.ts` — exports: SETTINGS_SEARCH_ITEMS, SETTINGS_SECTION_LABELSReadonlyRecordSettingsPath, SettingsPath, SettingsSearchAvailability, SettingsSearchItem, SettingsSearchItemId, SettingsSearchScope, filterAvailableSettingsSearchItems, getSettingsSearchTargetScope, getThreadAutoSettlementSearchAvailability, isSettingsOverviewVisible, isSettingsSearchScopeAvailable, keybindingSearchAnchorId, searchSettings, searchableSetting, sourceControlHostSettingsSearchId, string
+- `apps/web/src/components/settings/themeEditorStore.ts` — exports: ThemeEditorSession, ThemeEditorSessionInput, toggleThemeEditorForTheme, useThemeEditorStore
+- `apps/web/src/components/settings/themeInspector.ts` — exports: ThemeElementInspection, ThemePaintKind, ThemePaintSnapshot, clearThemeInspectorHighlights, clearThemeInspectorHover, highlightThemeRoleUsage, inspectThemeRoleAtElement, inspectThemeRoleFromUtilitiesAtElement, refreshThemeInspectorSpotlight, showThemeInspectorHover
+- `apps/web/src/components/settings/useAvailableSettingsSearchItems.ts` — exports: useAvailableSettingsSearchItems
+- `apps/web/src/components/settings/useHostConnectionChecks.ts` — exports: useHostConnectionChecks
+- `apps/web/src/components/settings/useProjectScriptSettings.ts` — exports: useProjectScriptSettings
+- `apps/web/src/components/settings/useScopedModelAvailability.ts` — exports: useScopedModelDisabledReason
+- `apps/web/src/components/settings/useScopedSettings.ts` — exports: useClearProjectOverrides, useClearScopedSettings, useScopedSettingSource, useScopedSettings, useScopedSettingsMixed, useScopedSettingsWriteAllowed, useUpdateScopedSettings
+- `apps/web/src/components/settings/useSettingsProjectGroups.ts` — exports: useSettingsProjectGroups
+- `apps/web/src/components/settings/useSnapShotShortcutRecorder.tsx` — exports: useSnapShotShortcutRecorder
+- `apps/web/src/components/sidebar/DesktopUpdateStatusIcon.tsx` — exports: DesktopUpdateStatusIcon, DesktopUpdateStatusIconState, shouldContinueDesktopUpdateCheckAnimation, shouldShowDesktopUpdateCheckIcon
+- `apps/web/src/components/sidebar/SidebarChrome.tsx` — exports: SidebarBrandWidthProbe
+- `apps/web/src/components/sidebar/SidebarDraftBlock.tsx` — exports: 
+- `apps/web/src/components/sidebar/SidebarListMarkers.tsx` — exports: SidebarDragBoundary, SidebarSectionHeader, SidebarSectionPlaceholder
+- `apps/web/src/components/sidebar/SidebarProviderUpdatePill.tsx` — exports: SidebarProviderUpdatePill
+- `apps/web/src/components/sidebar/SidebarThreadHeader.tsx` — exports: SidebarHeaderIconButton, SidebarThreadHeader, SidebarThreadHeaderProps
+- `apps/web/src/components/sidebar/SidebarThreadRow.tsx` — exports: SIDEBAR_SORTABLE_DRAG_DISABLED, SidebarProviderEntry, SidebarSweepAction, SortableThreadRow, draftPenClassName, draftSurfaceClassName
+- `apps/web/src/components/sidebar/SidebarThreadUndoNotice.tsx` — exports: SidebarThreadUndoNotice
+- `apps/web/src/components/sidebar/SidebarUpdateCapsule.tsx` — exports: SidebarUpdateCapsule
+- `apps/web/src/components/sidebar/SidebarUpdatePill.tsx` — exports: SidebarUpdateArchitectureWarning, SidebarUpdatePill
+- `apps/web/src/components/sidebar/SidebarUpdateReleaseNotes.tsx` — exports: SidebarUpdateReleaseNotes
+- `apps/web/src/components/sidebar/UpdateEverythingDialog.tsx` — exports: UpdateEverythingDialog
+- `apps/web/src/components/sidebar/mainAppLocation.ts` — exports: MainAppLocationTracker, isSidebarUtilityPage, useNavigateToMainApp
+- `apps/web/src/components/sidebar/updateEverything.logic.ts` — exports: RUN_STATUS_LABELSRecordUpdateRunMachineStatus, RestartingMachine, SkippedMachine, UpdateCapsuleView, UpdateEverythingMachine, UpdateEverythingPlan, UpdateEverythingResult, UpdateEverythingRun, UpdateEverythingSteps, UpdateRunLocalState, UpdateRunMachine, UpdateRunMachineStatus, UpdateRunMachineView, closeFinishedUpdateRun, collectRestartingMachines, collectServerUpdateTargets, collectUpdateEverythingResult, describeUpdateCapsule, describeUpdateEverything, formatUpdateElapsed, getUpdateEverythingToastView, isServerUpdateHandedOff, resolveUpdateRunMachineStatus, runUpdateEverything, string
+- `apps/web/src/components/sidebar/updateEverythingRun.tsx` — exports: DesktopUpdateLaunchNotice, clearSavedUpdateEverythingResult, dismissSettledUpdateRunMachines, postponeUpdateRestart, retryFailedUpdateRunServers, saveUpdateEverythingResult, setUpdateEverythingRun, settleUpdateRunMachine, showUpdateEverythingResult, useUpdateEverythingRun, waitForServerUpdateHandoff, waitForUpdateRestart
+- `apps/web/src/components/sidebar/useUpdateEverything.ts` — exports: ReportLocalUpdateError, useUpdateEverything
+- `apps/web/src/components/terminal/useThreadTerminalActions.ts` — exports: TerminalLaunchLocation, useThreadTerminalActions
+- `apps/web/src/components/threadActionMenu.logic.ts` — exports: DraftActionMenuId, ThreadActionMenuId, ThreadActionMenuState, buildDraftActionMenuItems, buildThreadActionMenuItems, threadActionRequiresOperate
+- `apps/web/src/components/threadSidebarWidth.ts` — exports: THREAD_MAIN_CONTENT_MIN_WIDTH, THREAD_SIDEBAR_WIDTH_STORAGE_KEY, clampThreadSidebarWidth, resolveInitialThreadSidebarWidth, resolveThreadSidebarMaximumWidth, resolveThreadSidebarMinimumWidth
+- `apps/web/src/components/ui/alert-dialog.tsx` — exports: AlertDialog, AlertDialogBackdrop, AlertDialogClose, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogOverlay, AlertDialogPopup, AlertDialogPortal, AlertDialogTitle, AlertDialogViewport
+- `apps/web/src/components/ui/alert.tsx` — exports: Alert, AlertAction, AlertDescription, AlertTitle
+- `apps/web/src/components/ui/anchoredCopyToast.ts` — exports: ANCHORED_COPY_TOAST_TIMEOUT_MS, showAnchoredCopyErrorToast, showAnchoredCopySuccessToast
+- `apps/web/src/components/ui/autocomplete.tsx` — exports: Autocomplete, AutocompleteClear, AutocompleteCollection, AutocompleteEmpty, AutocompleteGroup, AutocompleteGroupLabel, AutocompleteInput, AutocompleteItem, AutocompleteList, AutocompleteListHeading, AutocompleteListVirtualized, AutocompletePopup, AutocompleteTrigger
+- `apps/web/src/components/ui/badge.tsx` — exports: Badge, badgeVariants
+- `apps/web/src/components/ui/button.tsx` — exports: Button, ButtonSize, ButtonVariant, InlineButton, buttonVariants
+- `apps/web/src/components/ui/calendar.tsx` — exports: Calendar
+- `apps/web/src/components/ui/checkbox.tsx` — exports: Checkbox
+- `apps/web/src/components/ui/collapsible-section-header.tsx` — exports: CollapsibleSectionHeader, SectionHeaderStatus
+- `apps/web/src/components/ui/collapsible.tsx` — exports: Collapsible, CollapsibleContent, CollapsiblePanel, CollapsibleTrigger
+- `apps/web/src/components/ui/color-picker.tsx` — exports: ColorHueSlider, ColorSaturationValuePlane
+- `apps/web/src/components/ui/combobox.tsx` — exports: Combobox, ComboboxClear, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList, ComboboxListVirtualized, ComboboxPopup, ComboboxSearchInput, ComboboxStatus, ComboboxTrigger, useComboboxFilter
+- `apps/web/src/components/ui/command.tsx` — exports: Command, CommandCollection, CommandDialog, CommandDialogPopup, CommandDialogTrigger, CommandFooter, CommandFooterAction, CommandGroup, CommandGroupLabel, CommandInput, CommandItem, CommandList, CommandListHeading, CommandListVirtualized, CommandPanel, CommandShortcut
+- `apps/web/src/components/ui/dialog-styles.ts` — exports: DIALOG_BACKDROP_CLASS, DIALOG_MEDIA_BACKDROP_CLASS, DIALOG_MEDIA_POPUP_CLASS, DIALOG_MOBILE_SHEET_CLASS, DIALOG_POPUP_CLASS
+- `apps/web/src/components/ui/dialog.tsx` — exports: ControlledOpenContext, Dialog, DialogBackdrop, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogOverlay, DialogPanel, DialogPopup, DialogPortal, DialogTitle, DialogTrigger, DialogViewport, renderRetainedPopup
+- `apps/web/src/components/ui/discovery-list.tsx` — exports: DiscoveryList, DiscoveryListRow
+- `apps/web/src/components/ui/draft-input.tsx` — exports: DraftInput, DraftInputProps
+- `apps/web/src/components/ui/empty.tsx` — exports: Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle
+- `apps/web/src/components/ui/group.tsx` — exports: ButtonGroup, ButtonGroupSeparator, Group, GroupSeparator, groupVariants
+- `apps/web/src/components/ui/input-group.tsx` — exports: InputGroup, InputGroupAddon, InputGroupInput
+- `apps/web/src/components/ui/input.tsx` — exports: Input, InputProps
+- `apps/web/src/components/ui/kbd.tsx` — exports: Kbd, KbdGroup
+- `apps/web/src/components/ui/label.tsx` — exports: Label
+- `apps/web/src/components/ui/menu.tsx` — exports: DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, Menu, MenuCheckboxItem, MenuGroup, MenuGroupLabel, MenuItem, MenuItemLabel, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuRadioItemIndicator, MenuSeparator, MenuShortcut, MenuSub, MenuSubPopup, MenuSubTrigger, MenuTrigger
+- `apps/web/src/components/ui/middle-truncate.tsx` — exports: MiddleTruncate, splitForMiddleTruncate
+- `apps/web/src/components/ui/number-field.tsx` — exports: NumberField, NumberFieldDecrement, NumberFieldGroup, NumberFieldIncrement, NumberFieldInput, NumberFieldPrimitive
+- `apps/web/src/components/ui/panel-tab-close-button.tsx` — exports: PanelTabCloseButton
+- `apps/web/src/components/ui/popover.tsx` — exports: Popover, PopoverClose, PopoverContent, PopoverCreateHandle, PopoverPopup, PopoverTitle, PopoverTrigger
+- `apps/web/src/components/ui/preview-card.tsx` — exports: PreviewCard, PreviewCardPopup, PreviewCardTrigger
+- `apps/web/src/components/ui/qr-code.tsx` — exports: 
+- `apps/web/src/components/ui/radio-group.tsx` — exports: Radio, RadioGroup, RadioGroupItem
+- `apps/web/src/components/ui/refresh-icon.tsx` — exports: RefreshIcon
+- `apps/web/src/components/ui/scroll-area.tsx` — exports: ScrollArea, ScrollBar, getVirtualizedScrollFadeClassName
+- `apps/web/src/components/ui/select.tsx` — exports: Select, SelectButton, SelectContent, SelectGroup, SelectGroupLabel, SelectItem, SelectPopup, SelectTrigger, SelectValue
+- `apps/web/src/components/ui/separator.tsx` — exports: Separator
+- `apps/web/src/components/ui/sheet.tsx` — exports: Sheet, SheetBackdrop, SheetContent, SheetDescription, SheetHeader, SheetOverlay, SheetPopup, SheetPortal, SheetTitle
+- `apps/web/src/components/ui/sidebar.tsx` — exports: Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarHeader, SidebarInput, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar, useSidebarVisibility
+- `apps/web/src/components/ui/sidebarState.ts` — exports: ResponsiveSidebarState, resolveSidebarState
+- `apps/web/src/components/ui/skeleton.tsx` — exports: Skeleton
+- `apps/web/src/components/ui/spinner.tsx` — exports: Spinner
+- `apps/web/src/components/ui/standalone-page.tsx` — exports: StandalonePage, StandalonePageHeader
+- `apps/web/src/components/ui/switch.tsx` — exports: Switch
+- `apps/web/src/components/ui/table.tsx` — exports: Table, TableBody, TableCell, TableHead, TableHeader, TableRow
+- `apps/web/src/components/ui/textarea.tsx` — exports: Textarea, TextareaProps
+- `apps/web/src/components/ui/toast.logic.ts` — exports: buildVisibleToastLayout, hasVisibleToastAction, shouldHideCollapsedToastContent, shouldRenderThreadScopedToast
+- `apps/web/src/components/ui/toast.tsx` — exports: AnchoredToastProvider, StackedThreadToastOptions, ThreadToastData, ToastPosition, ToastProvider, anchoredToastManager, hiddenToastActionProps, stackedThreadToast, toastManager
+- `apps/web/src/components/ui/toastHelpers.ts` — exports: StackedThreadToastOptions, children, hiddenToastActionProps, stackedThreadToast
+- `apps/web/src/components/ui/toggle-group.tsx` — exports: Toggle, ToggleGroup, ToggleGroupItem
+- `apps/web/src/components/ui/toggle.tsx` — exports: Toggle, toggleVariants
+- `apps/web/src/components/ui/tooltip.tsx` — exports: Tooltip, TooltipPopup, TooltipProvider, TooltipScrollDismissArea, TooltipTrigger
+- `apps/web/src/components/ui/wizard.tsx` — exports: WizardFooter, WizardHeader, WizardPanel, WizardPopup, WizardSteps
+- `apps/web/src/components/usage/UsageLimits.tsx` — exports: LimitWindows, PaceIcon, ResetCreditDialog, ResetCredits, UsageLimitsSection, barColor, resetCreditsSummary, usePaceMark, useResetCredit
+- `apps/web/src/components/usage/UsageLimitsPooled.tsx` — exports: UsageLimitsPooled
+- `apps/web/src/components/usage/UsageModelDialog.tsx` — exports: SpeedPremium, UsageChartWindow, UsageModelDialog
+- `apps/web/src/components/usage/UsagePage.tsx` — exports: UsagePage
+- `apps/web/src/components/usage/UsagePriceOverrides.tsx` — exports: UsagePriceOverrides
+- `apps/web/src/components/usage/UsageProviderChart.tsx` — exports: DayColumn, UsageChartMetric, UsageProviderChart, buildPeriodColumns
+- `apps/web/src/components/usage/UsageShareBar.tsx` — exports: ShareSegment, UsageShareBar
+- `apps/web/src/components/usage/usageBreakdown.ts` — exports: cacheHitRate, costPerMillionTokens, costTypeSegments, modelShare, sortModelsByTokens, speedCostSegments, tokenTypeSegments
+- `apps/web/src/components/usage/usagePagePreferences.ts` — exports: UsagePagePreferences, readUsagePagePreferences, saveUsagePagePreferences
+- `apps/web/src/components/usage/usagePriceForm.ts` — exports: USAGE_PRICE_FIELDS, UsagePriceForm, isUsagePriceEdit, parseUsagePriceForm, usagePriceForm
+- `apps/web/src/components/usage/usagePriceTable.ts` — exports: UsagePriceDraft, UsagePriceField, isEmptyUsagePriceDraft, usageAliasCell, usagePriceCell, usagePriceTableChanges, usagePriceTableErrors
+- `apps/web/src/components/usage/usagePriceTargets.ts` — exports: UsagePriceChange, UsagePriceTarget, UsagePriceWriteResult, writeUsagePrices
+- `apps/web/src/components/usage/usageProviders.ts` — exports: PROVIDER_ORDER, PROVIDER_PRESENTATION, UsageProviderPresentation, providersWithUsage
+- `apps/web/src/components/usage/usageShortcuts.ts` — exports: UsageMetric, WINDOW_OPTIONS, resolveUsageShortcut
+- `apps/web/src/composer-code-block.ts` — exports: convertCodeFenceOnEnter, exitCodeBlockOnClosingFence, exitCodeBlockOnTrailingBlankLines, indentCodeBlock, indentedNewlineInCodeBlock, selectionInOneCodeBlock
+- `apps/web/src/composer-code-languages.ts` — exports: CODE_BLOCK_LANGUAGES, CodeBlockLanguage, codeLanguageEntry, codeLanguageLabel, languageOfInfoString, withInfoStringLanguage
+- `apps/web/src/composer-editor-mentions.ts` — exports: ComposerPromptSegment, collectComposerPromptInlineTokens, selectionTouchesMentionBoundary, splitPromptIntoComposerSegments
+- `apps/web/src/composer-list-continuation.ts` — exports: ComposerListEdit, listContinuationForEnter, listIndentForTab, nextOrderedMarkerText
+- `apps/web/src/composer-logic.ts` — exports: ComposerSlashCommand, ComposerSubmissionIntent, ComposerTrigger, ComposerTriggerKind, clampCollapsedComposerCursor, collapseExpandedComposerCursor, composerRequiresModifier, composerStateAtPromptEnd, composerSubmissionIntentForKey, detectComposerTrigger, expandCollapsedComposerCursor, extendReplacementRangeForTrailingSpace, formatAssistantCitationForComposer, isCollapsedCursorAdjacentToInlineToken, isPathSuggestionCurrent, parseStandaloneComposerSlashCommand, pastedPathQueryLength, replaceTextRange
+- `apps/web/src/composer-rich-text-doc.ts` — exports: ComposerBlockExtensions, RichDocMap, RichRun, SkillChipReplacement, SkillMeta, buildDocJson, buildTiptapContent, caretTakesMarksBefore, convertBulletItemToTask, flatToMarkdown, flatToPm, isClosingFence, markdownToFlat, parseOpeningFence, pmToFlat, serializeEditorDoc, serializeSelection, skillChipReplacements, splitOrLiftListItem, stepCaretAcrossStyledEdge
+- `apps/web/src/composer-rich-text.ts` — exports: RICH_TEXT_DELIMITERSRecordRichTextMark, RichTextMark, parseInlineMarkdown, string
+- `apps/web/src/composer-undo-grouping.ts` — exports: COMPOSER_UNDO_GROUP_DELAY, ComposerChangeKind, groupUndoByChangeKind, markAsClipboardEdit
+- `apps/web/src/composerDraftStore.ts` — exports: COMPOSER_DRAFT_STORAGE_KEY, ComposerContextAddOptions, ComposerContextInsertionHandler, ComposerFileAttachment, ComposerImageAttachment, ComposerThreadDraftState, ComposerThreadTarget, DraftId, DraftSessionState, DraftThreadEnvMode, DraftThreadState, EffectiveComposerModelState, PersistedComposerDraftFileAttachment, PersistedComposerFileAttachment, PersistedComposerImageAttachment, beginBackgroundDraftSubmissionByRef, clearBackgroundDraftSubmissionByRef, clearComposerDraftsEnvironment, composerDraftHasUserContent, composerFileDedupKey, composerFileMatchesReattachMarker, composerFileNeedsReattach, composerTargetKey, deriveEffectiveComposerModelState, finalizePromotedDraftThreadByRef, hydrateImagesFromPersisted, markPromotedDraftThreadByRef, partializeComposerDraftStoreState, resolveComposerDraftKey, restoreFailedDraftThread, subscribeComposerDraftModelReconciliation, useBackgroundDraftSubmissionPending, useComposerDraftModelState, useComposerDraftStore, useComposerThreadDraft, useThreadHasUnsentDraft
+- `apps/web/src/composerHandleContext.ts` — exports: ComposerHandleContext, ComposerHandleRef, useComposerHandleContext
+- `apps/web/src/composerPlaceholder.ts` — exports: DISCONNECTED_COMPOSER_PLACEHOLDER, orattachimages, sendfollowups
+- `apps/web/src/confirmDialog.ts` — exports: ConfirmDialogState, completeConfirmDialogClose, isConfirmDialogActive, readConfirmDialogState, registerConfirmDialogHost, requestConfirmDialog, resetConfirmDialogForTests, respondToConfirmDialog, subscribeConfirmDialog
+- `apps/web/src/connection/catalog.ts` — exports: environmentCatalog
+- `apps/web/src/connection/clientMetadata.ts` — exports: clientPresentationMetadata
+- `apps/web/src/connection/desktopLocal.ts` — exports: DesktopSecondaryBootstrapsRead, DesktopSecondaryBootstrapsReader, createDesktopSecondaryBootstrapsReader, desktopLocalBackendId, desktopLocalConnectionId, isDesktopLocalConnectionTarget, isWslConnectionTarget, readDesktopSecondaryBootstraps, readDesktopSecondaryBootstrapsResult
+- `apps/web/src/connection/onboarding.ts` — exports: connectPairing, connectSshEnvironment
+- `apps/web/src/connection/platform.ts` — exports: LayerErrorConnectionPlatformLayerSource, LayerServicesConnectionPlatformLayerSource, PrimaryEnvironmentTargetRead, RejectedSecondaryBootstrap, canRetainCachedPlatformRegistrationAfterRefreshFailure, canReuseCachedPlatformRegistration, isRejectedBootstrapCredentialError, isRejectedSecondaryBootstrap, layerLayerLayerLayerSuccessConnectionPlatformLayerSource, nextRejectedSecondaryBootstrap, primaryRegistrationToRetainAfterTopologyRead, secondaryRegistrationsToRetainAfterTopologyRead
+- `apps/web/src/connection/runtime.ts` — exports: LayerErrorConnectionLayerSource, connectionAtomRuntimeAtomAtomRuntimeLayerSuccessConnectionLayerSource
+- `apps/web/src/connection/storage.ts` — exports: CatalogBackend, makeBrowserGitHubRoutingPermissions, makeCatalogBackend
+- `apps/web/src/connection/useDesktopLocalBootstraps.ts` — exports: useDesktopLocalBootstraps
+- `apps/web/src/contextMenuFallback.ts` — exports: dismissContextMenu, isContextMenuOpen, showContextMenuFallback
+- `apps/web/src/desktopAppActivation.ts` — exports: DesktopAppActivationDependencies, DesktopAppActivationProject, DesktopAppActivationTarget, handleDesktopAppActivationRequest
+- `apps/web/src/diffFileActions.ts` — exports: openDiffFilePrimaryAction, resolveDiffPathForWorkspace
+- `apps/web/src/diffPanelStore.ts` — exports: DiffPanelSelection, selectThreadDiffPanelSelection
+- `apps/web/src/editorLabels.ts` — exports: editorLabelForPlatform, openInEditorMenuLabel
+- `apps/web/src/editorPreferences.ts` — exports: PreferredEditorEnvironmentRequiredError, PreferredEditorUnavailableError, useOpenInPreferredEditor, usePreferredEditor
+- `apps/web/src/env.ts` — exports: isElectron
+- `apps/web/src/environments/primary/auth.ts` — exports: PrimaryEnvironmentAuthSessionTimeoutError, PrimaryEnvironmentPairingCredentialRejectedError, PrimaryEnvironmentPairingCredentialRequiredError, PrimaryEnvironmentRequestError, ServerClientSessionRecord, ServerPairingLinkRecord, __resetServerAuthBootstrapForTests, createServerPairingCredential, fetchSessionState, peekPairingTokenFromUrl, resolveInitialServerAuthGateState, retryTransientBootstrap, revokeOtherServerClientSessions, revokeServerClientSession, revokeServerPairingLink, stripPairingTokenFromUrl, submitServerAuthCredential, takePairingTokenFromUrl
+- `apps/web/src/environments/primary/context.ts` — exports: resetPrimaryEnvironmentDescriptorForTests, resolveInitialPrimaryEnvironmentDescriptor
+- `apps/web/src/environments/primary/desktopAuth.ts` — exports: __resetDesktopPrimaryAuthForTests, readDesktopPrimaryBearerToken
+- `apps/web/src/environments/primary/httpClient.ts` — exports: PrimaryEnvironmentHttpApiClient, PrimaryEnvironmentHttpClient, PrimaryEnvironmentHttpClientContextServicePrimaryEnvironmentHttpClient, layer
+- `apps/web/src/environments/primary/httpLayer.ts` — exports: layer, layerForCurrentOrigin
+- `apps/web/src/environments/primary/index.ts` — exports: DesktopEnvironmentBootstrapIncompleteError, PrimaryEnvironmentPairingCredentialRejectedError, PrimaryEnvironmentProtocolUnsupportedError, PrimaryEnvironmentRequestError, PrimaryEnvironmentTarget, PrimaryEnvironmentUrlInvalidError, ServerClientSessionRecord, ServerPairingLinkRecord, __resetServerAuthBootstrapForTests, createServerPairingCredential, isLoopbackHostname, peekPairingTokenFromUrl, readPrimaryEnvironmentTarget, resetPrimaryEnvironmentDescriptorForTests, resolveInitialPrimaryEnvironmentDescriptor, resolveInitialServerAuthGateState, resolvePrimaryEnvironmentHttpUrl, revokeOtherServerClientSessions, revokeServerClientSession, revokeServerPairingLink, stripPairingTokenFromUrl, submitServerAuthCredential, takePairingTokenFromUrl, usePrimarySessionState
+- `apps/web/src/environments/primary/sessionState.ts` — exports: usePrimarySessionState
+- `apps/web/src/environments/primary/target.ts` — exports: DesktopEnvironmentBootstrapIncompleteError, PrimaryEnvironmentDisabledError, PrimaryEnvironmentProtocolUnsupportedError, PrimaryEnvironmentTarget, PrimaryEnvironmentUrlInvalidError, isLoopbackHostname, readPrimaryEnvironmentTarget, resolvePrimaryEnvironmentHttpUrl
+- `apps/web/src/fileContextMenu.ts` — exports: FileContextMenuAction, FileContextMenuCapabilities, FileContextMenuTarget, resolveFileContextMenuAbsolutePath, useFileContextMenu, useFileContextMenuHandler
+- `apps/web/src/filePathDisplay.ts` — exports: formatWorkspaceRelativePath
+- `apps/web/src/hooks/FileMetadataThreadProvider.tsx` — exports: FileMetadataThreadContext, FileMetadataThreadProvider
+- `apps/web/src/hooks/showThreadUndoNotice.ts` — exports: releaseThreadUndoShortcut, showThreadUndoNotice, threadUndoClaimsShortcut, undoLatestThreadAction, useThreadUndoNotice
+- `apps/web/src/hooks/threadUndo.ts` — exports: 
+- `apps/web/src/hooks/useActiveProjectTarget.ts` — exports: ActiveProjectTarget, useActiveProjectTarget
+- `apps/web/src/hooks/useActiveThreadRef.ts` — exports: useActiveThreadRef
+- `apps/web/src/hooks/useAddProjectTargets.ts` — exports: AddProjectTarget, useAddProjectTargets
+- `apps/web/src/hooks/useCommitOnBlur.ts` — exports: useCommitOnBlur
+- `apps/web/src/hooks/useCopyToClipboard.ts` — exports: ClipboardApiUnavailableError, ClipboardReadError, ClipboardReadUnavailableError, ClipboardWriteError, readTextFromClipboard, useCopyToClipboard, writeTextToClipboard
+- `apps/web/src/hooks/useCustomThemes.ts` — exports: useCustomThemes
+- `apps/web/src/hooks/useDefaultTheme.ts` — exports: defaultThemeGeneration, defaultThemeToApply, useDefaultThemeAdoption
+- `apps/web/src/hooks/useDelayedStatus.ts` — exports: useDelayedStatus
+- `apps/web/src/hooks/useEnvironmentDisconnectDelay.ts` — exports: useEnvironmentDisconnectDelay
+- `apps/web/src/hooks/useEnvironmentTheme.ts` — exports: environmentThemeDefinition, publishedThemeDefinitions, useEnvironmentThemeDefinitions, useEnvironmentThemeSync
+- `apps/web/src/hooks/useFileMetadata.ts` — exports: useFileMetadata
+- `apps/web/src/hooks/useHandleNewThread.ts` — exports: useHandleNewThread, useNewThreadHandler
+- `apps/web/src/hooks/useHtmlRenderTheme.ts` — exports: useHtmlRenderTheme
+- `apps/web/src/hooks/useIncrementalTimelineEntries.ts` — exports: useIncrementalTimelineEntries
+- `apps/web/src/hooks/useLiveRefresh.ts` — exports: useLiveRefresh
+- `apps/web/src/hooks/useLoadBalancedEnvironment.ts` — exports: useLoadBalancedEnvironment
+- `apps/web/src/hooks/useLocalStorage.ts` — exports: LocalStorageOperationError, getLocalStorageItem, setLocalStorageItem, useLocalStorage
+- `apps/web/src/hooks/useLogicalProjectEnvironments.ts` — exports: useLogicalProjectEnvironments
+- `apps/web/src/hooks/useMediaQuery.ts` — exports: MediaQueryInput, useIsMobile, useMediaQuery
+- `apps/web/src/hooks/useNavigateBack.ts` — exports: useEscapeToGoBack
+- `apps/web/src/hooks/useNewProject.ts` — exports: useNewProject
+- `apps/web/src/hooks/useNowMinute.ts` — exports: useNowMinute
+- `apps/web/src/hooks/useNowSecond.ts` — exports: useNowSecond
+- `apps/web/src/hooks/useOpenPanelPullRequestUrl.ts` — exports: useOpenPanelPullRequestUrl
+- `apps/web/src/hooks/usePreviewPanelInlineSize.ts` — exports: PreviewPanelInlineSize, usePreviewPanelInlineSize
+- `apps/web/src/hooks/useProactivePanels.ts` — exports: useProactivePanels
+- `apps/web/src/hooks/usePullRequestChecksRefresh.ts` — exports: usePullRequestChecksRefresh
+- `apps/web/src/hooks/usePullRequestLinking.ts` — exports: canLinkChangeRequest, usePullRequestLinking
+- `apps/web/src/hooks/useRelativeTimeState.ts` — exports: useRelativeTimeState
+- `apps/web/src/hooks/useRemoveClonedProject.ts` — exports: useRemoveClonedProject
+- `apps/web/src/hooks/useResizableWidth.ts` — exports: RESIZABLE_WIDTH_PROPERTY, ResizableWidthHandlers, UseResizableWidthOptions, useResizableWidth
+- `apps/web/src/hooks/useResizeDrag.ts` — exports: useResizeDrag
+- `apps/web/src/hooks/useRightPanelSurfaceClose.ts` — exports: useRightPanelSurfaceClose
+- `apps/web/src/hooks/useScratchProject.ts` — exports: useScratchProject
+- `apps/web/src/hooks/useSettings.ts` — exports: PRIMARY_SETTINGS_UNAVAILABLE_MESSAGE, __resetClientSettingsPersistenceForTests, __setClientSettingsForTests, andthehostedappisnotanchoredtooneChangeitfromthedesktopapporfromtheserversownaddress, ensureClientSettingsHydrated, getClientSettings, mergeEnvironmentSettings, persistClientSettingsPatch, persistClientSettingsUpdate, prepareModelPreferencesPatch, resolveEnvironmentIdentificationMode, updateClientSettings, useClientSettings, useClientSettingsHydrated, useClientSettingsHydrationStatus, useEnvironmentIdentificationMode, useEnvironmentModelPreferences, useEnvironmentSettings, useLegacySidebarEnabled, useMergedSettings, useMigrateModelPreferences, usePersistEnvironmentProviderInstanceMutation, usePrimarySettings, usePrimarySettingsAvailable, useToggleEnvironmentModelFavorite, useUpdateEnvironmentModelPreferences, useUpdateEnvironmentSettings, useUpdatePrimarySettings
+- `apps/web/src/hooks/useSidebarProjectGroups.ts` — exports: useSidebarProjectGroups
+- `apps/web/src/hooks/useSoftwareKeyboardOpen.ts` — exports: useSoftwareKeyboardOpen
+- `apps/web/src/hooks/useStableCallback.ts` — exports: useStableCallback
+- `apps/web/src/hooks/useSupportsMultiplePullRequests.ts` — exports: useSupportsMultiplePullRequests
+- `apps/web/src/hooks/useT3ProjectFileScripts.ts` — exports: T3ProjectFileState, useT3ProjectFileScripts, useT3ProjectFileState
+- `apps/web/src/hooks/useTerminalFocus.ts` — exports: useTerminalFocus
+- `apps/web/src/hooks/useTheme.ts` — exports: DesktopThemeSyncError, ThemeStorageError, readAppearanceModePreference, readThemeHalves, readThemeHalvesRaw, readThemePreference, syncBrowserChromeTheme, useRenderedAppearance, useTheme
+- `apps/web/src/hooks/useThreadActionMenu.ts` — exports: useThreadActionMenu
+- `apps/web/src/hooks/useThreadActions.ts` — exports: ThreadActiveReorderUnsupportedError, ThreadArchiveBlockedError, ThreadAutoSettleOptOutUnsupportedError, ThreadPinReorderUnsupportedError, ThreadPinningUnsupportedError, ThreadSettlementUnsupportedError, ThreadSnoozeBlockedError, ThreadSnoozeUnsupportedError, navigateAfterThreadDeletion, useAcknowledgeThreadWoke, useThreadActions
+- `apps/web/src/hooks/useThreadRouteTarget.ts` — exports: useThreadRouteRef, useThreadRouteTarget
+- `apps/web/src/hooks/useThreadVisitedMigration.ts` — exports: useThreadVisitedMigration
+- `apps/web/src/hooks/useWorkspaceMutationRefresh.ts` — exports: useWorkspaceMutationRefresh
+- `apps/web/src/hostedPairing.ts` — exports: HostedAppChannel, HostedPairingRequest, buildHostedChannelSelectionUrl, buildHostedPairingUrl, configuredHostedAppUrl, hasHostedPairingRequest, isHostedStaticApp, readHostedPairingRequest
+- `apps/web/src/keybindings.ts` — exports: ShortcutEventLike, ShortcutMatchContext, ShortcutModifierStateLike, effectiveShortcutsForCommand, formatShortcutKeyLabel, formatShortcutLabel, isDiffToggleShortcut, isOpenFavoriteEditorShortcut, isRichTextBoldShortcut, isTerminalClearShortcut, isTerminalCloseShortcut, isTerminalNewShortcut, isTerminalSplitShortcut, isTerminalSplitVerticalShortcut, isTerminalToggleShortcut, modelPickerJumpCommandForIndex, modelPickerJumpIndexFromCommand, resolveChatShortcutCommand, resolveShortcutCommand, shortcutConflictKey, shortcutKeyFromEvent, shortcutLabelForCommand, shouldShowThreadJumpHintsForModifiers, terminalDeleteShortcutData, terminalNavigationShortcutData, threadJumpCommandForIndex, threadJumpIndexFromCommand, threadTraversalDirectionFromCommand
+- `apps/web/src/legalLinks.ts` — exports: PRIVACY_POLICY_URL
+- `apps/web/src/lib/addProjectToMachine.ts` — exports: AddProjectToMachineInput, COPYABLE_FILE_MAX_BYTES, CloneProtocol, ProjectFileCopy, addProjectToMachine, cloneUrlForProtocol, cloneUrlProtocol, dismissProjectFileCopy, isDefaultCopiedFile, useProjectFileCopy
+- `apps/web/src/lib/archivedThreadsState.ts` — exports: refreshArchivedThreadsForEnvironment, useArchivedThreadSnapshots
+- `apps/web/src/lib/assistantCitationNavigation.ts` — exports: assistantCitationFromLocation, assistantCitationHash, assistantCitationNavigation
+- `apps/web/src/lib/assistantTextSelection.ts` — exports: AssistantCitationSourceAnchor, AssistantTextSelector, captureAssistantTextSelection, createAssistantTextSelector, findAssistantCitationSourceAnchor, findAssistantCitationText, resolveAssistantCitationRange
+- `apps/web/src/lib/attachmentUploadQueue.ts` — exports: awaitAttachmentUploads, getUploadedAttachments, readAttachmentUpload, releaseAttachmentUpload, releaseDraftAttachment, releaseDraftAttachments, releasePersistedAttachmentUpload, retryAttachmentUpload, startAttachmentUpload, useAttachmentUploadStore, verifyStashedAttachmentUpload
+- `apps/web/src/lib/attachmentUploadState.ts` — exports: AttachmentUploadState, ReadyAttachmentUpload, attachmentUploadBlockReason, formatAttachmentUploadProgress
+- `apps/web/src/lib/backgroundActivityReporter.ts` — exports: layerObserver, observeBackgroundActivitySubscription, retainedBackgroundScopes
+- `apps/web/src/lib/baseRefChoices.ts` — exports: BaseRefChoice, buildBaseRefChoices, filterBaseRefChoices
+- `apps/web/src/lib/bootError.ts` — exports: showBootError
+- `apps/web/src/lib/chatThreadActions.ts` — exports: ChatThreadActionContext, hasExplicitComposerModelSelection, resolveNewDraftStartFromOrigin, resolveNewThreadModelSelectionOverride, resolveThreadActionProjectRef, startNewThreadFromContext
+- `apps/web/src/lib/checkpointDiffState.ts` — exports: useCheckpointDiff
+- `apps/web/src/lib/chunkReloadGuard.ts` — exports: clearChunkReloadGuard, reloadOnceForChunkLoadError
+- `apps/web/src/lib/color.ts` — exports: HsvColor, hexToHsv, hsvToHex
+- `apps/web/src/lib/composerContextRecords.ts` — exports: BoundComposerAttachment, PullRequestContextDisplayState, ResolvedUserMessageContext, asKnownContextRecord, attachmentContextRecord, buildMessageContext, composerContextImportLookupIds, fileContextReference, imageContextReference, isPullRequestSummaryContext, isSameComposerContextPayload, previewAnnotationContextId, previewAnnotationContextLabel, previewAnnotationContextRecord, previewAnnotationContextReference, previewAnnotationFromRecord, pullRequestContextDisplayState, pullRequestContextKindLabel, resolveUserMessageContext, reviewCommentContextId, reviewCommentContextLabel, reviewCommentContextRecord, reviewCommentContextReference, reviewCommentFromRecord, selectedMessageContextFragment, terminalContextDraftFromRecord, terminalContextRecord, terminalContextReference, threadContextRecord, threadContextReference, uploadedAttachmentContextRecord
+- `apps/web/src/lib/composerContextReferences.ts` — exports: ComposerContextReference, appendInlineContextReference, collectInlineContextIds, ensureInlineContextReferences, formatInlineContextReference, inlineContextReferenceReplacement, insertInlineContextReference, producerIdFromComposerContextId, removeInlineContextReference, stripInlineContextReferences
+- `apps/web/src/lib/composerDraftUploads.ts` — exports: releaseComposerDraftUploads, releaseProjectDraftUploads
+- `apps/web/src/lib/contextWindow.ts` — exports: ContextWindowSnapshot, deriveLatestContextWindowSnapshot, formatContextWindowTokens, latestProviderTurnTokenUsage
+- `apps/web/src/lib/copiedComposerAttachments.ts` — exports: copiedComposerAttachmentFile, rememberCopiedComposerAttachments
+- `apps/web/src/lib/desktopPasteAsText.ts` — exports: DESKTOP_PASTE_AS_TEXT_EVENT, installDesktopPasteAsText
+- `apps/web/src/lib/desktopSnapShot.ts` — exports: DesktopSnapShotBridge, dispatchSnapShotComposerFocus, getDesktopSnapShotBridge, subscribeSnapShotComposerFocus
+- `apps/web/src/lib/diffCollapse.ts` — exports: areAllDiffFilesCollapsed, toggleAllDiffFiles
+- `apps/web/src/lib/diffFileContents.ts` — exports: createGitDiffFileContentsLoader, createPullRequestDiffFileContentsLoader
+- `apps/web/src/lib/diffRendering.ts` — exports: DIFF_SURFACE_THEME_UNSAFE_CSS, DiffLineStat, DiffThemeName, RenderablePatch, buildFileDiffContentVersion, buildFileDiffIdentityKey, buildFileDiffRenderKey, fnv1a32, getDiffCollapseIconClassName, getDiffLineStat, getRenderablePatch, resolveDiffThemeName, resolveFileDiffPath, resolveFileDiffPreviousPath
+- `apps/web/src/lib/discardComposerDraft.ts` — exports: discardComposerDraft
+- `apps/web/src/lib/editableFocus.ts` — exports: isEditableFocused
+- `apps/web/src/lib/elementContext.ts` — exports: ElementContextSelection, elementContextToPreviewAnnotation, normalizeElementContextSelection
+- `apps/web/src/lib/embeddedScripts.ts` — exports: EmbeddedScript, embeddedScripts
+- `apps/web/src/lib/favicon.ts` — exports: faviconUrlForOrigin
+- `apps/web/src/lib/formatBytes.ts` — exports: formatBytes
+- `apps/web/src/lib/imageCompression.ts` — exports: CompressImageFileResult, CompressStashImageResult, CompressedStashImage, ImageCompressionFailureReason, MAX_COMPRESSIBLE_SOURCE_BYTES, MAX_STASH_IMAGE_DATA_URL_CHARS, compressImageForStash, compressImageToByteLimit, createComposerImageThumbnail, dataUrlToFile, isHeicImageFile, prepareImageForAttachment, readFileAsDataUrl
+- `apps/web/src/lib/incrementalHighlighting.ts` — exports: createIncrementalHighlightedDocument
+- `apps/web/src/lib/lruCache.ts` — exports: LRUCache
+- `apps/web/src/lib/lucideIconByName.ts` — exports: lucideIconByName, lucideIconNamesReadonlyArraystring
+- `apps/web/src/lib/observeResize.ts` — exports: observeResize
+- `apps/web/src/lib/openPullRequestLink.ts` — exports: ChangeRequestLink, changeRequestRepositoryUrl, findProjectForChangeRequest, findProjectOnChangeRequestHost, gitHubPullRequestBrowserUrl, matchesLinkedPullRequestUrl, parseChangeRequestUrl, pullRequestCandidateUrlFromReferenceAutolink, resolvePullRequestPreviewTarget, shouldOpenPullRequestExternally, useOpenChangeRequestLink, useOpenPrLink, usePullRequestPreviewTarget
+- `apps/web/src/lib/orchestrationV2Timeline.ts` — exports: removeAndRenumberTimelineItem, upsertTimelineItemAtStablePosition
+- `apps/web/src/lib/previewAnnotation.ts` — exports: PreviewAnnotationCapture, capturePreviewAnnotationScreenshot
+- `apps/web/src/lib/previewFocus.ts` — exports: isPreviewFocused
+- `apps/web/src/lib/projectPaths.ts` — exports: appendBrowsePathSegment, ensureBrowseDirectoryPath, findProjectByPath, getBrowseDirectoryPath, hasTrailingPathSeparator, inferProjectTitleFromPath, isExplicitRelativeProjectPath, isUnsupportedWindowsProjectPath, normalizeProjectPathForComparison, resolveProjectPathForDispatch
+- `apps/web/src/lib/projectScriptKeybindings.ts` — exports: PROJECT_SCRIPT_KEYBINDING_INVALID_MESSAGE, decodeProjectScriptKeybindingRule, keybindingValueForCommand
+- `apps/web/src/lib/projectScriptTerminal.ts` — exports: findReusableProjectScriptTerminal
+- `apps/web/src/lib/resourceTelemetryState.ts` — exports: ResourceTelemetryState, useResourceTelemetry, useResourceTelemetryHistory
+- `apps/web/src/lib/revealThreadTerminal.ts` — exports: revealThreadTerminal
+- `apps/web/src/lib/runtime.ts` — exports: E, LayerErrorRuntimeLayerSource, PrimaryHttpEffectRunner, __setPrimaryHttpRunnerForTests, layerLayerLayerLayerSuccessRuntimeLayerSource, runPrimaryHttp, runtimeManagedRuntimeManagedRuntimeLayerSuccessRuntimeLayerSource
+- `apps/web/src/lib/selectionActions.ts` — exports: SELECTION_MULTI_CLICK_INTERVAL_MS, SelectionActionPoint, isSelectionRectVisible, observeSelectionActions, resolveSelectionActionPosition
+- `apps/web/src/lib/snapShotAnimation.ts` — exports: PendingSnapShotAnimation, beginSnapShotAnimation, dismissAllSnapShotAnimations, dismissSnapShotAnimation, finishSnapShotAnimation, getPendingSnapShotAnimations, pendingSnapShotAnimationIdsForTarget, scheduleSnapShotAnimationDestination, setSnapShotAnimationDestination, shouldAnimateSnapShotArrival, subscribeToPendingSnapShotAnimations, updateSnapShotAnimationSource, waitForSnapShotAnimationDestination
+- `apps/web/src/lib/snapShotSetupResume.ts` — exports: clearSnapShotSetupResume, readSnapShotSetupResume, saveSnapShotSetupResume, shouldResumeSnapShotSetupOnStartup
+- `apps/web/src/lib/snapShotShortcut.ts` — exports: formatSnapShotShortcutLabel, parseDesktopSnapShotShortcut, sameSnapShotShortcut, snapShotKeybindingConflict, snapShotShortcutKeyLabels
+- `apps/web/src/lib/snapShotSound.ts` — exports: playSnapShotSound
+- `apps/web/src/lib/snapShotSource.ts` — exports: resizeSnapShotSource
+- `apps/web/src/lib/softwareKeyboard.ts` — exports: createSoftwareKeyboardStore
+- `apps/web/src/lib/sourceControlActions.ts` — exports: readCachedPullRequestResolution, useGitStackedAction, usePreparePullRequestThreadAction, usePullRequestResolution, useSourceControlActionRunning, useSourceControlPublishRepositoryAction, useVcsInitAction, useVcsPullAction
+- `apps/web/src/lib/storage.ts` — exports: DeferredStorage, StateStorage, createDeferredStorage, createMemoryStorage, resolveStorage
+- `apps/web/src/lib/syntaxHighlighting.ts` — exports: PREFERRED_HIGHLIGHTERHighlighterTypes, getSyntaxHighlighterPromise
+- `apps/web/src/lib/t3ProjectFileDefaults.ts` — exports: readT3ProjectFile
+- `apps/web/src/lib/terminalCloseConfirm.ts` — exports: confirmTerminalClose, isTerminalCloseConfirmPending
+- `apps/web/src/lib/terminalCloseShortcut.ts` — exports: TerminalCloseShortcutEvent, preventRepeatedTerminalCloseShortcut, preventTerminalCloseShortcut
+- `apps/web/src/lib/terminalContext.ts` — exports: INLINE_TERMINAL_CONTEXT_PLACEHOLDER, TerminalContextDraft, TerminalContextReferenceSource, TerminalContextSelection, filterTerminalContextsWithText, formatTerminalContextLabel, formatTerminalContextReference, isTerminalContextExpired, migrateLegacyTerminalContextPlaceholders, normalizeTerminalContextText
+- `apps/web/src/lib/terminalFocus.ts` — exports: TerminalFocusOwner, getTerminalFocusOwner, isTerminalFocused
+- `apps/web/src/lib/threadContextAttachment.ts` — exports: threadContextAttachment
+- `apps/web/src/lib/threadSort.ts` — exports: ThreadSortInput, getLatestThreadForProject, getThreadSortTimestamp, sortThreads, toSortableTimestamp
+- `apps/web/src/lib/turnDiffTree.ts` — exports: TurnDiffStat, TurnDiffTreeDirectoryNode, TurnDiffTreeFileNode, TurnDiffTreeNode, buildTurnDiffTree, summarizeTurnDiffStats
+- `apps/web/src/lib/utils.ts` — exports: cn, getLocalFileManagerName, isMacPlatform, isWindowsPlatform, newDraftId, newMessageId, newProjectId, newThreadId, normalizeSearchText, randomUUID
+- `apps/web/src/lib/videoFirstFrame.ts` — exports: prepareVideoFirstFrame
+- `apps/web/src/lib/visibleAnimation.ts` — exports: observeVisibleAnimation
+- `apps/web/src/lib/windowControlsOverlay.ts` — exports: onWindowControlsOverlayGeometryChange, syncDocumentElectronPlatformClasses, syncDocumentWindowControlsOverlayClass, useNativeTitlebarHeight, windowControlsOverlayHeight
+- `apps/web/src/localApi.ts` — exports: createLocalApi, ensureLocalApi, readLocalApi
+- `apps/web/src/localEnvironment.ts` — exports: isLocalEnvironmentDisabled
+- `apps/web/src/logicalProject.ts` — exports: ProjectGroup, ProjectGroupMember, ProjectGroupingMode, ProjectGroupingSettings, buildProjectGroups, deriveLogicalProjectKeyFromSettings, derivePhysicalProjectKey, derivePhysicalProjectKeyFromPath, deriveProjectGroupingOverrideKey, getProjectOrderKey, selectProjectGroupingSettings
+- `apps/web/src/main.tsx` — exports: 
+- `apps/web/src/markdown-clipboard.ts` — exports: MarkdownClipboardPayload, chatMarkdownClipboardPayload, mathWrapperOf, serializeCodeBlockToMarkdown, serializeRenderedMarkdownFragment, serializeTableElementToCsv, serializeTableElementToMarkdown
+- `apps/web/src/markdown-incremental.ts` — exports: createIncrementalMarkdownPlugin
+- `apps/web/src/markdown-links.ts` — exports: MarkdownFileLinkMeta, resolveInlineCodeFileLinkMeta, resolveMarkdownFileLinkMeta, rewriteMarkdownFileUriHref, shouldOpenMarkdownFileLinkInBrowserByDefault, shouldOpenMarkdownFileLinkInEditor
+- `apps/web/src/markdownFileHostPath.ts` — exports: markdownFileCopyPaths, markdownFileEditorTarget, resolveMarkdownFileHostPath
+- `apps/web/src/modelOrdering.ts` — exports: ModelSlugItem, ProviderModelItem, providerModelKey, sortModelsForProviderInstance, sortProviderModelItems
+- `apps/web/src/modelPickerVisibility.ts` — exports: isModelPickerOpen
+- `apps/web/src/modelSelection.ts` — exports: AppModelOption, MAX_CUSTOM_MODEL_LENGTH, getAppModelOptionsForInstance, getCustomModelOptionsByInstance, resolveAppModelSelection, resolveAppModelSelectionForInstance, resolveAppModelSelectionState, resolveEffectiveDefaultModelSelection, selectsPlanAgent
+- `apps/web/src/observability/clientTracer.ts` — exports: hasDelegate, setDelegate
+- `apps/web/src/observability/clientTracing.ts` — exports: ClientTracingConfig, configureClientTracing
+- `apps/web/src/onboarding/firstRun.logic.ts` — exports: FirstRunDecision, FirstRunGateState, isFirstRunWorkspaceProvenanceAuthoritative, isFreshFirstRunWorkspace, resolveFirstRunDecision, resolveHostedFirstRunDecision, transitionFirstRunGateState
+- `apps/web/src/onboarding/firstRun.ts` — exports: completeOnboarding
+- `apps/web/src/onboarding/projectImport.logic.ts` — exports: OnboardingProjectGroup, groupOnboardingProjects, onboardingProjectKey, partitionOnboardingProjects, resolveOnboardingLandingProject, resolveOnboardingProjectId, splitOnboardingProjectPath
+- `apps/web/src/onboarding/providerReadiness.logic.ts` — exports: getOnboardingProviderState, resolveOnboardingProviderInstallCommand, resolveOnboardingProviderLoginCommand, selectOnboardingProvidersByDriver
+- `apps/web/src/onboarding/targetEnvironment.logic.ts` — exports: isOnboardingRelayEnvironment, resolveOnboardingSetup, resolveOnboardingTargetEnvironment
+- `apps/web/src/onboarding/useProjectScans.ts` — exports: useProjectScans
+- `apps/web/src/openVsxThemes.ts` — exports: OpenVsxThemeExtension, OpenVsxThemeSearchOptions, OpenVsxThemeSort, importOpenVsxThemeExtension, searchOpenVsxThemes
+- `apps/web/src/pairingUrl.ts` — exports: getPairingTokenFromUrl, setPairingTokenOnUrl, stripPairingTokenFromUrl
+- `apps/web/src/panelAnimations.ts` — exports: PanelAnimationSuppressionProvider, usePanelAnimationSettings, usePanelNavigationSuppression, usePanelPresence
+- `apps/web/src/pendingUserInput.ts` — exports: PendingUserInputDraftAnswer, PendingUserInputProgress, buildPendingUserInputAnswers, carryDisplacedCustomAnswerIntoPrompt, derivePendingUserInputProgress, findFirstUnansweredPendingUserInputQuestionIndex, pendingUserInputRequestKey, projectPendingUserInputAnswer, pruneResolvedUserInputDrafts, resolvePendingUserInputAnswer, setPendingUserInputCustomAnswer, threadContextsReferencedByAnswer, togglePendingUserInputOptionSelection
+- `apps/web/src/performance.bench.ts` — exports: 
+- `apps/web/src/pierre-icons.ts` — exports: PierreIconResolution, T3_PIERRE_ICONS, basenameOfPath, ensurePierreIconSprite, hasSpecificPierreIconForFileName, resolvePierreIconForEntry, syntheticFileNameForLanguageId
+- `apps/web/src/pierre-tree-theme.ts` — exports: pierreTreeStyle
+- `apps/web/src/portDiscoveryState.ts` — exports: boundConfiguredLocalServerUrls, useDiscoveredPortsState, useThreadDiscoveredPorts
+- `apps/web/src/previewMiniPlayerStore.ts` — exports: PreviewMiniPlayerPosition, PreviewMiniPlayerSize, PreviewMiniPlayerSource, PreviewMiniPlayerState, browserMiniPlayerSource, previewMiniPlayerSourceKey, selectThreadPreviewMiniPlayer, selectThreadPreviewMiniPlayerTabId
+- `apps/web/src/previewStateStore.ts` — exports: DesktopPreviewOverlay, ThreadPreviewState, __testing, applyPreviewDesktopState, applyPreviewServerEvent, applyPreviewServerSnapshot, beginPreviewSessionClose, cancelPreviewSessionClose, clearThreadPreviewState, isPreviewSupportedInRuntime, previewStateAtom, readThreadPreviewState, reconcilePreviewServerSessions, rememberPreviewUrl, resetPreviewStateForTests, setActivePreviewTab, updatePreviewServerSnapshot, useActivePreviewSessions, useThreadPreviewState, whenPreviewTabKnown
+- `apps/web/src/projectIconColors.ts` — exports: projectIconColorClassName
+- `apps/web/src/projectIconOptions.ts` — exports: PROJECT_ICON_COLORS, filterProjectIconNames, firstEmoji, projectIconColorClassName
+- `apps/web/src/projectIdentity.ts` — exports: ProjectIdentity, deriveProjectIdentity
+- `apps/web/src/projectScripts.ts` — exports: ProjectScriptInput, buildProjectScript, commandForProjectScript, nextProjectScriptId, primaryProjectScript, projectScriptIdFromCommand, releaseClaimedRoles
+- `apps/web/src/promptStashStore.ts` — exports: MAX_STASH_ENTRIES, MAX_STASH_ENTRY_ATTACHMENT_CHARS, PROMPT_STASH_STORAGE_KEY, PromptStashEntry, partitionStashAttachments, writePromptStashStorageForTest
+- `apps/web/src/proposedPlan.ts` — exports: PLAN_IMPLEMENTATION_PROMPT_PREFIX, buildCollapsedProposedPlanPreviewMarkdown, buildPlanImplementationPrompt, buildPlanImplementationThreadTitle, buildProposedPlanMarkdownFilename, downloadPlanAsTextFile, normalizePlanMarkdownForExport, resolvePlanFollowUpSubmission
+- `apps/web/src/providerAuthDelivery.ts` — exports: pendingProviderAuthDelivery, prepareProviderAuthDelivery
+- `apps/web/src/providerInstances.ts` — exports: NO_PROVIDER_MODEL_SELECTIONModelSelection, ProviderCatalogAvailability, ProviderInstanceEntry, applyProviderInstanceSettings, deriveProviderEntriesByEnvironment, deriveProviderInstanceEntries, getDefaultProviderInstanceModel, isProviderInstancePickerReady, isProviderInstancePickerVisible, normalizeProviderAccentColor, resolveDefaultProviderModelSelection, resolveProviderCatalogAvailability, resolveSelectableProviderInstance, resolveSelectableProviderInstanceEntry, shouldShowInstanceBadge, sortProviderInstanceEntries
+- `apps/web/src/providerModels.ts` — exports: formatProviderDriverKindLabel, getDefaultServerModel, getProviderModelCapabilities, getProviderModels, resolveSelectableProvider
+- `apps/web/src/providerSkillSearch.ts` — exports: scoreProviderSkill, searchProviderSkills
+- `apps/web/src/providerUpdateDismissal.ts` — exports: useDismissedProviderUpdateNotificationKeys
+- `apps/web/src/questionAttachments.ts` — exports: changeQuestionAttachmentPreparation, clearQuestionAttachmentDraft, countQuestionAttachments, countQuestionRequestAttachments, openQuestionAttachmentDraft, questionAttachmentDraftId, questionAttachmentDraftPrefix, trackOpenQuestionAttachmentDraft, useQuestionAttachmentPreparation
+- `apps/web/src/remoteOpen.ts` — exports: RemoteOpenHost, RemoteOpenMode, RemoteOpenResolution, RemoteOpenState, openRemoteEditorUrl, resolveRemoteOpenState, useRemoteCapableEditors, useRemoteOpenHint, useRemoteOpenResolution, useRemoteOpenState
+- `apps/web/src/reopenClosedView.ts` — exports: ReopenOwnerState, planNextReopen, pullRequestsSearchForRestore, reopenClosedView
+- `apps/web/src/reviewCommentContext.ts` — exports: ReviewCommentContext, ReviewCommentContextSchema, buildDiffReviewComment, buildFileReviewComment, buildReviewCommentRenderablePatch, formatReviewCommentFence, inferReviewCommentFenceLanguage, resolveDiffReviewPosition, restoreDiffReviewCommentRange
+- `apps/web/src/rightPanelLayout.ts` — exports: RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY, ThreadPanelPresentation
+- `apps/web/src/rightPanelStore.ts` — exports: DeviceTabTarget, PULL_REQUESTS_PANEL_REF, PullRequestDetailTab, PullRequestSurface, RightPanelKind, RightPanelSurface, ThreadPanelVisibility, ThreadRightPanelState, migratePersistedRightPanelState, pullRequestSurface, pullRequestSurfaceId, selectActiveRightPanel, selectActiveRightPanelSurface, selectSelectedRightPanelSurface, selectThreadPanelOpen, selectThreadPanelVisibility, selectThreadRightPanelState
+- `apps/web/src/routeTree.gen.ts` — exports: FileRouteTypes, FileRoutesByFullPath, FileRoutesById, FileRoutesByTo, RootRouteChildren, routeTree
+- `apps/web/src/router.ts` — exports: AppRouter, getRouter
+- `apps/web/src/routes/__root.tsx` — exports: 
+- `apps/web/src/routes/_chat.$environmentId.$threadId.tsx` — exports: Route
+- `apps/web/src/routes/_chat.draft.$draftId.tsx` — exports: Route
+- `apps/web/src/routes/_chat.index.tsx` — exports: Route
+- `apps/web/src/routes/_chat.new.tsx` — exports: Route
+- `apps/web/src/routes/_chat.pull-requests.tsx` — exports: Route
+- `apps/web/src/routes/_chat.tsx` — exports: 
+- `apps/web/src/routes/connect-agent.tsx` — exports: Route
+- `apps/web/src/routes/connect.tsx` — exports: 
+- `apps/web/src/routes/pair.tsx` — exports: 
+- `apps/web/src/routes/projects.$projectKey.tsx` — exports: 
+- `apps/web/src/routes/settings.appearance.tsx` — exports: Route
+- `apps/web/src/routes/settings.archived.tsx` — exports: Route
+- `apps/web/src/routes/settings.connections.tsx` — exports: Route
+- `apps/web/src/routes/settings.diagnostics.tsx` — exports: Route
+- `apps/web/src/routes/settings.general.tsx` — exports: Route
+- `apps/web/src/routes/settings.integrations.tsx` — exports: Route
+- `apps/web/src/routes/settings.keybindings.tsx` — exports: Route
+- `apps/web/src/routes/settings.open-source-licenses.tsx` — exports: Route
+- `apps/web/src/routes/settings.projects.tsx` — exports: Route
+- `apps/web/src/routes/settings.providers.tsx` — exports: Route
+- `apps/web/src/routes/settings.scheduled-tasks.tsx` — exports: Route
+- `apps/web/src/routes/settings.snap-shot.tsx` — exports: Route
+- `apps/web/src/routes/settings.source-control.tsx` — exports: Route
+- `apps/web/src/routes/settings.storage.tsx` — exports: Route
+- `apps/web/src/routes/settings.tsx` — exports: 
+- `apps/web/src/routes/usage.tsx` — exports: 
+- `apps/web/src/routes/welcome.tsx` — exports: 
+- `apps/web/src/rpc/atomRegistry.ts` — exports: AppAtomRegistryProvider, appAtomRegistry
+- `apps/web/src/rpc/requestLatencyState.ts` — exports: SlowRpcAckRequest, acknowledgeRpcRequest, trackRpcRequestSent, useSlowRpcAckRequests
+- `apps/web/src/rpc/transportError.ts` — exports: sanitizeThreadErrorMessage
+- `apps/web/src/session-logic.ts` — exports: ActivePlanState, LatestProposedPlanState, PendingApproval, PendingUserInput, TimelineAttempt, TimelineEntriesInput, TimelineEntriesProjection, TimelineEntry, TurnDiffSummary, WorkLogEntry, WorkLogToolLifecycleStatus, createMessageAttachmentPreviewProjector, deriveActivePlanState, deriveActiveWorkStartedAt, deriveCanInterruptRunningThread, derivePendingApprovals, derivePendingUserInputs, derivePhase, deriveRevertTurnCountByUserMessageId, deriveTimelineEntriesFromVisibleTurnItems, deriveTimelineEntriesFromVisibleTurnItemsWithState, findLatestProposedPlan, findRevertCheckpoint, formatDuration, hasActionableProposedPlan, isLatestRunSettled, isStreamingMessageTextUpdate, isStreamingTurnItemTextUpdate, providerErrorPresentation, selectComposerTasksPlan, selectHandoffImageResources, selectMessageImageResources, timelineEntryIsPersistentResourceCard, workEntryDisplayIndicatesToolFailure, workEntryIndicatesToolFailure, workEntryIndicatesToolNeutralStatus, workEntryIndicatesToolSuccess, workEntrySignalsSevereFailure, workLogEntryIsToolLike
+- `apps/web/src/settleAndAdvance.ts` — exports: registerSettleAndAdvance, settleAndAdvance
+- `apps/web/src/shortcutModifierState.ts` — exports: ShortcutModifierState, shortcutModifierStateAfterKeyboardEvent, useShortcutModifierState
+- `apps/web/src/sidebarPendingFileDropStore.ts` — exports: SidebarPendingFileDrop, isSameSidebarThreadRef
+- `apps/web/src/sidebarProjectGrouping.ts` — exports: EnvironmentPresence, SidebarProjectGroupMember, SidebarProjectPickerEntry, SidebarProjectSnapshot, buildPhysicalToLogicalProjectKeyMap, buildSidebarProjectPickerEntries, buildSidebarProjectSnapshots, getSidebarProjectSettingsKey, projectGroupsSpanEnvironments, resolveSidebarProjectScopeKey
+- `apps/web/src/sourceControlPresentation.ts` — exports: ChangeRequestTerminology, SourceControlPresentation, getSourceControlPresentation, getSourceControlPresentationForKind, sourceControlIcon
+- `apps/web/src/state/agentSessions.ts` — exports: agentSessionImport, agentSessionScan
+- `apps/web/src/state/assets.ts` — exports: assetEnvironment, projectFaviconUrlAtom
+- `apps/web/src/state/attachments.ts` — exports: attachmentEnvironment
+- `apps/web/src/state/auth.ts` — exports: authEnvironment
+- `apps/web/src/state/desktopNetworkAccess.ts` — exports: DesktopNetworkAccessSnapshot, desktopNetworkAccessStateAtom, refreshDesktopNetworkAccessState
+- `apps/web/src/state/desktopSshHosts.ts` — exports: desktopSshHostsStateAtom, filterDiscoveredSshHosts
+- `apps/web/src/state/desktopUpdate.ts` — exports: DesktopUpdateStateReadError, createDesktopUpdateStateAtom, useDesktopUpdateState
+- `apps/web/src/state/desktopWslState.ts` — exports: desktopWslStateAtom, refreshDesktopWslState
+- `apps/web/src/state/device.ts` — exports: deviceEnvironment, refreshDeviceHubAccess, renewDeviceHubAccess, useDeviceHubAccess, useDeviceState
+- `apps/web/src/state/entities.ts` — exports: readEnvironmentSupportsActiveReorder, readEnvironmentSupportsAutoSettleOptOut, readEnvironmentSupportsPinReorder, readEnvironmentSupportsPinning, readEnvironmentSupportsServerBrowser, readEnvironmentSupportsSettlement, readEnvironmentSupportsSnooze, readEnvironmentSupportsTitleRegeneration, readEnvironmentSupportsVisitedTracking, readEnvironmentThreadRefs, readProject, readProjects, readThreadShell, readThreadShells, resolveThreadDetailRef, selectThreadRelationshipShells, setActiveEnvironmentId, useActiveEnvironmentId, useAllEnvironmentProjectSnapshotsReady, useAllEnvironmentShellsBootstrapped, useChildThreadInputs, useEnvironmentSupportsServerBrowser, useEnvironmentThreadRefs, useProject, useProjects, useQuietThreadShell, useQuietThreadShells, useServerConfigs, useThreadCheckpointSummaries, useThreadHistory, useThreadProjection, useThreadRefs, useThreadRelationshipShells, useThreadShell, useThreadShells, useThreadShellsForProjectRefs, useThreadStatus, useThreadVisibleTurnItems, waitForProject, waitForProjectRemoval, waitForThreadShell
+- `apps/web/src/state/environmentAtomList.ts` — exports: environmentAtomList, environmentIdsKey
+- `apps/web/src/state/environments.ts` — exports: EnvironmentPresentation, useConnectedEnvironmentIds, useEnvironment, useEnvironmentHttpBaseUrl, useEnvironmentIdentities, useEnvironmentIds, useEnvironmentMachines, useEnvironmentProviders, useEnvironments, usePrimaryEnvironment, usePrimaryEnvironmentId, usePullRequestsSupported, useRelayEnvironmentDiscovery
+- `apps/web/src/state/filesystem.ts` — exports: filesystemEnvironment, useFilesystemReadAccess
+- `apps/web/src/state/git.ts` — exports: gitEnvironment
+- `apps/web/src/state/mcpApps.ts` — exports: mcpAppEnvironment
+- `apps/web/src/state/npmRelease.ts` — exports: useNpmReleasePublished
+- `apps/web/src/state/orchestration.ts` — exports: orchestrationEnvironment
+- `apps/web/src/state/paginatedBranches.ts` — exports: isPaginatedBranchesNextPagePending, shouldLoadNextBranchPageAfterScroll
+- `apps/web/src/state/presentation.ts` — exports: environmentPresentations, environmentSummaries, useEnvironmentPresentation
+- `apps/web/src/state/preview.ts` — exports: previewEnvironment
+- `apps/web/src/state/previewStream.ts` — exports: readPreviewStreamAccess, refreshPreviewStreamAccess, usePreviewStreamAccess
+- `apps/web/src/state/primaryEnvironment.ts` — exports: 
+- `apps/web/src/state/projectClones.ts` — exports: isProjectCloneToastSilenced, silenceProjectCloneToasts, useEnvironmentProjectClones, useProjectClone
+- `apps/web/src/state/projects.ts` — exports: environmentProjects, projectContentSearch, projectEnvironment
+- `apps/web/src/state/pullRequests.ts` — exports: EnvironmentQueryTarget, MergedPullRequestListView, ObservedPullRequestSummary, linkedPullRequestDetailAtom, newestPullRequestObservation, newestPullRequestSummary, pullRequestEnvironment, pullRequestListEntryToSummary, pullRequestStackAtom, threadPullRequestLinkToSummary, usePullRequestList, usePullRequestListStats, usePullRequestTurnRefresh, usePullRequestTurnRefreshes, useSharedPullRequestSummary
+- `apps/web/src/state/queries.ts` — exports: useCheckpointDiff, useComposerPathSearch, useDebouncedValue, usePaginatedBranches, useProjectContentSearch, useProjectPathSearch, useThreadSearch, useTurnItemDetail
+- `apps/web/src/state/query.ts` — exports: EnvironmentQueryView, formatEnvironmentQueryError, useEnvironmentQuery, useEnvironmentQueryIsNewer, useEnvironmentQueryRefresh, useEnvironmentQuerySelector
+- `apps/web/src/state/relay.ts` — exports: relayEnvironmentDiscoveryReturnTypetypeofcreateRelayEnvironmentDiscoveryAtoms
+- `apps/web/src/state/review.ts` — exports: reviewEnvironment
+- `apps/web/src/state/server.ts` — exports: EMPTY_SERVER_PROVIDERSReadonlyArrayServerProvider, createShortcutKeybindingsAtom, environmentServerConfigsAtom, environmentUpdateStatesAtom, primaryServerAvailableEditorsAtom, primaryServerConfigAtom, primaryServerConfigEventAtom, primaryServerEnvironmentThemesAtom, primaryServerKeybindingsAtom, primaryServerProvidersAtom, primaryServerSettingsAtom, primaryServerWelcomeAtom, providersIgnoringCheckedAtAtom, serverEnvironment, updateOutdatedServer
+- `apps/web/src/state/serverProviders.logic.ts` — exports: reuseProvidersIgnoringCheckedAt
+- `apps/web/src/state/session.ts` — exports: environmentSession, environmentSessionStatesAtom, readEnvironmentScope, readPreparedConnection, useEnvironmentScope, useEnvironmentSessionState, useEnvironmentsWithScope, usePreparedConnection
+- `apps/web/src/state/shell.ts` — exports: allEnvironmentProjectSnapshotsReadyAtom, createAllEnvironmentProjectSnapshotsReadyAtom, environmentShell, environmentSnapshotAtom, shellEnvironment, useEnvironmentShellHasSnapshot, useEnvironmentShellStatus
+- `apps/web/src/state/sourceControl.ts` — exports: sourceControlEnvironment
+- `apps/web/src/state/sourceControlActions.ts` — exports: PullRequestResolutionTarget, SourceControlActionKind, SourceControlActionScope, readCachedPullRequestResolution, useGitStackedAction, usePreparePullRequestThreadAction, usePullRequestResolutionState, useSourceControlActionRunning, useSourceControlPublishRepositoryAction, useVcsInitAction, useVcsPullAction
+- `apps/web/src/state/terminal.ts` — exports: terminalEnvironment
+- `apps/web/src/state/terminalSessions.ts` — exports: selectKnownTerminalSessions, useAttachedTerminalSession, useKnownTerminalSessions, useThreadRunningTerminalIds
+- `apps/web/src/state/threads.ts` — exports: createRunningThreadKeepAliveAtom, environmentThreadDetails, environmentThreadShells, runningThreadKeepAliveAtom, threadEnvironment, useEnvironmentThread
+- `apps/web/src/state/usage.ts` — exports: EnvironmentUsageStatus, UsageView, mergeAnsweredUsage, useUsage
+- `apps/web/src/state/use-atom-command.ts` — exports: useAtomCommand
+- `apps/web/src/state/use-atom-query-runner.ts` — exports: useAtomQueryRunner
+- `apps/web/src/state/use-orchestration-command.ts` — exports: ORCHESTRATION_OPERATE_DENIED_MESSAGE, useOrchestrationCommand
+- `apps/web/src/state/usePullRequestStack.ts` — exports: usePullRequestStack
+- `apps/web/src/state/v2ItemSupport.ts` — exports: useV2ItemSupport
+- `apps/web/src/state/vcs.ts` — exports: vcsActionManager, vcsEnvironment
+- `apps/web/src/state/waitForAtomValue.ts` — exports: waitForAtomValue
+- `apps/web/src/terminal-links.ts` — exports: TerminalBufferLineLike, TerminalLinkKind, TerminalLinkMatch, WrappedTerminalLinkLine, WrappedTerminalLinkLineSegment, collectWrappedTerminalLinkLine, extractTerminalLinks, isTerminalLinkActivation, isTerminalUrl
+- `apps/web/src/terminal/ghostty/core.ts` — exports: GHOSTTY_CELL_WIDE, GhosttyCell, GhosttyColor, GhosttyMouseInput, GhosttyPointInput, GhosttyRow, GhosttyScrollbar, GhosttySelectionRange, GhosttySnapshot, GhosttyTerminalCore, GhosttyTheme, ghosttyCellText, ghosttyColorsEqual
+- `apps/web/src/terminal/ghostty/keyCodes.ts` — exports: GhosttyKeyboardLayoutMap, ghosttyConsumedMods, ghosttyKeyForCode, ghosttyKeyForEvent, ghosttyUnshiftedCodepoint, loadGhosttyKeyboardLayoutMap
+- `apps/web/src/terminal/ghostty/renderer.ts` — exports: GhosttyCellMetrics, GhosttyCellRange, measureGhosttyCell, renderGhosttySnapshot, terminalGridSize
+- `apps/web/src/terminal/ghostty/runtime.ts` — exports: GhosttyRuntime, __indirect_function_table, ghostty_write_pty, loadGhosttyRuntime, memory
+- `apps/web/src/terminal/ghostty/surface.ts` — exports: GhosttySelectionPosition, GhosttyTerminalFont, GhosttyTerminalSurface, GhosttyTerminalSurfaceOptions, TerminalLinkWithRange, TerminalScrollbarGeometry, TerminalSelectionClickSequence, advanceTerminalSelectionClickSequence, applyTerminalCopyEvent, clearPrimedTerminalCopyInput, isTerminalCompositionKey, isTerminalCopyShortcut, primeTerminalCopyInput, resolveTerminalMouseData, terminalContentOriginY, terminalLinkAtPositionWithRange, terminalWheelDeltaRows
+- `apps/web/src/terminalUiStateStore.ts` — exports: migratePersistedTerminalUiStateStoreState, selectThreadTerminalUiState
+- `apps/web/src/test-fixtures.ts` — exports: ThreadFixtureOverrides, makeStreamingTimelineFixture, makeThreadFixture, makeThreadProjectionFixture
+- `apps/web/src/themePalette.ts` — exports: CUSTOM_THEMES_STORAGE_KEY, EMBER_THEME, GROVE_THEME, IRIS_THEME, OCEAN_THEME, T3_CHAT_THEME, THEME_APPEARANCE_MODE_STORAGE_KEY, THEME_COLOR_ROLES, THEME_FILE_VERSION, THEME_FOLLOW_SYSTEM_STORAGE_KEY, THEME_HALVES_STORAGE_KEY, THEME_PREVIEW_ID, ThemeAppearance, ThemeCollection, ThemeColorOverrides, ThemeColorRole, ThemeColors, ThemeDefinition, ThemeFile, ThemeHalves, ThemeLibraryStorageError, ThemePreference, ThemePreferenceMode, ThemeVariantOverrides, ThemeVariants, applyThemeColorPreview, applyThemePalette, canonicalThemePreference, createVividThemeColors, getCustomThemes, getDefaultThemeColors, getEnvironmentThemes, getStandardThemeColors, getStoredCustomThemeCollection, getThemeColorVariable, getThemeColorsForMode, getThemeDefinition, getThemeModes, getThemePreferenceMode, getThemePreviewAppearance, getThemePreviewSidebarArtwork, installCustomTheme, invalidateCustomThemes, isKnownThemePreference, isReservedThemeId, isThemeColor, lenientThemeColorOverrides, parseThemeFile, parseThemeHalves, readableThemeColorOn, removeCustomTheme, removeCustomThemes, replaceCustomThemeCollection, resolveDesktopTheme, resolveThemeAppearance, resolveThemeHalf, serializeThemeFile, setEnvironmentThemes, singleAppearanceOf, subscribeToCustomThemes, subscribeToThemePreview, themeAllowsSidebarArtwork, themeColorToHex, themeIdFromName, toCanonicalThemeColor, updateCustomTheme, updateThemeColorFamily
+- `apps/web/src/threadNotifications.ts` — exports: NOTIFICATION_MODE_LABELS, hasDesktopNotifications, hasNotificationSound, playNotificationSound, setNotificationBadge, string, threadNotificationTag, unlockNotificationAudio
+- `apps/web/src/threadRoutes.ts` — exports: ThreadRouteRenderState, ThreadRouteTarget, buildDraftThreadRouteParams, buildThreadRouteParams, isThreadRoutePathname, isThreadRouteSnapshotAuthoritative, resolveActiveThreadRouteRef, resolveThreadRouteRef, resolveThreadRouteRenderState, resolveThreadRouteTarget
+- `apps/web/src/threadSelectionStore.ts` — exports: ThreadSelectionState, getThreadKeysToDeselectAfterDelete
+- `apps/web/src/threadSync.ts` — exports: ThreadSyncPhase, resolveThreadSyncPhase, threadSyncLabel
+- `apps/web/src/timestampFormat.ts` — exports: RelativeTimeState, formatChatTimestampTooltip, formatDayAwareTimestamp, formatElapsedDurationLabel, formatExpiresInLabel, formatRelativeElapsed, formatRelativeTime, formatRelativeTimeLabel, formatRelativeTimeUntilLabel, formatShortTimestamp, formatUpcomingTimestamp, msUntilRelativeTimeChange, parseTimestampDate, relativeTimeElapsedMs, resolveHour12, weekStartsOn
+- `apps/web/src/types.ts` — exports: ChatAttachment, ChatFileAttachment, ChatImageAttachment, ChatMessage, ChatUnknownAttachment, DEFAULT_INTERACTION_MODEProviderInteractionMode, DEFAULT_RUNTIME_MODERuntimeMode, DEFAULT_THREAD_TERMINAL_HEIGHT, DEFAULT_THREAD_TERMINAL_ID, MAX_TERMINALS_PER_GROUP, Project, ProjectScript, ProposedPlan, SessionPhase, SidebarThreadSummary, Thread, ThreadSession, ThreadShell, ThreadTerminalGroup, TurnDiffFileChange, TurnDiffSummary, isFileAttachment, isImageAttachment, isVideoAttachment, videoMimeType
+- `apps/web/src/uiStateStore.ts` — exports: PERSISTED_STATE_KEY, PersistedUiState, UiEndpointState, UiProjectState, UiPullRequestState, UiState, UiThreadState, legacyProjectCwdPreferenceKey, markThreadUnread, markThreadVisited, parsePersistedState, persistState, reorderProjects, resolveProjectExpanded, setProjectExpanded, useUiStateStore
+- `apps/web/src/vendor/mdast-find-and-replace.ts` — exports: MarkdownNode, TextMatch, findAndReplaceText
+- `apps/web/src/versionSkew.ts` — exports: VersionMismatch, buildVersionMismatchDismissalKey, dismissServerUpdateFailure, dismissVersionMismatch, isServerUpdateFailureDismissed, isVersionMismatchDismissed, manualServerUpdateCommand, resolveServerConfigVersionMismatch, resolveServerSelfUpdateCapability, resolveVersionMismatch, serverUpdateGuidance, supportsDesktopAppUpdate, supportsServerUpdateThreadContinuation
+- `apps/web/src/vite-env.d.ts` — exports: 
+- `apps/web/src/vscodeThemeImport.ts` — exports: humanizeThemeName, isVsCodeThemeFile, pairVsCodeThemes, parseVsCodeThemeFile, resolveThemeLabelCollisions
+- `apps/web/src/workspaceTitlebar.ts` — exports: COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS
+- `apps/web/src/worktreeCleanup.ts` — exports: formatWorktreePathForDisplay, getOrphanedWorktreePathForThread
+- `apps/web/src/wslPaths.ts` — exports: WslEnvironmentCandidate, WslEnvironmentConfiguration, WslProjectSelection, WslUncPath, applyWslEnvironmentConfiguration, parseWslUncPath, resolveProjectPickerTarget, resolveWslProjectSelection
+- `apps/web/test/browserSetup.ts` — exports: 
+- `apps/web/test/environmentHttpTest.ts` — exports: EnvironmentHttpTestCalls, installEnvironmentHttpTest
+- `apps/web/test/fixtures/usage-limits-hub/hub.mjs` — exports: 
+- `apps/web/test/render.tsx` — exports: RenderOptions, Screen, act, fakeTimers, render, stubGlobal
+- `apps/web/vercel.ts` — exports: configVercelConfig
+- `apps/web/vite.config.ts` — exports: default
+- `apps/web/vite/tailwind.ts` — exports: tailwindPlugins
+- `apps/web/vite/warmBundledDev.ts` — exports: warmBundledDevPlugin
+- `infra/relay/alchemy.run.ts` — exports: default
+- `infra/relay/scripts/android-push-smoke.ts` — exports: 
+- `infra/relay/scripts/android-push-watch.ts` — exports: 
+- `infra/relay/scripts/tunnel-census.ts` — exports: 
+- `infra/relay/src/Config.ts` — exports: ApnsCredentials, ApnsEnvironment, ManagedEndpointCleanupMode, RelayConfiguration, layer, legacyManagedEndpointCleanupModeConfig, legacyTunnelGraceMinutesConfig, make, managedEndpointCleanupModeConfig
+- `infra/relay/src/WebCrypto.ts` — exports: WebCrypto
+- `infra/relay/src/agentActivity/AgentActivityPublisher.ts` — exports: AgentActivityPublishError, AgentActivityPublisher, TERMINAL_AGENT_ACTIVITY_DISPLAY_TTL_MS, isExpiredAgentActivityState, layer, makeAggregateState
+- `infra/relay/src/agentActivity/AgentActivityRows.ts` — exports: AgentActivityRowDeletePersistenceError, AgentActivityRowListPersistenceError, AgentActivityRowPruneTerminalPersistenceError, AgentActivityRowUpsertPersistenceError, AgentActivityRows, layer
+- `infra/relay/src/agentActivity/ApnsClient.ts` — exports: ApnsClient, ApnsDeliveryResult, ApnsError, ApnsHttpRequestError, ApnsJwtEncodingError, ApnsJwtSigningError, ApnsLiveActivityEvent, layer
+- `infra/relay/src/agentActivity/ApnsDeliveries.ts` — exports: ApnsDeliveries, ApnsDeliveryError, ApnsDeliveryJobClaimInFlight, ApnsDeliveryTransportError, SendLiveActivityDeliveryInput, alertForAttentionTransition, alertForNewlyTerminal, alertForTerminalAggregate, isApnsDeliveryTransportError, layer
+- `infra/relay/src/agentActivity/ApnsDeliveryQueue.ts` — exports: ApnsDeliveryQueue, ApnsDeliveryQueueError, ApnsDeliveryQueueSendError, ApnsDeliveryQueueSender, layer, layerCloudflareQueues
+- `infra/relay/src/agentActivity/ApnsProviderTokens.ts` — exports: APNS_JWT_REUSE_SECONDS, ApnsProviderTokens, __resetApnsProviderTokenCacheForTest, layer, quantizedApnsJwtIssuedAt
+- `infra/relay/src/agentActivity/DeliveryAttempts.ts` — exports: DeliveryAttemptCompletionInput, DeliveryAttemptInput, DeliveryAttemptRecordPersistenceError, DeliveryAttempts, DeliverySourceJobClaimResult, layer
+- `infra/relay/src/agentActivity/Devices.ts` — exports: DeviceListPersistenceError, DeviceRegistrationPersistenceError, DeviceUnregistrationPersistenceError, Devices, layer
+- `infra/relay/src/agentActivity/FcmAssertionSigner.ts` — exports: FcmAssertionSigner, FcmAssertionSigningError, layer
+- `infra/relay/src/agentActivity/FcmClient.ts` — exports: FcmClient, FcmClientError, layer
+- `infra/relay/src/agentActivity/FcmDeliveries.ts` — exports: FcmDeliveries, FcmDeliveryError, FcmDeliveryJob, androidAlertForAggregate, androidAlertForState, layer
+- `infra/relay/src/agentActivity/FcmDeliveryQueueConsumer.ts` — exports: 
+- `infra/relay/src/agentActivity/FcmDeliveryQueueSender.ts` — exports: FcmDeliveryQueueSender
+- `infra/relay/src/agentActivity/LiveActivities.ts` — exports: DeviceRow, LiveActivities, LiveActivityDeliveryMarkPersistenceError, LiveActivityIdleTargetListPersistenceError, LiveActivityRegistrationPersistenceError, LiveActivityRow, LiveActivityTargetListPersistenceError, TargetRow, layer
+- `infra/relay/src/agentActivity/MobileRegistrations.ts` — exports: MobileRegistrationError, MobileRegistrations, layer
+- `infra/relay/src/agentActivity/agentActivityAggregate.ts` — exports: TERMINAL_AGENT_ACTIVITY_DISPLAY_TTL_MS, activityPhasePriority, makeAggregateState, statusForPhase
+- `infra/relay/src/agentActivity/agentActivityAlerts.ts` — exports: AgentActivityAlert, TERMINAL_NOTIFICATION_FRESHNESS_MS, alertAllowedForPhase, alertForActivityRows, alertForAttentionTransition, alertForNewlyTerminal, alertForTerminalAggregate, attentionTransitionRows, isFreshTerminalNotification, newlyTerminalRows, rowPhasesChanged, shouldAlertForActivity, terminalTransitionRows
+- `infra/relay/src/agentActivity/agentActivityPayloads.ts` — exports: MAX_ACTIVITY_ROWS, agentActivityExpiresAt, isExpiredAgentActivityState, isTerminalPhase, notificationForActivity, sanitizeAgentActivityAggregateRow, sanitizeAgentActivityAggregateState, sanitizeApnsNotificationPayload
+- `infra/relay/src/agentActivity/apnsDeliveryJobs.ts` — exports: APNS_DELIVERY_JOB_SIGNING_ALGORITHM, ApnsDeliveryJobCreatedAtInvalid, ApnsDeliveryJobExpired, ApnsDeliveryJobExpiresAtInvalid, ApnsDeliveryJobInvalid, ApnsDeliveryJobLiveActivityAggregateMissing, ApnsDeliveryJobLiveActivityNotificationUnexpected, ApnsDeliveryJobPayload, ApnsDeliveryJobPushNotificationAggregateUnexpected, ApnsDeliveryJobPushNotificationMissing, ApnsDeliveryJobQueuePayloadInvalid, ApnsDeliveryJobSignatureInvalid, ApnsDeliveryJobTimeWindowInvalid, ApnsDeliveryJobTimeWindowTooLong, ApnsDeliveryJobVerificationError, ApnsLiveActivityAlert, ApnsNotificationPayload, SignedApnsDeliveryJob, expiresAtForJob, isApnsDeliveryJobVerificationError, makeApnsDeliveryJobPayload, signApnsDeliveryJob, verifySignedApnsDeliveryJob
+- `infra/relay/src/agentActivity/apnsJwt.ts` — exports: ApnsJwtEncodingError, ApnsJwtError, ApnsJwtSigningError, ApnsJwtSigningInput, apnsProviderTokenCacheKey
+- `infra/relay/src/agentActivity/fcmPayloads.ts` — exports: androidActivityData, fitFcmData
+- `infra/relay/src/auth/DpopProofs.ts` — exports: DpopProofFailureCode, DpopProofRejected, DpopProofReplay, DpopProofReplayPersistenceError, layer
+- `infra/relay/src/auth/RelayTokens.ts` — exports: LinkChallengeClaims, RELAY_DPOP_ACCESS_TOKEN_TTL, RelayDpopAccessTokenClaims, RelayTokens, layer
+- `infra/relay/src/clientConfig.ts` — exports: EnvValueNotSingleLineError, RelayClientConfig, RelayUrlUnavailableError, reconcileEnvFile, relayClientConfigEnv, tokenDigest
+- `infra/relay/src/db.ts` — exports: RelayDb, RelayTransactions
+- `infra/relay/src/dbConfig.ts` — exports: RelayDatabaseMode, relayDatabaseMode
+- `infra/relay/src/deploymentConfig.ts` — exports: MANAGED_ENDPOINT_KEY_PATTERN, MANAGED_ENDPOINT_ZONE_OWNER_STAGE, RelayPublicDomainLabelTooLongError, isManagedEndpointHostname, managedEndpointDigestInput, managedEndpointForHostname, managedEndpointHostname, managedEndpointTunnelName, managedEndpointTunnelNameForKey, managedEndpointTunnelNamePrefix, relayOwnsManagedEndpointZone, relayPublicDomainForStage, relayResourceNameForStage
+- `infra/relay/src/environments/CloudflareApiPause.ts` — exports: CloudflareApiPause, layer
+- `infra/relay/src/environments/EnvironmentConnector.ts` — exports: E, ENVIRONMENT_MINT_REQUEST_TIMEOUT_MS, EnvironmentConnectNotAuthorized, EnvironmentConnector, EnvironmentConnectorError, EnvironmentMintRequestFailed, EnvironmentMintRequestTimedOut, EnvironmentMintResponseInvalid, ManagedEndpointValidationFailure, R, layer, validateManagedEndpoint, withoutRedirects
+- `infra/relay/src/environments/EnvironmentCredentials.ts` — exports: EnvironmentCredentialAuthenticatePersistenceError, EnvironmentCredentialCreatePersistenceError, EnvironmentCredentialPrincipal, EnvironmentCredentialRevokePersistenceError, EnvironmentCredentials, layer
+- `infra/relay/src/environments/EnvironmentLinker.ts` — exports: EnvironmentLinkError, EnvironmentLinkProofExpired, EnvironmentLinkProofInvalid, EnvironmentLinker, layer
+- `infra/relay/src/environments/EnvironmentLinks.ts` — exports: AgentAwarenessDeliveryUserRecord, EnvironmentLinkEnvironmentLookupPersistenceError, EnvironmentLinkListPersistenceError, EnvironmentLinkLookupPersistenceError, EnvironmentLinkRevokePersistenceError, EnvironmentLinkUpsertPersistenceError, EnvironmentLinkUserListPersistenceError, EnvironmentLinks, RelayLinkedEnvironmentRecord, layer
+- `infra/relay/src/environments/EnvironmentPublishSignatures.ts` — exports: EnvironmentPublishPublicKeyMissing, EnvironmentPublishSignatureError, EnvironmentPublishSignatureExpired, EnvironmentPublishSignatureInvalid, EnvironmentPublishSignatures, layer
+- `infra/relay/src/environments/ManagedEndpointAllocations.ts` — exports: MANAGED_ENDPOINT_ALLOCATION_LOOKUP_BATCH_SIZE, ManagedEndpointAllocation, ManagedEndpointAllocationPersistenceError, ManagedEndpointAllocations, ManagedEndpointTunnelAllocation, layer, resolveReadyManagedEndpoint
+- `infra/relay/src/environments/ManagedEndpointProvider.ts` — exports: CloudflareApiPaused, ManagedEndpointDeprovisionTarget, ManagedEndpointDeprovisioningFailed, ManagedEndpointDnsClient, ManagedEndpointDnsClientError, ManagedEndpointOriginNotAllowed, ManagedEndpointOriginSyncResult, ManagedEndpointProvider, ManagedEndpointProviderError, ManagedEndpointProvisioningFailed, ManagedEndpointProvisioningNotConfigured, ManagedEndpointProvisioningResult, ManagedEndpointTunnel, ManagedEndpointTunnelClient, ManagedEndpointTunnelClientError, ManagedEndpointTunnelListRequest, cloudflareRetryAfterMillis, isCloudflareRateLimited, isManagedEndpointNotFound, isManagedEndpointTunnelInUse, layer, layerDnsClient, layerTunnelClient
+- `infra/relay/src/environments/ManagedEndpointReaper.ts` — exports: MANAGED_ENDPOINT_GRACE_PERIOD_MINUTES, MANAGED_ENDPOINT_INACTIVE_GRACE_PERIOD_MINUTES, MANAGED_ENDPOINT_SWEEP_ATTEMPT_LIMIT, MANAGED_ENDPOINT_SWEEP_DELETE_CONCURRENCY, MANAGED_ENDPOINT_SWEEP_LIST_REQUEST_LIMIT, MANAGED_ENDPOINT_SWEEP_PAGE_SIZE, ManagedEndpointReaper, ManagedEndpointSweepResult, layer
+- `infra/relay/src/environments/ManagedTunnelLimits.ts` — exports: DEFAULT_MANAGED_TUNNEL_LIMIT, ManagedTunnelLimitExceeded, ManagedTunnelLimitPersistenceError, ManagedTunnelLimits, layer
+- `infra/relay/src/environments/endpointFailure.ts` — exports: EndpointFailureDiagnosis, classifyEndpointResponse, classifyTransportFailure
+- `infra/relay/src/hooks/HeldHooks.ts` — exports: HeldHooks, layer
+- `infra/relay/src/hooks/HookForwarder.ts` — exports: ENVIRONMENT_UNREACHABLE_STATUSESReadonlySetnumber, HookForwarder, HookRateLimiter, RELAY_HOOK_ENDPOINT_RATE_LIMIT, RELAY_HOOK_MAX_BODY_BYTES, RELAY_HOOK_PATH_PREFIX, RELAY_HOOK_RATE_LIMIT, isRelayHookPath, layer
+- `infra/relay/src/hooks/HookInbox.ts` — exports: HookInbox, HookInboxError
+- `infra/relay/src/hooks/HookInboxObject.ts` — exports: HookInboxObject
+- `infra/relay/src/hooks/HookInboxStore.ts` — exports: DeliveryOutcome, HOOK_INBOX_MAX_BYTES, HOOK_INBOX_MAX_PER_HOOK, HeldHook, retrySchedule
+- `infra/relay/src/hooks/upstream.ts` — exports: RELAY_HOOK_UPSTREAM_TIMEOUT_MS, TUNNEL_OFFLINE_STATUS, UpstreamHook, UpstreamResponse
+- `infra/relay/src/http/Api.ts` — exports: E, LayerError, LayerRequirements, R, RELAY_HTTP_ROUTER_CONFIG, REffectEffectA, relayDpopFailureReason, traceRelayHttpRequestWith, verifyRelayClientBearerToken, withoutCapturedParentSpan
+- `infra/relay/src/monitoring.ts` — exports: 
+- `infra/relay/src/observability.ts` — exports: E, R, REffectEffectA, withSchemaErrorSpanAttributes, withSpanAttributes
+- `infra/relay/src/persistence/schema.ts` — exports: relayAgentActivityRows, relayDeliveryAttempts, relayDpopProofs, relayEnvironmentCredentials, relayEnvironmentLinks, relayLiveActivities, relayManagedEndpointAllocations, relayManagedTunnelLimits, relayMobileDevices, relayUpstreamApiPauses
+- `infra/relay/src/queues.ts` — exports: RelayApnsDeliveryDeadLetterQueue, RelayApnsDeliveryQueue, RelayFcmDeliveryDeadLetterQueue, RelayFcmDeliveryQueue
+- `infra/relay/src/worker.ts` — exports: Api, default
+- `infra/relay/src/zone.ts` — exports: ManagedEndpointZone, RelayApiZone
+- `native/hyprland-snap-shot/src/capture.rs` — exports: capture, check
+- `native/hyprland-snap-shot/src/feedback.rs` — exports: Options, run
+- `native/hyprland-snap-shot/src/ipc.rs` — exports: Rect, Window, activate, active_window, animations_enabled, destination, ensure_unlocked, request, session_directory, windows
+- `native/hyprland-snap-shot/src/main.rs` — exports: 
+- `native/hyprland-snap-shot/src/protocols.rs` — exports: 
+- `native/hyprland-snap-shot/src/transport_tests.rs` — exports: 
+- `native/kde-snap-shot/src/activate.js` — exports: 
+- `native/kde-snap-shot/src/feedback.rs` — exports: 
+- `native/kde-snap-shot/src/feedbackGeometry.js` — exports: 
+- `native/kde-snap-shot/src/main.rs` — exports: 
+- `native/kde-snap-shot/src/transport_tests.rs` — exports: 
+- `native/resource-monitor/src/main.rs` — exports: 
+- `oxlint-plugin-t3code/index.ts` — exports: default
+- `oxlint-plugin-t3code/rules/namespace-node-imports.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-dom-test-environment.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-frame-waits-in-browser-tests.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-global-process-runtime.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-hermes-unsupported-apis.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-hookless-use-function.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-inline-schema-compile.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-low-value-comments.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-manual-effect-runtime-in-tests.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-manual-memo.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-mobile-pull-request-glyph-literals.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-mobile-uniwind-theme-escape-hatches.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-native-title-tooltip.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-outset-state-indicators.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-polling-loop-in-tests.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-raw-mcp-registration.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-raw-resize-observer.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-real-time-wait-in-tests.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-rpc-permission-bypass.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-test-in-loop.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-test-timeout-or-unreasoned-skip.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-unscoped-has.ts` — exports: default
+- `oxlint-plugin-t3code/rules/no-wall-clock-in-tests.ts` — exports: default
+- `oxlint-plugin-t3code/rules/prefer-catch-tags.ts` — exports: default
+- `oxlint-plugin-t3code/rules/prefer-effect-fn.ts` — exports: default
+- `oxlint-plugin-t3code/rules/require-centered-scroll-gutter.ts` — exports: default
+- `oxlint-plugin-t3code/rules/require-disposable-render.ts` — exports: default
+- `oxlint-plugin-t3code/rules/require-suppression-reason.ts` — exports: default
+- `oxlint-plugin-t3code/test/utils.ts` — exports: 
+- `oxlint-plugin-t3code/utils.ts` — exports: getPropertyName, isIdentifier, unwrapExpression
+- `packages/client-runtime/src/authorization/index.ts` — exports: AuthorizedRemoteEnvironment, AuthorizedRemoteHttpEnvironment
+- `packages/client-runtime/src/authorization/remote.ts` — exports: ClientOwnerParams, RemoteEnvironmentAuthError, RemoteEnvironmentAuthUndeclaredStatusError
+- `packages/client-runtime/src/authorization/service.ts` — exports: AuthorizedRemoteEnvironment, AuthorizedRemoteHttpEnvironment, RemoteEnvironmentAuthorization, layer
+- `packages/client-runtime/src/authorization/tokenStore.ts` — exports: RemoteDpopAccessToken, RemoteDpopAccessTokenStore, layer, make
+- `packages/client-runtime/src/composerThreadItems.ts` — exports: ComposerThreadCandidate, ComposerThreadItem, matchComposerThreadItems
+- `packages/client-runtime/src/connection/catalog.ts` — exports: BearerConnectionCredential, BearerConnectionProfile, BearerConnectionRegistration, ConnectionCatalogEntry, ConnectionCredential, ConnectionProfile, ConnectionRegistration, ConnectionRoute, PlatformConnectionRegistration, PrimaryConnectionRegistration, RelayConnectionRegistration, SshConnectionProfile, SshConnectionRegistration, connectionRegistrationCatalogEntry
+- `packages/client-runtime/src/connection/compatibility.ts` — exports: appendOrchestrationProtocol, orchestrationProtocolCompatibilityError
+- `packages/client-runtime/src/connection/connectivity.ts` — exports: Connectivity, layer
+- `packages/client-runtime/src/connection/credentialStore.ts` — exports: ConnectionCredentialStore, make
+- `packages/client-runtime/src/connection/diagnosis.ts` — exports: ConnectionDiagnosis, ConnectionDiagnosisHop, ConnectionDiagnosisInput, ConnectionHopResult, connectionDiagnosisText, presentConnectionDiagnosis
+- `packages/client-runtime/src/connection/driver.ts` — exports: ConnectionDriver, ConnectionDriverProgress, EnvironmentConnectionLease, RouteCheck, layer
+- `packages/client-runtime/src/connection/errors.ts` — exports: credentialMissingError, environmentMismatchError, mapManagedRelayError, mapRemoteDpopEnvironmentError, mapRemoteEnvironmentError, profileMissingError
+- `packages/client-runtime/src/connection/githubRoutingPermissions.ts` — exports: GitHubRoutingPermission, GitHubRoutingPermissions, StoredGitHubRoutingPermission, gitHubRoutingConnectionKey, gitHubRoutingPermissionFor
+- `packages/client-runtime/src/connection/hostFreeze.ts` — exports: HostFreezeNotice, hostFreezeNotice
+- `packages/client-runtime/src/connection/index.ts` — exports: ConnectionDriverProgress, EnvironmentConnectionLease, EnvironmentNotRegisteredError, OutdatedHostUpdateError, PlatformEnvironmentRemovalError, RouteCheck, orchestrationProtocolCompatibilityError
+- `packages/client-runtime/src/connection/layer.ts` — exports: layer, layerWithOptions
+- `packages/client-runtime/src/connection/model.ts` — exports: AVAILABLE_CONNECTION_STATESupervisorConnectionState, BearerConnectionTarget, ConnectionAttemptError, ConnectionAttemptStage, ConnectionBlockedError, ConnectionBlockedReason, ConnectionFailureCause, ConnectionHop, ConnectionProjectionPhase, ConnectionTarget, ConnectionTargetKind, ConnectionTransientError, ConnectionTransientReason, DPOP_ACCESS_TOKEN_REFRESH_SKEW_MS, NetworkStatus, PersistedConnectionTarget, PreparedConnection, PreparedHttpAuthorization, PrimaryConnectionTarget, RelayConnectionTarget, SshConnectionTarget, SupervisorConnectionPhase, SupervisorConnectionState, connectionProjectionPhase
+- `packages/client-runtime/src/connection/onboarding.ts` — exports: BearerConnectionUpdateInput, ConnectionOnboarding, PairingConnectionInput, SshConnectionInput, layer
+- `packages/client-runtime/src/connection/outdatedHostUpdate.ts` — exports: OutdatedHostUpdateError, OutdatedHostUpdateStage, describeOutdatedHost
+- `packages/client-runtime/src/connection/presentation.ts` — exports: EnvironmentConnectionPhase, EnvironmentConnectionPresentation, EnvironmentPresentation, EnvironmentServerConfig, connectionCatalogDisplayUrl, connectionStatusText, connectionStatusTitle, environmentMcpUrl, presentConnectionState, presentEnvironmentConnection
+- `packages/client-runtime/src/connection/profileStore.ts` — exports: ConnectionProfileStore, make
+- `packages/client-runtime/src/connection/registry.ts` — exports: EnvironmentNotRegisteredError, EnvironmentRegistry, PlatformEnvironmentRemovalError, layer
+- `packages/client-runtime/src/connection/resolver.ts` — exports: ConnectionResolver, layer
+- `packages/client-runtime/src/connection/routes.ts` — exports: ConnectionRouteKind, RELAY_ROUTE_ID, ReportedEndpoint, connectionRouteAddress, connectionRouteId, connectionRouteKind, connectionRouteLabel, connectionRoutes, credentialConnectionId, entryWithRoutes, findRouteToSameAddress, hasRelayRoute, hasSavedBearerRoute, insertRoute, isLearned, mergeLearnedRoutes, removedWithRelay, routeEntry, routeHttpBaseUrl, routesAfterRemoving, sendsTokenInClear, sshTargetKey, upsertRoute, usableRoutes
+- `packages/client-runtime/src/connection/supervisor.ts` — exports: EnvironmentSupervisor, EnvironmentSupervisorOptions
+- `packages/client-runtime/src/connection/wakeups.ts` — exports: ConnectionWakeup, ConnectionWakeups, layer, resetsRetryBackoff, shouldResubscribeAfterWakeup
+- `packages/client-runtime/src/delayedStatus.ts` — exports: DelayedStatus, ShownStatus, createDelayedStatus
+- `packages/client-runtime/src/device/androidFoldScene.ts` — exports: DEFAULT_FOLD_INNER_ASPECT, createAndroidFoldScene, isFoldInnerAspect
+- `packages/client-runtime/src/device/avcConfig.ts` — exports: simulatorAvcConfig
+- `packages/client-runtime/src/device/deviceFraming.ts` — exports: createDeviceFraming
+- `packages/client-runtime/src/device/deviceMotion.ts` — exports: createDeviceMotion
+- `packages/client-runtime/src/device/deviceViewSnap.ts` — exports: nearestDeviceView
+- `packages/client-runtime/src/device/duoControl.ts` — exports: DuoCommand, DuoControlState, DuoOrientation, DuoPose, createDuoControl, createDuoPinch, duoFoldState, duoHoldOrientation, duoScreenSettled
+- `packages/client-runtime/src/device/duoScene.ts` — exports: DuoFrameLayout, DuoHingeLeaf, DuoPanelId, createDuoScene, duoDisplayKey, duoFrameMatches, duoRawPoint
+- `packages/client-runtime/src/device/duoSnap.ts` — exports: DuoRestFace, DuoRestFrame, DuoViewSnap, duoViewSnaps, nearestDuoView
+- `packages/client-runtime/src/device/duoViewer.ts` — exports: DuoViewer, createDuoViewer
+- `packages/client-runtime/src/device/frame.ts` — exports: DeviceFrameSink, createCanvasFrameSink
+- `packages/client-runtime/src/device/hubAccess.ts` — exports: DeviceHubAccess
+- `packages/client-runtime/src/device/model.ts` — exports: DeviceAccessorySource, DeviceAssetSource, DeviceModelId, DeviceModelSource, createDeviceModelSlot, resolveDeviceModelId
+- `packages/client-runtime/src/device/modelScene.ts` — exports: createImportedPhoneScene, disposeDeviceModel, loadDeviceModel
+- `packages/client-runtime/src/device/phoneInteraction.ts` — exports: PhoneNavigation, createPhoneInteraction, phoneWheelNavigation
+- `packages/client-runtime/src/device/phoneScene.ts` — exports: PhoneDisplayLayout, createDisplayProjection, createPhoneScene, phoneDisplayLayout, updateDisplayUv
+- `packages/client-runtime/src/device/phoneViewer.ts` — exports: PhoneViewer, createPhoneViewer
+- `packages/client-runtime/src/device/renderScheduler.ts` — exports: createRenderScheduler
+- `packages/client-runtime/src/device/screenshot.ts` — exports: DeviceScreenshotError, captureDeviceScreenshot
+- `packages/client-runtime/src/device/shapeProfile.ts` — exports: ANDROID_PHONE_SHAPEDeviceShapeProfile, DeviceShapeProfile, IOS_PHONE_SHAPEDeviceShapeProfile, IOS_TABLET_SHAPEDeviceShapeProfile, resolveDeviceShape
+- `packages/client-runtime/src/device/stream.ts` — exports: AvccChunk, AvccDemuxer, DeviceHardwareButton, DeviceScreenSize, DeviceStreamClient, DeviceStreamEvents, DeviceStreamStatus, DeviceStreamTarget, DuoPanelSinks, avcCodecString, createDeviceStreamClient, parseSemuPacket, scanAccessUnit
+- `packages/client-runtime/src/diffCount.ts` — exports: formatDiffCount
+- `packages/client-runtime/src/environment/descriptor.ts` — exports: 
+- `packages/client-runtime/src/environment/endpoint.ts` — exports: 
+- `packages/client-runtime/src/environment/index.ts` — exports: 
+- `packages/client-runtime/src/environment/knownEnvironment.ts` — exports: KnownEnvironment, KnownEnvironmentConnectionTarget, KnownEnvironmentSource
+- `packages/client-runtime/src/environment/scoped.ts` — exports: parseScopedProjectKey, parseScopedThreadKey, scopeProjectRef, scopeThreadRef, scopedProjectKey, scopedThreadKey
+- `packages/client-runtime/src/errors/errorTrace.ts` — exports: findErrorTraceId
+- `packages/client-runtime/src/errors/index.ts` — exports: 
+- `packages/client-runtime/src/errors/network.ts` — exports: NETWORK_BLOCKING_HINT, UNRESPONSIVE_HOST_HINT, asleep, oroffthenetwork, suchasadifferentWiFiormobiledata
+- `packages/client-runtime/src/errors/orchestration.ts` — exports: wasBootstrapThreadDeleted, wasBootstrapThreadNotCreated
+- `packages/client-runtime/src/errors/safeLog.ts` — exports: SafeErrorLogAttributes, safeErrorLogAttributes
+- `packages/client-runtime/src/errors/transport.ts` — exports: isTransportConnectionErrorMessage, sanitizeThreadErrorMessage
+- `packages/client-runtime/src/filePreview.ts` — exports: readFilePreviewResponse
+- `packages/client-runtime/src/handoff.ts` — exports: HandoffEndpoints, HandoffTimelineRun, resolveHandoffEndpoints, resolvePendingHandoff
+- `packages/client-runtime/src/imageAttachmentSize.ts` — exports: DownscalableImageMimeType, IMAGE_ATTACHMENT_MAX_EDGE, downscalableImageMimeType, fitImageAttachmentSize
+- `packages/client-runtime/src/load-balancing.ts` — exports: chooseLoadBalancedEnvironment
+- `packages/client-runtime/src/markdownImages.ts` — exports: MarkdownImageSource, classifyMarkdownImageSource, markdownImageSourceFragment
+- `packages/client-runtime/src/mcpApps/host.ts` — exports: McpAppCallToolResult, McpAppDisplayMode, McpAppDownload, McpAppHost, McpAppHostContext, McpAppHostOptions, McpAppHostRefusal, makeMcpAppHost, mcpAppStyleVariables, mcpResourceBytes
+- `packages/client-runtime/src/mediaActions.ts` — exports: MediaActionId, formatFilePathForClipboard
+- `packages/client-runtime/src/mediaReference.ts` — exports: MediaReference, mediaFileReference, mediaReferenceFileName, mediaUrlReference
+- `packages/client-runtime/src/mediaSource.ts` — exports: MediaSourceResource, ResolveMediaSourceInput, ResolvedMediaSource, resolveMediaSource
+- `packages/client-runtime/src/modelTraits.ts` — exports: REASONING_SELECT_DESCRIPTOR_IDSReadonlySetstring, ULTRATHINK_PROMPT_PREFIX, buildTraitsTriggerDisplay, getDescriptorStringValue, getPromptControlledTraits, getTraitSelectChange, replaceDescriptorCurrentValue, selectableProviderOptionChoices
+- `packages/client-runtime/src/operations/commands.ts` — exports: ArchiveThreadInput, CancelQueuedRunInput, CreateProjectInput, CreateThreadInput, DeleteProjectInput, DeleteThreadInput, DismissThreadUserInputInput, EditQueuedRunInput, ForkThreadFromRunInput, InterruptThreadTurnInput, LinkThreadPullRequestInput, MarkThreadUnreadInput, MergeThreadBackInput, PinThreadInput, PromoteQueuedRunInput, ReorderActiveThreadInput, ReorderPinnedThreadInput, ReorderQueuedRunInput, RespondToThreadApprovalInput, RespondToThreadUserInputInput, ResumeThreadQueueInput, RetryWorkspacePreparationInput, RevertThreadCheckpointInput, SetThreadAutoSettleInput, SetThreadInteractionModeInput, SetThreadRuntimeModeInput, SettleThreadInput, SnoozeThreadInput, StartThreadTurnInput, StopThreadSessionInput, ThreadCommandInput, UnarchiveThreadInput, UnlinkThreadPullRequestInput, UnpinThreadInput, UnsettleThreadInput, UnsnoozeThreadInput, UpdateProjectInput, UpdateThreadMetadataInput, VisitThreadInput, WatchThreadPullRequestInput
+- `packages/client-runtime/src/operations/index.ts` — exports: 
+- `packages/client-runtime/src/operations/projects.ts` — exports: AddProjectCloneFlow, AddProjectRemoteSource, AddProjectRemoteSourceReadiness, AddProjectRemoteSourceReadinessEntry, NewProjectPublishTarget, addProjectRemoteSourceLabel, addProjectRemoteSourcePathHint, addProjectRemoteSourceProvider, availableScratchWorkspaceRoot, buildAddProjectRemoteSourceReadiness, buildProjectCreateCommand, canCreateProjectInEnvironment, findExistingAddProject, getAddProjectInitialQuery, getCloneDestinationBrowsePath, getCloneDestinationPath, getCloneDirectoryName, getDefaultCloneUrl, getNewProjectPathPreview, getNewProjectPublishTarget, getNewProjectPublishTargets, getNewProjectRepository, normalizePastedCloneUrl, parseAddProjectRemoteSource, resolveAddProjectPath, sortAddProjectProviderSources
+- `packages/client-runtime/src/operations/threadTitle.ts` — exports: ThreadTitleSeedInput, deriveThreadTitleSeed, threadTitleTextFromPrompt
+- `packages/client-runtime/src/platform/capabilities.ts` — exports: AnalyticsDevice, ClientPresentation, CloudSession, CloudSessionIdentity, PreparedSshEnvironment, PrimaryEnvironmentAuth, ProvisionedSshEnvironment, RelayDeviceIdentity, SshEnvironmentGateway
+- `packages/client-runtime/src/platform/index.ts` — exports: ConnectionPersistenceError
+- `packages/client-runtime/src/platform/orchestrationCache.ts` — exports: ORCHESTRATION_CACHE_SCHEMA_VERSION, ORCHESTRATION_THREAD_CACHE_SCHEMA_VERSION, StoredOrchestrationShellSnapshot, StoredOrchestrationThreadSnapshot, decodeOrDiscardOrchestrationCache
+- `packages/client-runtime/src/platform/persistence.ts` — exports: ConnectionPersistenceError, ConnectionRegistrationStore, ConnectionTargetStore, EnvironmentCacheStore, EnvironmentOwnedDataCleanup
+- `packages/client-runtime/src/platform/shellCacheEncoding.ts` — exports: makeStoredShellSnapshotEncoder
+- `packages/client-runtime/src/platform/source.ts` — exports: PlatformConnectionSource
+- `packages/client-runtime/src/platform/storageDocument.ts` — exports: ConnectionCatalogDocument, EMPTY_CONNECTION_CATALOG_DOCUMENTConnectionCatalogDocument, StoredConnectionCredential, catalogRoutes, putRemoteDpopTokenInCatalog, registerConnectionInCatalog, removeCatalogValue, removeConnectionFromCatalog, replaceCatalogValue, setConnectionEnabledInCatalog, setRoutesInCatalog
+- `packages/client-runtime/src/preview/serverBrowserStream.ts` — exports: PREVIEW_STREAM_BASE_PATH, PreviewFramePainter, PreviewStreamClient, PreviewStreamControl, PreviewStreamDownload, PreviewStreamEvents, PreviewStreamFileChooser, PreviewStreamInput, PreviewStreamMouseButton, PreviewStreamPointer, PreviewStreamProbe, PreviewStreamTarget, PreviewStreamViewport, createPreviewFramePainter, createPreviewStreamClient, previewStreamControlLabel, previewStreamDownloadUrl, previewStreamHostSetupMessage, thentryagain, thentryagainThisservershostismissinglibrariesitsbrowserneedsRunthisonceonthehost, uploadPreviewStreamFiles
+- `packages/client-runtime/src/projectFaviconCache.ts` — exports: PROJECT_FAVICON_CACHE_MAX_BYTES, PROJECT_FAVICON_CACHE_MAX_ENTRIES, PROJECT_FAVICON_MAX_DATA_URL_LENGTH, PROJECT_FAVICON_MAX_SOURCE_BYTES, PROJECT_FAVICON_THUMBNAIL_SIZE, ProjectFaviconCache, ProjectFaviconEntry, ProjectFaviconStorage, ProjectFaviconTarget, createProjectFaviconCache, createProjectFaviconImageLoader
+- `packages/client-runtime/src/promptLinks.ts` — exports: findPromptLinkProject, findPromptLinkPullRequestThread, resolvePromptLinkModelSelection
+- `packages/client-runtime/src/providerSkills.ts` — exports: ProviderSkillSourceKind, dedupeProviderSkillsByName, getProviderSkillsForSlashMenu, getProviderSlashCommandsForSlashMenu, hasCompleteProviderWorkspaceSnapshot, hasCurrentProviderWorkspaceSnapshot, isProviderSkillUserInvocable, resolveProviderForCwd, resolveProviderSkillSourceKind, resolveProviderSkillsForCwd, resolveProviderSlashCommandsForCwd
+- `packages/client-runtime/src/providerUpdateRequiredModels.ts` — exports: formatProviderUpdateRequiredNotice
+- `packages/client-runtime/src/pullRequestLinkInput.ts` — exports: parsePullRequestReference, pullRequestLinkProject, resolveLinkPullRequestInput
+- `packages/client-runtime/src/pullRequestMarkdown.ts` — exports: PullRequestBodySegment, splitPullRequestBody
+- `packages/client-runtime/src/pullRequestQuery.ts` — exports: applyPullRequestDraftFilterChange, parsePullRequestQuery
+- `packages/client-runtime/src/relay/discovery.ts` — exports: EMPTY_RELAY_ENVIRONMENT_DISCOVERY_STATERelayEnvironmentDiscoveryState, RelayDiscoveredEnvironment, RelayEnvironmentAvailability, RelayEnvironmentDiscovery, RelayEnvironmentDiscoveryState, layer
+- `packages/client-runtime/src/relay/errorPresentation.ts` — exports: DPOP_CLOCK_HINT, DPOP_RETRY_HINT, DPOP_UNKNOWN_HINT, RELAY_GATEWAY_TIMEOUT_MESSAGE, clockskewmaybethecause, copythetraceID, copythetraceIDwhenyoureportit, dpopFailureMessage, relayOfflineReasonMessage, relayProtectedErrorMessage, relayRequestFailureDetail, thentryagain
+- `packages/client-runtime/src/relay/index.ts` — exports: 
+- `packages/client-runtime/src/relay/managedRelay.ts` — exports: MANAGED_RELAY_REQUEST_TIMEOUT_MS, ManagedRelayAccessTokenCacheEntry, ManagedRelayAccessTokenScopesUnexpectedError, ManagedRelayAccessTokenStore, ManagedRelayAuthorization, ManagedRelayClient, ManagedRelayClientError, ManagedRelayClientLayerOptions, ManagedRelayDpopKeyLoadError, ManagedRelayDpopProofCreationError, ManagedRelayDpopProofInput, ManagedRelayDpopSigner, ManagedRelayDpopSignerError, ManagedRelayRequestAction, ManagedRelayRequestActivity, ManagedRelayRequestFailedError, ManagedRelayRequestProofCreationError, ManagedRelayRequestTimeoutError, ManagedRelayTokenProofCreationError, ManagedRelayUrlInvalidError, layer
+- `packages/client-runtime/src/relay/managedRelayState.ts` — exports: ManagedRelayQueryEvent, ManagedRelaySession, ManagedRelaySessionError, ManagedRelaySessionInput, ManagedRelaySnapshotError, ManagedRelaySnapshotState, createManagedRelayQueryManager, createManagedRelaySession, managedRelayAccountChanges, managedRelaySessionAtom, readManagedRelaySnapshotState, setManagedRelaySession
+- `packages/client-runtime/src/remotePerformance.bench.ts` — exports: 
+- `packages/client-runtime/src/reviewGuideTour.ts` — exports: DiffRow, LetteredNote, excerptExpansionOldContents, excerptRows, fileDiffRows, letterStopNotes, rowsToPatch, stepTourPosition, stopFilePaths, stopSubline
+- `packages/client-runtime/src/rpc/client.ts` — exports: ClientGuardedRpcTag, EnvironmentRpcFailure, EnvironmentRpcInput, EnvironmentRpcRequestObservation, EnvironmentRpcRequestObserver, EnvironmentRpcStreamFailure, EnvironmentRpcStreamValue, EnvironmentRpcSubscriptionObservation, EnvironmentRpcSubscriptionObserver, EnvironmentRpcSuccess, EnvironmentRpcTag, EnvironmentRpcUnavailableError, EnvironmentStreamCommandRpcTag, EnvironmentStreamRpcTag, EnvironmentSubscriptionRpcTag, EnvironmentUnaryRpcTag, RpcPermissionGuard, isRpcClientError, request, runStream, runStreamGuarded, subscribe, subscribeDynamic, subscribeDynamicWithSession
+- `packages/client-runtime/src/rpc/http.ts` — exports: E, R, REffectEffectA, RemoteEnvironmentAuthFetchError, RemoteEnvironmentAuthTimeoutError, RemoteEnvironmentAuthUndeclaredStatusError, RemoteEnvironmentRequestError, executeEnvironmentHttpRequest, layerRemoteHttpClient, makeEnvironmentHttpApiClient, makeEnvironmentHttpApiGroupClient, makeEnvironmentHttpApiUrlBuilder
+- `packages/client-runtime/src/rpc/index.ts` — exports: RpcSession, WsRpcProtocolClient
+- `packages/client-runtime/src/rpc/protocol.ts` — exports: PING_TIMEOUT, WsRpcProtocolClient, makeWsRpcProtocolClient
+- `packages/client-runtime/src/rpc/session.ts` — exports: RpcSession, RpcSessionFactory, RpcSessionOptions, layer
+- `packages/client-runtime/src/scheduledTaskWebhook.ts` — exports: DEFAULT_WEBHOOK_PROMPT, WebhookFilterDraft, emptyWebhookFilterDraft, parseMaxDeliveryAge, parseWebhookFilterDrafts, removeWebhookFilterDraft, webhookFilterDrafts, webhookFilterDraftsChanged
+- `packages/client-runtime/src/secretRequest.ts` — exports: SECRET_REQUEST_DEFAULT_PLACEHOLDER, SECRET_REQUEST_PRIVACY_NOTE, SecretRequestDisplay, SecretRequestItem, nevershowntotheagent, secretRequestAnswerInput, secretRequestDisplay, secretRequestFailureMessage
+- `packages/client-runtime/src/sourceControlClients.ts` — exports: ChangeRequestTerminology, GitHubSettings, SourceControlClientDefinition, UNKNOWN_SOURCE_CONTROL_CLIENT, readGitHubSettings, sourceControlClients
+- `packages/client-runtime/src/state/archivedThreads.ts` — exports: ArchivedSnapshotEntry, ArchivedThreadSnapshotsState, createArchivedThreadSnapshotsAtomFamily, makeArchivedThreadsEnvironmentKey
+- `packages/client-runtime/src/state/assets.ts` — exports: AssetUrlState, EMPTY_ASSET_URL_ATOM, InvalidAssetCollectionKeyError, MISSING_FILE_ACCESS_MESSAGE, assetUrlStateFromResult, blockedAssetUrlState, createAssetEnvironmentAtoms, createProjectFaviconUrlAtomFamily, resolveAssetUrl
+- `packages/client-runtime/src/state/attachments.ts` — exports: AttachmentByteUpload, AttachmentUploadCycleResult, PersistedAttachmentVerification, clampFileAttachmentUploadBytes, createAttachmentEnvironmentAtoms, deletePendingAttachmentUpload, fileAttachmentTooLargeMessage, formatAttachmentSize, isAssetAttachmentNotFoundFailure, runAttachmentUploadCycle, verifyPersistedAttachmentUpload
+- `packages/client-runtime/src/state/auth.ts` — exports: EMPTY_AUTH_ACCESS_SNAPSHOTAuthAccessSnapshot, applyAuthAccessStreamEvent, createAuthEnvironmentAtoms
+- `packages/client-runtime/src/state/boundedThreadSnapshotHttp.ts` — exports: layerLayerLayerThreadSnapshotLoaderThreadSnapshotLoader, never
+- `packages/client-runtime/src/state/cachePersistence.ts` — exports: 
+- `packages/client-runtime/src/state/checkpointDiff.ts` — exports: CheckpointDiffResult, CheckpointDiffState, CheckpointDiffTarget
+- `packages/client-runtime/src/state/commandOutput.ts` — exports: CommandOutputView, EMPTY_COMMAND_OUTPUTCommandOutputView, applyCommandOutputFrame
+- `packages/client-runtime/src/state/commandPermissions.ts` — exports: createCommandPermissions
+- `packages/client-runtime/src/state/composerDispatch.ts` — exports: ActiveTurnComposerAction, ComposerDispatchMode, alternateComposerDispatchAction, resolveComposerDispatchMode
+- `packages/client-runtime/src/state/composerPathSearch.ts` — exports: ComposerPathSearchEntry, ComposerPathSearchState, ComposerPathSearchTarget
+- `packages/client-runtime/src/state/connections.ts` — exports: EnvironmentCatalogState, createEnvironmentCatalogAtoms
+- `packages/client-runtime/src/state/device.ts` — exports: createDeviceEnvironmentAtoms, deviceToolUpdateOwnership, deviceToolUpdatePolicy, deviceToolVersionLabels
+- `packages/client-runtime/src/state/deviceHubAccess.ts` — exports: DeviceHubAccess, withDeviceHubQuery
+- `packages/client-runtime/src/state/entities.ts` — exports: InvalidScopedProjectKeyError, InvalidScopedProjectRefCollectionKeyError, InvalidScopedThreadKeyError, arrayElementsEqual, parseProjectKey, parseProjectRefCollectionKey, parseThreadKey, projectKey, projectRefCollectionKey, projectRefsEqual, threadKey, threadRefsEqual
+- `packages/client-runtime/src/state/environmentHttpAuth.ts` — exports: A, E, EnvironmentHttpAuthHeaders, R, executeAuthenticatedEnvironmentHttpRequest, withOrchestrationProtocolHeader
+- `packages/client-runtime/src/state/environmentStreams.ts` — exports: followStreamInEnvironment, runStreamInEnvironment
+- `packages/client-runtime/src/state/fileMetadata.ts` — exports: createFileMetadataAtoms
+- `packages/client-runtime/src/state/filesystem.ts` — exports: canPreloadBrowsePath, createBrowseNavigationCoordinator, createFilesystemEnvironmentAtoms, filterFilesystemBrowseEntries, getFilesystemBrowsePath, resolveFilesystemReadAccess
+- `packages/client-runtime/src/state/git.ts` — exports: createGitEnvironmentAtoms
+- `packages/client-runtime/src/state/gitActions.ts` — exports: DefaultBranchActionDialogCopy, DefaultBranchConfirmableAction, GitActionIconName, GitActionMenuItem, GitActionRequestInput, GitDialogAction, GitQuickAction, buildMenuItems, getGitActionDisabledReason, requiresDefaultBranchConfirmation, resolveDefaultBranchActionDialogCopy, resolveQuickAction
+- `packages/client-runtime/src/state/itemSupport.ts` — exports: EMPTY_V2_ITEM_SUPPORTV2ItemSupport, V2ItemSupport, resolveV2ItemSupport, v2ItemSupportEqual
+- `packages/client-runtime/src/state/mcpApps.ts` — exports: createMcpAppEnvironmentAtoms
+- `packages/client-runtime/src/state/models.ts` — exports: EnvironmentProject, EnvironmentThread, EnvironmentThreadShell, PendingSubagentRequest, ThreadRunSummary, ThreadRuntimeSummary, formatWorkingDurationLabel, presentThreadShell, resolveThreadProviderStack, resolveThreadWorkingStartedAt, scopeProject, scopeThreadShell, threadRuntimeCanArchive, threadRuntimeIsActive
+- `packages/client-runtime/src/state/orchestration.ts` — exports: createOrchestrationEnvironmentAtoms
+- `packages/client-runtime/src/state/orchestrationV2Projection.ts` — exports: ApplyOrchestrationV2ProjectionEventOptions, applyOrchestrationV2ProjectionEvent
+- `packages/client-runtime/src/state/orchestrationV2TestFixtures.ts` — exports: v2Now, v2ProjectOrchestrationProjectShell, v2ProjectionOrchestrationV2ThreadProjection, v2ShellSnapshotOrchestrationV2ShellSnapshot, v2ThreadId, v2ThreadShellOrchestrationV2ThreadShell
+- `packages/client-runtime/src/state/outdatedServerUpdate.ts` — exports: OutdatedServerUpdateTarget, createOutdatedServerDescriptionCommand, createOutdatedServerUpdateCommand
+- `packages/client-runtime/src/state/presentation.ts` — exports: EnvironmentConnectionSummary, EnvironmentPresentationWithProviders, createEnvironmentPresentationAtoms, createEnvironmentSummaryAtoms, projectEnvironmentConnectionSummary
+- `packages/client-runtime/src/state/preview.ts` — exports: createPreviewEnvironmentAtoms
+- `packages/client-runtime/src/state/projectCommands.ts` — exports: CreateProjectInput, DeleteProjectInput, OptimisticProjectFile, OptimisticProjectFileTarget, ScratchProjectNotLoadedError, UpdateProjectInput, createProjectEnvironmentAtoms
+- `packages/client-runtime/src/state/projectEntities.ts` — exports: createEnvironmentProjectAtoms
+- `packages/client-runtime/src/state/projectGrouping.ts` — exports: ProjectGroup, ProjectGroupMember, ProjectGroupingMode, ProjectGroupingSettings, buildProjectGroups, deriveLogicalProjectKeyFromSettings, derivePhysicalProjectKey, derivePhysicalProjectKeyFromPath, deriveProjectGroupLabel, deriveProjectGroupingOverrideKey, getProjectOrderKey, resolveScratchProjectScopeKey, selectProjectGroupingSettings, sortProjectsByGroupOrder
+- `packages/client-runtime/src/state/projectRemoval.ts` — exports: planProjectRemoval
+- `packages/client-runtime/src/state/projects.ts` — exports: appendBrowsePathSegment, canNavigateUp, ensureBrowseDirectoryPath, findProjectByPath, getBrowseDirectoryPath, getBrowseLeafPathSegment, getBrowseParentPath, hasTrailingPathSeparator, inferProjectTitleFromPath, isExplicitRelativeProjectPath, isFilesystemBrowseQuery, isScratchProject, isUnsupportedWindowsProjectPath, normalizeProjectPathForComparison, resolveProjectPathForDispatch
+- `packages/client-runtime/src/state/providerInstanceDisplay.ts` — exports: normalizeProviderAccentColor, providerAccentForegroundColor, providerInstanceInitials, resolveProviderInstanceDisplayName, shouldShowInstanceBadge
+- `packages/client-runtime/src/state/pullRequestDiffHttp.ts` — exports: PullRequestDiffCredentialRejectedError, PullRequestDiffLoadError, PullRequestDiffLoader, layerLayerLayerPullRequestDiffLoader, never
+- `packages/client-runtime/src/state/pullRequestRouting.ts` — exports: createPullRequestRouter
+- `packages/client-runtime/src/state/pullRequestStatsPersistence.ts` — exports: persistPullRequestStats
+- `packages/client-runtime/src/state/pullRequests.ts` — exports: EnvironmentHttpConnectionNotReadyError, PullRequestDiffCredentialRejectedError, PullRequestDiffLoadError, createLinkedPullRequestSummaryAtomFamily, createPullRequestEnvironmentAtoms, createPullRequestStackAtomFamily, pullRequestDetailToVcsStatus
+- `packages/client-runtime/src/state/queryPersistence.ts` — exports: EnvironmentQueryStore, QueryPersistence, persistQuery
+- `packages/client-runtime/src/state/relayDiscovery.ts` — exports: createRelayEnvironmentDiscoveryAtoms
+- `packages/client-runtime/src/state/review.ts` — exports: createReviewEnvironmentAtoms
+- `packages/client-runtime/src/state/runtime.ts` — exports: AtomCommand, AtomCommandConcurrency, AtomCommandFailure, AtomCommandOptions, AtomCommandReporter, AtomCommandResult, AtomCommandScheduler, AtomCommandSuccess, AtomQueryOptions, EAnull, SettledAsyncResult, createAtomCommandScheduler, createEnvironmentCommand, createEnvironmentQueryAtomFamily, createEnvironmentRpcCommand, createEnvironmentRpcQueryAtomFamily, createEnvironmentRpcSubscriptionAtomFamily, createEnvironmentSubscriptionAtomFamily, createRuntimeCommand, environmentRpcKey, executeAtomCommand, executeAtomQuery, followStreamInEnvironment, isAtomCommandInterrupted, mapAtomCommandResult, reportAtomCommandResult, runAtomCommand, runStreamInEnvironment, selectEnvironmentQueryData, settleAsyncResult, settlePromise, squashAtomCommandFailure
+- `packages/client-runtime/src/state/server.ts` — exports: EnvironmentServerWelcomeState, ServerConfigProjection, ServerConfigSubscriptionOptions, ServerUpdateProgressIncompleteError, ServerUpdateResumeTimeoutError, ServerUpdateStage, ServerUpdateState, ServerUpdateTarget, ServerUpdateTerminalError, applyServerWelcomeEvent, createServerEnvironmentAtoms, isLegacyUpdateHandoffLoss, matchesServerUpdateReadyEvent, matchesServerUpdateResumeEvent, nudgeReconnectDuringUpdateRestart, resolveServerConfigValue, resolveServerUpdateProgressResult, resolveServerWelcomeState, serverUpdateFailureMessage, serverUpdateStateAtom, serverUpdateStateForProgressEvent, serverUpdateStateForServerVersion, validateServerUpdateReadyEvent, waitForNextEnvironmentReconnect
+- `packages/client-runtime/src/state/serverConfigProjection.ts` — exports: ServerConfigProjection, applyServerConfigProjection, reuseUnchanged, withoutEnvironmentThemes
+- `packages/client-runtime/src/state/session.ts` — exports: SessionHttpClientUnavailable, createEnvironmentSessionAtoms
+- `packages/client-runtime/src/state/sharedSettings.ts` — exports: SharedServerSettingKey, SharedSettingsEnvironment, filterSharedServerPatch, findSharedSettingsMismatches, pickSharedServerSettings, splitSharedServerPatch, supportsSharedSettingsSync
+- `packages/client-runtime/src/state/shell.ts` — exports: EnvironmentShellState, EnvironmentShellStatus, EnvironmentShellSummary, createEnvironmentServerConfigsAtom, createEnvironmentShellAtoms, createEnvironmentShellSummaryAtom
+- `packages/client-runtime/src/state/shellCommands.ts` — exports: createShellEnvironmentAtoms
+- `packages/client-runtime/src/state/shellPullRequests.ts` — exports: DeferredShellSnapshot, deferPullRequests, detachPullRequests
+- `packages/client-runtime/src/state/shellReducer.ts` — exports: MergeShellSnapshotOptions, applyShellStreamEvent, mergeShellSnapshotProjects, reuseUnchangedThreadShells, sameThreadPullRequests
+- `packages/client-runtime/src/state/shellSnapshotHttp.ts` — exports: ShellSnapshotLoader, layerLayerLayerShellSnapshotLoader, never
+- `packages/client-runtime/src/state/snapshots.ts` — exports: createEnvironmentSnapshotAtom
+- `packages/client-runtime/src/state/sourceControl.ts` — exports: createSourceControlEnvironmentAtoms
+- `packages/client-runtime/src/state/subagentDisplay.ts` — exports: formatSubagentDisplayTitle, resolveSubagentMetadata, subagentDetailPreview, subagentGroupSummary, summarizeSubagentStatuses
+- `packages/client-runtime/src/state/subagentRuntime.ts` — exports: RuntimeSubagent, RuntimeSubagentStatus, SubagentActivityEntry, SubagentRunHandles, SubagentUsage, SubagentWorkflowGroup, SubagentWorkflowPhase, WorkflowOpening, deriveWorkflowGroups, isActiveSubagentStatus, isLiveSubagentTurnItem, isTerminalSubagentStatus, isWorkflowScriptMessage, projectedSubagentsToRuntime, resolveWorkflowOpening, workflowOpeningHeadline, workflowOpeningParentThreadId
+- `packages/client-runtime/src/state/terminal.ts` — exports: createTerminalEnvironmentAtoms
+- `packages/client-runtime/src/state/terminalOutput.ts` — exports: EMPTY_TERMINAL_OUTPUT_STATE, INITIAL_TERMINAL_OUTPUT_CURSOR, TerminalOutputChunk, TerminalOutputCursor, TerminalOutputState, TerminalOutputUpdate, appendOutput, readTerminalOutputUpdate, resetOutput, terminalOutputText
+- `packages/client-runtime/src/state/terminalSession.ts` — exports: DEFAULT_MAX_TERMINAL_BUFFER_BYTES, EMPTY_TERMINAL_BUFFER_STATE, EMPTY_TERMINAL_SESSION_STATE, INITIAL_TERMINAL_OUTPUT_CURSOR, KnownTerminalSession, KnownTerminalSessionTarget, TerminalBufferState, TerminalOutputCursor, TerminalOutputState, TerminalOutputUpdate, TerminalSessionState, applyTerminalAttachStreamEvent, applyTerminalMetadataStreamEvent, combineTerminalSessionState, nextTerminalAttachSeedState, readTerminalOutputUpdate, selectRunningSubprocessTerminalIds, terminalOutputText
+- `packages/client-runtime/src/state/threadCheckpoints.ts` — exports: ThreadCheckpointSummary, deriveThreadCheckpointSummaries
+- `packages/client-runtime/src/state/threadCommands.ts` — exports: ArchiveThreadInput, CancelQueuedRunInput, CreateThreadInput, DeleteThreadInput, DismissThreadUserInputInput, EditQueuedRunInput, ForkThreadFromRunInput, InterruptThreadTurnInput, LinkThreadPullRequestInput, LoadEarlierThreadHistoryInput, MarkThreadUnreadInput, MergeThreadBackInput, PinThreadInput, PromoteQueuedRunInput, ReorderActiveThreadInput, ReorderPinnedThreadInput, ReorderQueuedRunInput, RespondToThreadApprovalInput, RespondToThreadUserInputInput, RetryWorkspacePreparationInput, RevertThreadCheckpointInput, SetThreadAutoSettleInput, SetThreadInteractionModeInput, SetThreadRuntimeModeInput, SettleThreadInput, SnoozeThreadInput, StartThreadTurnInput, StopThreadSessionInput, ThreadCommandInput, UnarchiveThreadInput, UnlinkThreadPullRequestInput, UnpinThreadInput, UnsettleThreadInput, UnsnoozeThreadInput, UpdateThreadMetadataInput, VisitThreadInput, WatchThreadPullRequestInput, createThreadEnvironmentAtoms
+- `packages/client-runtime/src/state/threadDetail.ts` — exports: createEnvironmentThreadDetailAtoms
+- `packages/client-runtime/src/state/threadExecution.ts` — exports: PendingBackgroundWorkItem, PendingBackgroundWorkPresentation, ProviderGoalPresentation, ProviderSubagentStatus, REASONING_EFFORT_OPTION_IDSReadonlyArraystring, deriveLatestThreadRun, deriveProviderSubagentStatus, deriveReportedModelSelection, deriveRunlessWorkStartedAt, deriveThreadActivityRun, deriveThreadRuntime, formatModelSelectionEffort, formatProviderSubagentStatus, notificationChildThreadId, presentPendingBackgroundWork, presentProviderGoal, threadRuntimeHasInterruptibleRun
+- `packages/client-runtime/src/state/threadFeedback.ts` — exports: CodexFeedbackSubmission, LocalChatMessage, beginCodexFeedbackSubmission, codexFeedbackMessage, codexFeedbackNotice, parseCodexFeedbackCommand, submitCodexFeedback
+- `packages/client-runtime/src/state/threadHistoryController.ts` — exports: ThreadHistoryController, ThreadHistoryHandler, ThreadHistoryLoadEarlierResult, ThreadHistoryRegistration
+- `packages/client-runtime/src/state/threadHistoryHttp.ts` — exports: 
+- `packages/client-runtime/src/state/threadHistoryMerge.ts` — exports: EMPTY_THREAD_HISTORY_METAThreadHistoryMeta, ThreadHistoryMeta, applyHistoryPageMeta, clearActiveHistoryLoading, isActiveHistoryRequestCursor, mergeOlderHistoryIntoProjection, shouldShowLoadEarlierControl
+- `packages/client-runtime/src/state/threadInbox.ts` — exports: createInboxReturnTracker, isThreadWorking, sortInboxThreadsByReturn, sortWorkingThreadsBySend
+- `packages/client-runtime/src/state/threadLifecycle.ts` — exports: createOptimisticThreadLifecycle
+- `packages/client-runtime/src/state/threadRelationships.ts` — exports: ThreadRelationshipEdge, ThreadRelationshipGraph, ThreadRelationshipKind, ThreadRelationshipNode, ThreadRelationshipWalkRow, deriveThreadRelationshipGraph, immediateThreadRelationships, isParentThreadRelationship, orderWebThreadLineageRows, relatedThreadIds, resolveMergeBackTargetThreadId, threadRelationshipRowStatus, walkThreadRelationships
+- `packages/client-runtime/src/state/threadRequests.ts` — exports: ApprovalResponder, FULL_ACCESS_OVERRIDE_QUESTION, PendingThreadRequests, ThreadPendingApproval, ThreadPendingUserInput, ThreadUserInputQuestion, createQuestionHistoryProjector, declinePendingApprovals, derivePendingThreadRequests, fullAccessOverrideExplanation, seedUserInputDraftAnswers
+- `packages/client-runtime/src/state/threadRetention.ts` — exports: THREAD_SNAPSHOT_IDLE_TTL_MS
+- `packages/client-runtime/src/state/threadSearch.ts` — exports: EnvironmentThreadSearchMatch, ThreadSearchResultsState, createThreadSearchResultsAtomFamily, makeThreadSearchKey, threadSearchMatchKey
+- `packages/client-runtime/src/state/threadSettled.ts` — exports: CustomSnoozeInput, QUEUED_TURN_START_GRACE_MS, SnoozePreset, SnoozePresetId, ThreadSnoozeShell, canSnooze, effectiveSnoozed, hasQueuedTurnStart, isThreadWokeUnseen, localSnoozeDate, localSnoozeTime, resolveCustomSnooze, resolveSnoozePresets, snoozeWakeLabel, threadRaisedHandWhileSnoozed, threadWokeAt
+- `packages/client-runtime/src/state/threadShell.ts` — exports: childThreadInputsTitle, createEnvironmentThreadShellAtoms, pendingSubagentRequestsByThread
+- `packages/client-runtime/src/state/threadSnapshotHttp.ts` — exports: FetchEnvironmentThreadSnapshotError, ThreadSnapshotHistoryMeta, ThreadSnapshotLoadResult, ThreadSnapshotLoader
+- `packages/client-runtime/src/state/threadSort.ts` — exports: SettledThreadTimestampInput, ThreadSortInput, generateSpreadPinOrderKeys, getLatestThreadForProject, getThreadSortTimestamp, pinOrderKeyBetween, planPinnedMove, planPinnedReorder, resolveSettledThreadTimestamp, sortActiveThreadsByOrderKey, sortPinnedThreadsByOrderKey, sortSettledThreads, sortThreads, toSortableTimestamp
+- `packages/client-runtime/src/state/threadState.ts` — exports: EMPTY_ENVIRONMENT_THREAD_STATEEnvironmentThreadState, EnvironmentThreadState, EnvironmentThreadStatus
+- `packages/client-runtime/src/state/threadSubagents.ts` — exports: SubagentPillSegment, ThreadTurnSubagents, deriveThreadTurnSubagents, resolveSubagentPillSegment
+- `packages/client-runtime/src/state/threadTranscriptHttp.ts` — exports: 
+- `packages/client-runtime/src/state/threadUndo.ts` — exports: ThreadUndoPlan, ThreadUndoStep, begin, executeThreadUndo, invalidate, planThreadUndo, subscribe
+- `packages/client-runtime/src/state/threadWorkflows.ts` — exports: QueuedThreadRun, ThreadQueueWorkflowState, canDetachThreadProviderSession, canForkProjectedAssistantItem, deriveThreadQueueWorkflowState, getUserQueuedThreadRuns, resolveActiveThreadRun, resolveLatestMergeBackRun, threadSupportsProviderHandoff
+- `packages/client-runtime/src/state/threads.ts` — exports: ThreadHistoryLoadEarlierResult, createEnvironmentThreadStateAtoms
+- `packages/client-runtime/src/state/turnItemPresentation.ts` — exports: turnItemIsWorkspacePreparation, workspacePreparationRetryRunIds
+- `packages/client-runtime/src/state/usage.ts` — exports: cursorKeychainAccessEnvironments, needsCursorKeychainAccess, refreshUsage, refreshUsageLimits
+- `packages/client-runtime/src/state/usageAccess.ts` — exports: resolveUsageAccess
+- `packages/client-runtime/src/state/usageProgress.ts` — exports: updatingProvidersLabel, usageEnvironmentProgress, usageLoadingState, usageProgress
+- `packages/client-runtime/src/state/vcs.ts` — exports: createVcsEnvironmentAtoms
+- `packages/client-runtime/src/state/vcsAction.ts` — exports: BeginVcsActionInput, EMPTY_VCS_ACTION_STATE, ResolvedVcsActionTarget, RunVcsStackedActionInput, VcsActionExecutionError, VcsActionMissingTerminalEventError, VcsActionOperation, VcsActionRemoteFailureError, VcsActionState, VcsActionTarget, VcsActionTargetKeyParseError, VcsActionUnavailableError, applyVcsActionProgressEvent, beginVcsActionState, consumeVcsActionProgress, createVcsActionManager, createVcsActionTransportId, normalizeVcsActionProgressEvent, parseVcsActionTargetKey
+- `packages/client-runtime/src/state/vcsCommandScheduler.ts` — exports: vcsCommandScheduler
+- `packages/client-runtime/src/state/vcsRef.ts` — exports: VcsRef, VcsRefTarget
+- `packages/client-runtime/src/state/vcsRefInvalidation.ts` — exports: CachedVcsRefsInvalidationTarget, VcsRefsCacheState, VcsRefsInvalidationTarget, invalidateVcsRefs, vcsRefsCacheStateAtom, withVcsRefsPersistenceLock
+- `packages/client-runtime/src/t3ToolSummary.ts` — exports: T3ToolSummaryCall, summarizeT3ToolCalls, t3ToolResultIndicatesFailure
+- `packages/client-runtime/src/textPaste.ts` — exports: PASTED_TEXT_ATTACHMENT_THRESHOLD_BYTES, PastedTextDisposition, isPasteAsTextShortcut, nextPastedTextFileName, pastedTextDisposition, replaceTextSelection, wouldTextPasteExceedLimit
+- `packages/client-runtime/src/threadPullRequestCompatibility.ts` — exports: planThreadPullRequestMutation, threadPullRequestLinkMode
+- `packages/client-runtime/src/userMessage.ts` — exports: resolveUserMessagePresentation
+- `packages/client-runtime/src/voice-input/controller.ts` — exports: VOICE_RECORDING_LIMIT_SECONDS, VoiceDraftSnapshot, VoiceInputController, VoiceInputControllerDependencies, VoiceInputPhase, VoiceInputState, VoiceRecorder, VoiceRecorderStatus, resetVoiceInputGlobalsForTests, resolveTranscriptCommit, voiceInputBlocksSubmission
+- `packages/client-runtime/src/voice-input/index.ts` — exports: PreparedVoiceTranscription, VOICE_RECORDING_LIMIT_SECONDS, VoiceDraftSnapshot, VoiceInputController, VoiceInputControllerDependencies, VoiceInputPhase, VoiceInputState, VoiceRecorder, VoiceRecorderStatus, VoiceTranscriber, VoiceTranscriptionError, VoiceTranscriptionErrorCode, VoiceTranscriptionOptions, throwIfVoiceTranscriptionAborted, voiceInputBlocksSubmission
+- `packages/client-runtime/src/voice-input/transcription.ts` — exports: PreparedVoiceTranscription, VoiceTranscriber, VoiceTranscriptionError, VoiceTranscriptionErrorCode, VoiceTranscriptionOptions, throwIfVoiceTranscriptionAborted
+- `packages/client-runtime/src/webhookAddress.ts` — exports: WebhookAddress, webhookAddress
+- `packages/client-runtime/src/work-log/commandLabel.ts` — exports: commandDisplayText, commandHighlightLanguage, commandProgramName, withVisibleControlCharacters
+- `packages/client-runtime/src/work-log/itemDetail.ts` — exports: toolCallLines, turnItemDetailRevision, turnItemHasDetail, turnItemNeedsDetailFetch, turnItemOutputImages, turnItemOutputText
+- `packages/client-runtime/src/work-log/presentation.ts` — exports: ToolGroupAction, ToolGroupSummaryKind, ViewedImageAsset, WorkLogPresentationEntry, WorkLogToolLifecycleStatus, commandDetailRepeatsCommand, contextCompactionLabel, contextCompactionTokenCounts, extractCommandOutputText, liveActivityToolStatus, liveThoughtLine, normalizeCompactToolLabel, resolveViewedImageAsset, resolveWorkEntryToolPresentation, summarizeToolGroup, toolGroupAction, toolGroupSummaryKind, toolItemForDisplay, workEntryDisplayIndicatesToolFailure, workEntryIndicatesToolFailure, workEntryIndicatesToolSuccess, workEntryViewedImagePath
+- `packages/client-runtime/src/work-log/scrollAnchor.ts` — exports: resolveWorkGroupScrollAnchor
+- `packages/client-runtime/src/work-log/toolPresentation.ts` — exports: ExtractedToolActivityPresentation, extractToolActivityPresentation
+- `packages/client-runtime/src/work-log/userInput.ts` — exports: getQuestionAnswerPreview, getQuestionAnswerText, getQuestionTextPreview, hasQuestionAnswer
+- `packages/client-runtime/src/workspaceBasenameLookup.ts` — exports: WORKSPACE_BASENAME_LOOKUP_LIMIT, WorkspaceEntryCandidate, claimWorkspaceBasenameLookup, needsWorkspaceBasenameLookup, pickStrippedWorkspaceMatch, pickWorkspaceBasenameMatch, stripRepeatedWorkspacePrefix
+- `packages/client-runtime/src/worktreeSetup.ts` — exports: findRecordedWorktreeSetup, resolveVisibleWorktreeSetup, worktreeSetupAgentStarted
+- `packages/client-runtime/vite.config.ts` — exports: default
+- `packages/contracts/src/acpRegistry.ts` — exports: ACP_REGISTRY_MAX_AGENTS, AcpRegistryAcceptUrlAuthInput, AcpRegistryAcceptUrlAuthResult, AcpRegistryConfigurableProvider, AcpRegistryDeleteSessionInput, AcpRegistryDeleteSessionResult, AcpRegistryDisableProviderInput, AcpRegistryDisableProviderResult, AcpRegistryDistribution, AcpRegistryImportSessionInput, AcpRegistryImportSessionResult, AcpRegistryIntegrity, AcpRegistryListProvidersInput, AcpRegistryListProvidersResult, AcpRegistryListSessionsInput, AcpRegistryListSessionsResult, AcpRegistryLogoutInput, AcpRegistryLogoutResult, AcpRegistryManagedBinaryUninstallInput, AcpRegistryManagedBinaryUninstallResult, AcpRegistryOperationError, AcpRegistryOperationErrorReason, AcpRegistryPrepareInput, AcpRegistryPrepareResult, AcpRegistryProbeAuthMethod, AcpRegistryProbeModel, AcpRegistryProbeResult, AcpRegistrySearchAgent, AcpRegistrySearchInput, AcpRegistrySearchResult, AcpRegistrySession, AcpRegistrySetProviderInput, AcpRegistrySetProviderResult, AcpRegistryUrlAuthAction, officialAcpRegistryIconUrlForAgentId, resolveOfficialAcpRegistryIconUrl
+- `packages/contracts/src/agentSessions.ts` — exports: AgentSessionImportInput, AgentSessionImportProjectChangedError, AgentSessionImportProjectNotFoundError, AgentSessionImportResult, AgentSessionImportSource, AgentSessionProjectCandidate, AgentSessionProjectGit, AgentSessionScanError, AgentSessionScanInput, AgentSessionScanResult, AgentSessionSource
+- `packages/contracts/src/applicationEvent.ts` — exports: ApplicationEventMetadata, ApplicationProjectCreatedEvent, ApplicationProjectCreatedPayload, ApplicationProjectDeletedEvent, ApplicationProjectDeletedPayload, ApplicationProjectEvent, ApplicationProjectMetaUpdatedEvent, ApplicationProjectMetaUpdatedPayload, ApplicationStoredEvent, OrchestrationClientOrigin
+- `packages/contracts/src/assets.ts` — exports: ATTACHMENT_UPLOAD_URL_TTL_MS, AssetAccessError, AssetAttachmentNotFoundError, AssetCreateUrlInput, AssetCreateUrlResult, AssetGitHubMediaUrlValidationError, AssetImageDimensions, AssetPreviewTypeValidationError, AssetProjectFaviconInspectionError, AssetProjectFaviconNotFoundError, AssetProjectFaviconResolutionError, AssetResource, AssetSigningKeyLoadError, AssetWorkspaceAssetInspectionError, AssetWorkspaceAssetNotFoundError, AssetWorkspaceContextNotFoundError, AssetWorkspaceContextResolutionError, AssetWorkspacePathValidationError, AssetWorkspaceResolutionError, AssetWorkspaceRootNormalizationError, AttachmentCreateUploadUrlInput, AttachmentCreateUploadUrlResult, AttachmentDeleteInput, AttachmentUploadSigningKeyError
+- `packages/contracts/src/assistantCitations.ts` — exports: ASSISTANT_CITATION_CONTEXT_LENGTH, ASSISTANT_CITATION_MAX_COMMENT_LENGTH, ASSISTANT_CITATION_MAX_TEXT_LENGTH, AssistantCitation
+- `packages/contracts/src/auth.ts` — exports: AuthAccessReadScope, AuthAccessSnapshot, AuthAccessStreamClientRemovedEvent, AuthAccessStreamClientUpsertedEvent, AuthAccessStreamError, AuthAccessStreamEvent, AuthAccessStreamPairingLinkRemovedEvent, AuthAccessStreamPairingLinkUpsertedEvent, AuthAccessStreamSnapshotEvent, AuthAccessTokenResult, AuthAccessTokenType, AuthAccessWriteScope, AuthBrowserSessionRequest, AuthBrowserSessionResult, AuthClientMetadata, AuthClientMetadataDeviceType, AuthClientPresentationMetadata, AuthClientSession, AuthCreatePairingCredentialInput, AuthDiagnosticsReadScope, AuthEnvironmentBootstrapTokenType, AuthEnvironmentMaintainScope, AuthEnvironmentScope, AuthEnvironmentScopes, AuthFilesystemReadScope, AuthFilesystemWriteScope, AuthGrantScope, AuthGrantScopes, AuthMcpApprovalDecision, AuthMcpApprovalDecisionRequest, AuthMcpApprovalDetails, AuthMcpApprovalError, AuthMcpApprovalRedirect, AuthMcpAuthorizationRequest, AuthMcpAuthorizationServerMetadata, AuthMcpClientAccess, AuthMcpClientRegistration, AuthMcpProtectedResourceMetadata, AuthMcpRegisteredClient, AuthMcpRegistrationError, AuthMcpTokenError, AuthMcpTokenRequest, AuthMcpTokenResult, AuthOrchestrationOperateScope, AuthOrchestrationReadScope, AuthPairingCredentialResult, AuthPairingLink, AuthPreviewOperateScope, AuthProvidersManageScope, AuthRelayReadScope, AuthRelayWriteScope, AuthRevokeClientSessionInput, AuthRevokePairingLinkInput, AuthSessionState, AuthSettingsWriteScope, AuthSourceControlWriteScope, AuthStandardClientScopes, AuthTerminalOperateScope, AuthTerminalReadScope, AuthTokenExchangeGrantType, AuthTokenExchangeRequest, AuthWebSocketTicketResult, EnvironmentAuthorizationError, ServerAuthBootstrapMethod, ServerAuthDescriptor, ServerAuthPolicy, ServerAuthSessionMethod, SessionGrantInput, authScopeRequiredResponse, authScopeResponse, sessionGrantsScope, sessionHasLegacyPermissions
+- `packages/contracts/src/background.ts` — exports: BackgroundBooleanState, BackgroundPolicySnapshot, BackgroundScope, ClientActivityClientId, ClientActivityLease, ClientActivityReportInput, ClientKind, HostPowerSnapshot, HostPowerSource, HostPowerThermalState
+- `packages/contracts/src/baseSchemas.ts` — exports: ApprovalRequestId, AuthSessionId, CheckpointId, CheckpointRef, CheckpointScopeId, ClientConnectionMethod, ClientDeviceType, ClientOs, ClientSurface, ClientWebDeployment, CommandId, ContextHandoffId, ContextTransferId, DpopFailureReason, EnvironmentId, EventId, ForwardCompatibleArray, ForwardCompatibleUnion, ForwardCompatibleUnionArray, IsoDateTime, MessageId, NodeId, NonNegativeInt, PlanId, PortSchema, PositiveInt, ProjectId, ProviderItemId, ProviderSessionId, ProviderThreadId, ProviderTurnId, RawEventId, RpcClientId, RunAttemptId, RunId, RuntimeItemId, RuntimeRequestId, RuntimeSessionId, RuntimeTaskId, ScheduledTaskId, SecretRef, ThreadId, TrimmedNonEmptyString, TrimmedString, TurnId, TurnItemId, UnknownUnionMember, UnknownUnionMemberstring, constTagextendsstring, isUnknownUnionMember
+- `packages/contracts/src/browserImport.ts` — exports: BROWSER_IMPORT_FAILURE_COPYReadonlyRecordBrowserImportFailureReason, BrowserImportFailureReason, BrowserImportInput, BrowserImportResult, BrowserImportSource, BrowserImportSourceId, BrowserImportSourceProfile, BrowserImportUnavailableReason, DesktopPreviewImportCookiesInputSchema, string
+- `packages/contracts/src/browserProfile.ts` — exports: BROWSER_PROFILE_MAX_COUNT, BROWSER_PROFILE_NAME_MAX_LENGTH, BUILT_IN_BROWSER_PROFILESReadonlyArrayBrowserProfile, BrowserProfile, BrowserProfileId, BrowserProfileKind, BrowserProfileName, DEFAULT_BROWSER_PROFILE_IDBrowserProfileId, INCOGNITO_BROWSER_PROFILE_IDBrowserProfileId, findBrowserProfile, isBuiltInBrowserProfileId, resolveBrowserProfiles
+- `packages/contracts/src/chatAttachment.ts` — exports: ChatAttachment, ChatAttachmentId, ChatFileAttachment, ChatImageAttachment, ChatUnknownAttachment, PROVIDER_SEND_TURN_MAX_ATTACHMENTS, PROVIDER_SEND_TURN_MAX_FILE_BYTES, PROVIDER_SEND_TURN_MAX_IMAGE_BYTES, PROVIDER_SEND_TURN_MAX_INPUT_CHARS, PROVIDER_SEND_TURN_SUPPORTED_IMAGE_MIME_TYPES, PastedTextAttachmentSource, PersistChatAttachmentsError, PersistChatAttachmentsInput, PersistChatAttachmentsResult, SNAP_SHOT_ACCESSIBILITY_MAX_NODES, SNAP_SHOT_ACCESSIBILITY_MAX_SERIALIZED_CHARS, SNAP_SHOT_ACCESSIBLE_TEXT_MAX_CHARS, SnapShotAccessibility, SnapShotAccessibilityNode, SnapShotAccessibilityNodeSchemaCodecSnapShotAccessibilityNode, SnapShotSource, UploadChatAttachment, UploadChatImageAttachment, getProviderAttachmentLimitError, isProviderSendTurnSupportedImageMimeType
+- `packages/contracts/src/checkpointDiff.ts` — exports: OrchestrationGetFullThreadDiffError, OrchestrationGetFullThreadDiffInput, OrchestrationGetFullThreadDiffResult, OrchestrationGetTurnDiffError, OrchestrationGetTurnDiffInput, OrchestrationGetTurnDiffResult, ThreadTurnDiff, TurnCountRange
+- `packages/contracts/src/clientRpcPermissions.ts` — exports: CLIENT_GUARDED_RPC_SCOPES, ClientGuardedRpcTag, clientRpcRequiredScopes
+- `packages/contracts/src/composerContext.ts` — exports: COMPOSER_CONTEXT_KINDS, COMPOSER_CONTEXT_LABEL_MAX_CHARS, COMPOSER_CONTEXT_MAX_RECORDS, COMPOSER_CONTEXT_REVIEW_DIFF_MAX_CHARS, COMPOSER_CONTEXT_REVIEW_TEXT_MAX_CHARS, COMPOSER_CONTEXT_TERMINAL_TEXT_MAX_CHARS, ComposerContextId, ComposerContextKind, ComposerContextRecord, ComposerContextReferenceId, ElementContextDetails, ElementContextRecord, ElementContextSource, FileContextRecord, ImageContextRecord, KnownComposerContextKind, KnownComposerContextRecord, MentionContextRecord, OrchestrationMessageContext, PreviewAnnotationContextRecord, PullRequestContextMetadata, ReviewCommentContextRecord, SkillContextRecord, TerminalContextRecord, ThreadContextRecord, UnknownContextRecord
+- `packages/contracts/src/composerContextClipboard.ts` — exports: COMPOSER_CONTEXT_CLIPBOARD_MIME, ComposerContextClipboardFragment
+- `packages/contracts/src/desktopAppActivation.ts` — exports: DESKTOP_APP_ACTIVATION_PROTOCOL_VERSION, DesktopAppActivationErrorCode, DesktopAppActivationFailure, DesktopAppActivationPlatform, DesktopAppActivationRequest, DesktopAppActivationResponse, DesktopAppActivationSuccess
+- `packages/contracts/src/desktopBootstrap.ts` — exports: DESKTOP_UPDATE_RESTART_MARKER_FILE, DesktopBackendBootstrap, SERVER_EXIT_CODE_STATE_DIR_OWNED
+- `packages/contracts/src/desktopBrowser.ts` — exports: DesktopBrowserCommand, DesktopBrowserEvent
+- `packages/contracts/src/device.ts` — exports: DeviceActionInput, DeviceActionType, DeviceActionUnavailableError, DeviceAppearance, DeviceBootError, DeviceCloseInput, DeviceColorFilter, DeviceConfigureInput, DeviceDetail, DeviceDetailInput, DeviceEasAccount, DeviceEasAccountError, DeviceEasAccountInput, DeviceError, DeviceForegroundApp, DeviceHostConfig, DeviceHostId, DeviceHostStatus, DeviceHostStatuses, DeviceHostSummary, DeviceHostUnavailableError, DeviceId, DeviceListInput, DeviceNotFoundError, DeviceOpenInput, DeviceOperationError, DeviceOrientation, DevicePermission, DevicePlatform, DevicePlatformAvailability, DevicePlatformUnavailableError, DeviceServiceState, DeviceSession, DeviceSettings, DeviceShutdownInput, DeviceSummary, DeviceTextSize, DeviceToolCloseInput, DeviceToolError, DeviceToolListResult, DeviceToolOpenInput, DeviceToolOpenResult, DeviceToolScreenshotResult, DeviceToolTargetInput, DeviceToolUnavailableError, DeviceToolVersion, DeviceToolVersions, EasDeviceHostConfig, EasDeviceHostConfigs, LOCAL_DEVICE_HOST_ID, LOCAL_DEVICE_HOST_LABEL, SshDeviceHostConfig, SshDeviceHostConfigs, deviceToolInstallMessage
+- `packages/contracts/src/editor.ts` — exports: EDITORS, EditorId, EditorLaunchStyle, ExternalLauncherBrowserSpawnError, ExternalLauncherCommandNotFoundError, ExternalLauncherEditorSpawnError, ExternalLauncherError, ExternalLauncherUnknownEditorError, ExternalLauncherUnsupportedEditorError, ExternalLauncherUnsupportedTargetError, FileManagerRevealKind, LaunchEditorInput, REMOTE_CAPABLE_EDITOR_IDSReadonlyArrayEditorId, RemoteOpenTarget, RemoteOpenTargetKind
+- `packages/contracts/src/environment.ts` — exports: ENVIRONMENT_MACHINE_KINDS, EnvironmentMachineKind, ExecutionEnvironmentCapabilities, ExecutionEnvironmentDescriptor, ExecutionEnvironmentPlatform, ExecutionEnvironmentPlatformArch, ExecutionEnvironmentPlatformOs, ORCHESTRATION_PROTOCOL_HEADER, ORCHESTRATION_PROTOCOL_QUERY_PARAM, ORCHESTRATION_PROTOCOL_VERSION, ORCHESTRATION_PROTOCOL_VERSION_TEXT, RepositoryIdentity, RepositoryIdentityLocator, RepositoryOrigin, ScopedProjectRef, ScopedThreadRef, ServerInstallation, ServerSelfUpdateCapability, ServerSelfUpdateMethod, ThreadEnvMode, WorktreeSubmodules, isEnvironmentMachineKind, repositoryGroupingDisplayNameOf, repositoryGroupingKeyOf
+- `packages/contracts/src/environmentHttp.ts` — exports: AuthClientSessionRevokeResult, AuthOtherClientSessionsRevokeResult, AuthPairingLinkRevokeResult, EnvironmentAuthInvalidError, EnvironmentAuthInvalidReason, EnvironmentAuthenticatedAuth, EnvironmentAuthenticatedPrincipal, EnvironmentCloudEndpointUnavailableError, EnvironmentCloudLinkStateResult, EnvironmentCloudPreferencesRequest, EnvironmentCloudRelayConfigResult, EnvironmentConnectReachability, EnvironmentConnectReachabilityCause, EnvironmentHttpApi, EnvironmentHttpBadRequestError, EnvironmentHttpCommonError, EnvironmentHttpConflictError, EnvironmentHttpForbiddenError, EnvironmentHttpInternalServerError, EnvironmentHttpUnauthorizedError, EnvironmentInternalError, EnvironmentInternalErrorReason, EnvironmentOperationForbiddenError, EnvironmentOperationForbiddenReason, EnvironmentRequestInvalidError, EnvironmentRequestInvalidReason, EnvironmentResourceNotFoundError, EnvironmentResourceNotFoundReason, EnvironmentScopeRequiredError, EnvironmentSessionPrincipalShape, T3ConnectTroubleshootingSection, T3_CONNECT_TROUBLESHOOTING_SECTIONS, connectReachabilityHelpUrl, formatConnectReachable, t3ConnectTroubleshootingUrl
+- `packages/contracts/src/filesystem.ts` — exports: FILESYSTEM_METADATA_BATCH_LIMIT, FilesystemBrowseEntry, FilesystemBrowseError, FilesystemBrowseFailure, FilesystemBrowseInput, FilesystemBrowseResult, FilesystemEntryMetadata, FilesystemGetMetadataInput, FilesystemGetMetadataResult
+- `packages/contracts/src/git.ts` — exports: GitActionProgressEvent, GitActionProgressKind, GitActionProgressPhase, GitActionProgressStream, GitCommandError, GitCommandFailureReason, GitManagerError, GitManagerServiceError, GitPreparePullRequestThreadInput, GitPreparePullRequestThreadResult, GitPullRequestMaterializationError, GitPullRequestRefInput, GitResolvePullRequestResult, GitResolvedPullRequest, GitRunStackedActionInput, GitRunStackedActionResult, GitRunStackedActionToast, GitRunStackedActionToastCta, GitRunStackedActionToastRunAction, GitStackedAction, TextGenerationError, VcsCreateRefInput, VcsCreateRefResult, VcsCreateWorktreeInput, VcsCreateWorktreeResult, VcsInitInput, VcsListRefsInput, VcsListRefsResult, VcsPullInput, VcsPullResult, VcsRef, VcsRemoveWorktreeInput, VcsStatusInput, VcsStatusLocalResult, VcsStatusRemoteResult, VcsStatusResult, VcsStatusStreamEvent, VcsStatusSubscriptionInput, VcsSwitchRefInput, VcsSwitchRefResult
+- `packages/contracts/src/index.ts` — exports: 
+- `packages/contracts/src/ipc.ts` — exports: ConfirmDialogOptions, ConfirmDialogVariant, ContextMenuItem, ContextMenuItemSchemaSchemaCodecContextMenuItemSchemaType, ContextMenuItemSchemaType, DESKTOP_PREVIEW_RECORDING_CAPTURE_TRIGGER, DesktopAppBranding, DesktopAppBrandingSchema, DesktopAppStageLabel, DesktopAppStageLabelSchema, DesktopBridge, DesktopCaptureConfigApplied, DesktopCaptureConfigPreview, DesktopCaptureConfigRequest, DesktopCaptureExtensionState, DesktopCaptureHelperState, DesktopCliCommandState, DesktopCliCommandStateSchema, DesktopDiscoveredSshHost, DesktopDiscoveredSshHostSchema, DesktopEnvironmentBootstrap, DesktopEnvironmentBootstrapSchema, DesktopPendingSnapShot, DesktopPreviewAnnotationSendEnabledInputSchema, DesktopPreviewAnnotationTheme, DesktopPreviewAnnotationThemeInputSchema, DesktopPreviewAnnotationThemeSchemaSchemaCodecDesktopPreviewAnnotationTheme, DesktopPreviewArtifactInputSchema, DesktopPreviewBridge, DesktopPreviewClearDataInputSchema, DesktopPreviewColorScheme, DesktopPreviewColorSchemeSchemaSchemaCodecDesktopPreviewColorScheme, DesktopPreviewConfigInputSchema, DesktopPreviewCreateTabInputSchema, DesktopPreviewFavicon, DesktopPreviewNavStatus, DesktopPreviewNavigateInputSchema, DesktopPreviewOpenLinkEvent, DesktopPreviewPointerEvent, DesktopPreviewRecordingArtifact, DesktopPreviewRecordingArtifactSchemaSchemaCodecDesktopPreviewRecordingArtifact, DesktopPreviewRecordingFrame, DesktopPreviewRecordingInput, DesktopPreviewRecordingInputEvent, DesktopPreviewRecordingInputSchema, DesktopPreviewRecordingSaveInputSchema, DesktopPreviewRegisterWebviewInputSchema, DesktopPreviewScreenshotArtifact, DesktopPreviewScreenshotArtifactSchemaSchemaCodecDesktopPreviewScreenshotArtifact, DesktopPreviewSetAudioMutedInputSchema, DesktopPreviewSetColorSchemeInputSchema, DesktopPreviewSetZoomFactorInputSchema, DesktopPreviewTabDefaults, DesktopPreviewTabIdSchema, DesktopPreviewTabInputSchema, DesktopPreviewTabState, DesktopPreviewWebviewConfig, DesktopPreviewWebviewConfigSchemaSchemaCodecDesktopPreviewWebviewConfig, DesktopRuntimeArch, DesktopRuntimeArchSchema, DesktopRuntimeInfo, DesktopServerExposureMode, DesktopServerExposureModeSchema, DesktopServerExposureState, DesktopServerExposureStateSchema, DesktopSnapShot, DesktopSnapShotAnimationDestination, DesktopSnapShotEvent, DesktopSnapShotId, DesktopSnapShotMode, DesktopSnapShotSetupAction, DesktopSnapShotShortcutAvailability, DesktopSnapShotState, DesktopSshBearerBootstrapInputSchema, DesktopSshBearerRequestInputSchema, DesktopSshEnvironmentBootstrap, DesktopSshEnvironmentBootstrapSchema, DesktopSshEnvironmentEnsureInputSchema, DesktopSshEnvironmentEnsureOptionsSchema, DesktopSshEnvironmentEnsureResultSchema, DesktopSshEnvironmentTarget, DesktopSshEnvironmentTargetSchema, DesktopSshHostSource, DesktopSshHostSourceSchema, DesktopSshHttpBaseUrlInputSchema, DesktopSshPasswordPromptCancelledResultSchema, DesktopSshPasswordPromptCancelledType, DesktopSshPasswordPromptRequest, DesktopSshPasswordPromptResolutionInputSchema, DesktopTheme, DesktopThemeSchema, DesktopUpdateActionResult, DesktopUpdateActionResultSchema, DesktopUpdateChannel, DesktopUpdateChannelSchema, DesktopUpdateCheckResult, DesktopUpdateCheckResultSchema, DesktopUpdateReleaseNote, DesktopUpdateReleaseNoteSchema, DesktopUpdateState, DesktopUpdateStateSchema, DesktopUpdateStatus, DesktopUpdateStatusSchema, DesktopWslDistro, DesktopWslDistroSchema, DesktopWslState, DesktopWslStateSchema, FAVICON_CAPTURED_AT_MAX, FAVICON_DATA_URL_MAX_LENGTH, LocalApi, PRIMARY_LOCAL_ENVIRONMENT_ID, PersistedSavedEnvironmentRecord, PersistedSavedEnvironmentRecordSchema, PickFolderOptions, PickFolderOptionsSchema, PickedElementPayload, PickedElementPayloadSchemaSchemaCodecPickedElementPayload, PickedElementStackFrame, PickedElementStackFrameSchemaSchemaCodecPickedElementStackFrame, PickedThemeFile, PickedThemeFileSchema, PreviewAnnotationElementTarget, PreviewAnnotationElementTargetSchemaSchemaCodecPreviewAnnotationElementTarget, PreviewAnnotationPayload, PreviewAnnotationPayloadSchemaSchemaCodecPreviewAnnotationPayload, PreviewAnnotationPoint, PreviewAnnotationPointSchemaSchemaCodecPreviewAnnotationPoint, PreviewAnnotationRect, PreviewAnnotationRectSchemaSchemaCodecPreviewAnnotationRect, PreviewAnnotationRegionTarget, PreviewAnnotationRegionTargetSchemaSchemaCodecPreviewAnnotationRegionTarget, PreviewAnnotationScreenshot, PreviewAnnotationScreenshotSchemaSchemaCodecPreviewAnnotationScreenshot, PreviewAnnotationStrokeTarget, PreviewAnnotationStrokeTargetSchemaSchemaCodecPreviewAnnotationStrokeTarget, PreviewAnnotationStyleChange, PreviewAnnotationStyleChangeSchemaSchemaCodecPreviewAnnotationStyleChange, PreviewAnnotationSubmission, PreviewAnnotationSubmissionResult, PreviewAnnotationSubmissionResultSchemaSchemaCodecPreviewAnnotationSubmissionResult, PreviewAnnotationSubmissionSchemaSchemaCodecPreviewAnnotationSubmission, QuitShortcutHintEvent, SystemSettingsPane, SystemSettingsPaneSchema
+- `packages/contracts/src/keybindings.ts` — exports: KeybindingCommand, KeybindingRule, KeybindingShortcut, KeybindingValue, KeybindingWhen, KeybindingWhenNode, KeybindingsConfig, KeybindingsConfigError, MAX_KEYBINDINGS_COUNT, MAX_SCRIPT_ID_LENGTH, MAX_WHEN_EXPRESSION_DEPTH, MODEL_PICKER_JUMP_KEYBINDING_COMMANDS, ModelPickerJumpKeybindingCommand, ModelPickerKeybindingCommand, PreviewForwardedShortcut, ResolvedKeybindingRule, ResolvedKeybindingsConfig, SCRIPT_RUN_COMMAND_PATTERN, STATIC_KEYBINDING_COMMANDS, THREAD_JUMP_KEYBINDING_COMMANDS, ThreadJumpKeybindingCommand, ThreadKeybindingCommand
+- `packages/contracts/src/mcpApps.ts` — exports: McpAppCallToolInput, McpAppCallToolResult, McpAppReadResourceInput, McpAppReadResourceResult, McpAppRequestError, McpAppRequestErrorReason, McpAppToolInfo, McpAppToolInfoInput, McpAppUpdateModelContextInput
+- `packages/contracts/src/model.ts` — exports: ANTIGRAVITY_DEFAULT_MODEL, BooleanProviderOptionDescriptor, CustomModelEntry, CustomModelSetting, DEFAULT_MODEL, DEFAULT_MODEL_BY_PROVIDERPartialRecordProviderDriverKind, DEFAULT_TEXT_GENERATION_MODEL, DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDERPartialRecordProviderDriverKind, DEFAULT_TEXT_GENERATION_REASONING_EFFORT, MODEL_SLUG_ALIASES_BY_PROVIDERPartialRecordProviderDriverKind, MUSE_DEFAULT_MODEL, ModelCapabilities, PREFERRED_DEFAULT_CODEX_MODELSReadonlyArraystring, PROVIDER_DISPLAY_NAMESPartialRecordProviderDriverKind, ProviderOptionChoice, ProviderOptionDescriptor, ProviderOptionDescriptorType, ProviderOptionSelection, ProviderOptionSelectionValue, ProviderOptionSelections, Recordstring, SelectProviderOptionDescriptor, string
+- `packages/contracts/src/modelSelection.ts` — exports: ModelSelection
+- `packages/contracts/src/orchestrationDispatch.ts` — exports: OrchestrationDispatchCommandError
+- `packages/contracts/src/orchestrationProject.ts` — exports: OrchestrationProjectShell
+- `packages/contracts/src/orchestrationV2.ts` — exports: ORCHESTRATION_V2_WORKSPACE_PREPARATION_FAILURE_CODE, ORCHESTRATION_V2_WS_METHODS, OrchestrationGetWorkflowScriptError, OrchestrationV2Actor, OrchestrationV2AppThread, OrchestrationV2AppThreadJson, OrchestrationV2AppThreadLineage, OrchestrationV2ApprovalCapabilities, OrchestrationV2ArchivedShellSnapshot, OrchestrationV2ArchivedShellStreamItem, OrchestrationV2Checkpoint, OrchestrationV2CheckpointCapabilities, OrchestrationV2CheckpointFileSummary, OrchestrationV2CheckpointJson, OrchestrationV2CheckpointRollbackRequest, OrchestrationV2CheckpointRollbackRequestJson, OrchestrationV2CheckpointScope, OrchestrationV2CheckpointScopeJson, OrchestrationV2CheckpointUnavailableError, OrchestrationV2Command, OrchestrationV2CommandOutputError, OrchestrationV2CommandOutputFrame, OrchestrationV2ContextCapabilities, OrchestrationV2ContextHandoff, OrchestrationV2ContextHandoffJson, OrchestrationV2ContextSourcePoint, OrchestrationV2ContextTransfer, OrchestrationV2ContextTransferJson, OrchestrationV2ContextTransferResolution, OrchestrationV2ContextTransferType, OrchestrationV2ConversationMessage, OrchestrationV2ConversationMessageJson, OrchestrationV2CreationSource, OrchestrationV2DelegatedCompletionCohort, OrchestrationV2DelegatedCompletionDelivery, OrchestrationV2DelegatedCompletionTaskDelivery, OrchestrationV2DelegatedCompletionTaskDeliveryState, OrchestrationV2DispatchCommandError, OrchestrationV2DispatchCommandResult, OrchestrationV2DomainEvent, OrchestrationV2DomainEventJson, OrchestrationV2ExecutionNode, OrchestrationV2ExecutionNodeJson, OrchestrationV2FileChangeDetail, OrchestrationV2FileSearchResult, OrchestrationV2GetShellSnapshotError, OrchestrationV2GetThreadProjectionError, OrchestrationV2GetThreadProjectionInput, OrchestrationV2GetTurnItemInput, OrchestrationV2GetTurnItemResult, OrchestrationV2GetWorkflowScriptInput, OrchestrationV2GetWorkflowScriptResult, OrchestrationV2HistoricalMessage, OrchestrationV2IdentityCapabilities, OrchestrationV2InternalCommand, OrchestrationV2LatestVisibleMessageSummary, OrchestrationV2LatestVisibleMessageSummaryJson, OrchestrationV2LimitRecovery, OrchestrationV2LimitRecoveryUpdate, OrchestrationV2NativeRefStrength, OrchestrationV2Notification, OrchestrationV2NotificationSource, OrchestrationV2PendingBackgroundTask, OrchestrationV2PendingRuntimeRequestSummary, OrchestrationV2PendingRuntimeRequestSummaryJson, OrchestrationV2PlanArtifact, OrchestrationV2PlanStep, OrchestrationV2PlanningCapabilities, OrchestrationV2ProjectedTurnItem, OrchestrationV2ProjectedTurnItemJson, OrchestrationV2ProviderCapabilities, OrchestrationV2ProviderFailure, OrchestrationV2ProviderFailureClass, OrchestrationV2ProviderGoal, OrchestrationV2ProviderGoalStatus, OrchestrationV2ProviderRef, OrchestrationV2ProviderRetry, OrchestrationV2ProviderSession, OrchestrationV2ProviderSessionDetached, OrchestrationV2ProviderSessionDetachedJson, OrchestrationV2ProviderSessionJson, OrchestrationV2ProviderThread, OrchestrationV2ProviderThreadDisposition, OrchestrationV2ProviderThreadJson, OrchestrationV2ProviderThreadNativeMetadata, OrchestrationV2ProviderTurn, OrchestrationV2ProviderTurnJson, OrchestrationV2ProviderTurnTokenUsage, OrchestrationV2RawProviderEvent, OrchestrationV2RawProviderEventJson, OrchestrationV2RestartCancelledBackgroundWork, OrchestrationV2RpcError, OrchestrationV2RpcSchemas, OrchestrationV2Run, OrchestrationV2RunAttempt, OrchestrationV2RunAttemptJson, OrchestrationV2RunBackgroundWorkCancelled, OrchestrationV2RunJson, OrchestrationV2RunStatus, OrchestrationV2RuntimePolicyCapabilities, OrchestrationV2RuntimeRequest, OrchestrationV2RuntimeRequestJson, OrchestrationV2SearchThreadError, OrchestrationV2SearchThreadInput, OrchestrationV2SearchThreadResult, OrchestrationV2SecretRequestStatus, OrchestrationV2ServerCommand, OrchestrationV2SessionCapabilities, OrchestrationV2ShellSnapshot, OrchestrationV2ShellSnapshotJson, OrchestrationV2ShellStreamItem, OrchestrationV2ShellThreadStatus, OrchestrationV2StopWorkflowError, OrchestrationV2StopWorkflowInput, OrchestrationV2StoredEvent, OrchestrationV2StoredEventJson, OrchestrationV2StreamingCapabilities, OrchestrationV2Subagent, OrchestrationV2SubagentCapabilities, OrchestrationV2SubagentJson, OrchestrationV2SubagentWorkflow, OrchestrationV2SubscribeCommandOutputInput, OrchestrationV2SubscribeShellInput, OrchestrationV2SubscribeThreadInput, OrchestrationV2ThreadBoundedSnapshot, OrchestrationV2ThreadCapabilities, OrchestrationV2ThreadDetailSnapshot, OrchestrationV2ThreadFindMatch, OrchestrationV2ThreadForkSourcePoint, OrchestrationV2ThreadHistoryOrigin, OrchestrationV2ThreadHistoryPage, OrchestrationV2ThreadLaunchError, OrchestrationV2ThreadLaunchInput, OrchestrationV2ThreadLaunchResult, OrchestrationV2ThreadLaunchWorkspaceStrategy, OrchestrationV2ThreadProjection, OrchestrationV2ThreadProjectionJson, OrchestrationV2ThreadShell, OrchestrationV2ThreadShellJson, OrchestrationV2ThreadShellSnapshot, OrchestrationV2ThreadStreamItem, OrchestrationV2ThreadTranscript, OrchestrationV2ToolCapabilities, OrchestrationV2TurnCapabilities, OrchestrationV2TurnItem, OrchestrationV2TurnItemJson, OrchestrationV2TurnItemStatus, OrchestrationV2UserInputQuestion, OrchestrationV2UserMessageInputIntent, OrchestrationV2WebSearchResult, OrchestrationV2WorkflowAgent, OrchestrationV2WorkflowPhase, OrchestrationV2WorkflowRunHandles, OrchestrationWorkflowFileError, ProviderReplayEntry, ProviderReplayNdjsonRecord, ProviderReplayTranscript, ProviderReplayTranscriptHeader, isKnownOrchestrationV2EventType, isOrchestrationV2WorkActive, isProviderNativeSubagentThread, latestProviderTurnForAttempt, orchestrationV2RunWorkStartedAt
+- `packages/contracts/src/orchestratorMcp.ts` — exports: OrchestratorMcpCapabilitiesInput, OrchestratorMcpCapabilitiesResult, OrchestratorMcpCreateThreadRequest, OrchestratorMcpCreateThreadsInput, OrchestratorMcpCreateThreadsResult, OrchestratorMcpCreatedThread, OrchestratorMcpCreatedThreadStatus, OrchestratorMcpDelegateTaskInput, OrchestratorMcpDelegateTaskResult, OrchestratorMcpDelegatedTaskStatus, OrchestratorMcpDeleteScheduledTaskInput, OrchestratorMcpDeleteScheduledTaskResult, OrchestratorMcpFailure, OrchestratorMcpInteractionMode, OrchestratorMcpListScheduledTasksInput, OrchestratorMcpListScheduledTasksResult, OrchestratorMcpModelOption, OrchestratorMcpProviderCapability, OrchestratorMcpRequestSecretInput, OrchestratorMcpRequestSecretResult, OrchestratorMcpRuntimeMode, OrchestratorMcpScheduleTaskInput, OrchestratorMcpScheduleTaskResult, OrchestratorMcpScheduledTask, OrchestratorMcpTarget, OrchestratorMcpTargetOptions, OrchestratorMcpTaskCancelInput, OrchestratorMcpTaskCancelResult, OrchestratorMcpTaskRole, OrchestratorMcpTaskStatusInput, OrchestratorMcpTerminalDelegatedTaskStatus, OrchestratorMcpThreadDetail, OrchestratorMcpThreadInterruptInput, OrchestratorMcpThreadInterruptResult, OrchestratorMcpThreadListInput, OrchestratorMcpThreadListItem, OrchestratorMcpThreadListResult, OrchestratorMcpThreadPullRequest, OrchestratorMcpThreadReadInput, OrchestratorMcpThreadReadResult, OrchestratorMcpThreadRun, OrchestratorMcpThreadSendInput, OrchestratorMcpThreadSendResult, OrchestratorMcpThreadStatus, OrchestratorMcpThreadTimelineItem, OrchestratorMcpThreadWaitInput, OrchestratorMcpThreadWaitResult, OrchestratorMcpUpdateScheduledTaskInput
+- `packages/contracts/src/preview.ts` — exports: CONFIGURED_LOCAL_SERVER_URLS_MAX_ITEMS, ConfiguredLocalServerUrls, DEFAULT_PREVIEW_APPEARANCEPreviewAppearancePreference, DEFAULT_PREVIEW_ZOOM_FACTORPreviewZoomFactor, DiscoveredLocalServer, DiscoveredLocalServerList, FILL_PREVIEW_VIEWPORT, PREVIEW_STREAM_HOST_SETUP_CLOSE_CODE, PREVIEW_URL_MAX_LENGTH, PREVIEW_VIEWPORT_MAX_AREA, PREVIEW_VIEWPORT_MAX_DIMENSION, PREVIEW_VIEWPORT_MIN_DIMENSION, PREVIEW_VIEWPORT_PRESET_IDS, PREVIEW_ZOOM_LEVELS, PreviewAdjustInput, PreviewAppearancePreference, PreviewClearProfileError, PreviewClearProfileInput, PreviewCloseInput, PreviewControlRequiredError, PreviewError, PreviewEvent, PreviewInvalidUrlError, PreviewListInput, PreviewListResult, PreviewNavStatus, PreviewNavigateInput, PreviewOpenInput, PreviewRefreshInput, PreviewRenderedViewportSize, PreviewReportProfilesInput, PreviewReportStatusInput, PreviewResizeInput, PreviewRuntime, PreviewSessionLookupError, PreviewSessionSnapshot, PreviewStreamHostSetup, PreviewTabId, PreviewViewportPresetId, PreviewViewportSetting, PreviewViewportSize, PreviewZoomFactor
+- `packages/contracts/src/previewAutomation.ts` — exports: BrowserNavigationTarget, McpCapabilityUnavailableError, PREVIEW_AUTOMATION_SERVER_OPERATIONS, PREVIEW_AUTOMATION_V1_OPERATIONS, PREVIEW_RECORDING_STOP_TIMEOUT_MS, PreviewAutomationActionEvent, PreviewAutomationClickInput, PreviewAutomationClientDisconnectedError, PreviewAutomationClientId, PreviewAutomationColorScheme, PreviewAutomationConnectionId, PreviewAutomationConsoleEntry, PreviewAutomationControlInterruptedError, PreviewAutomationControlReason, PreviewAutomationDialogInput, PreviewAutomationDragInput, PreviewAutomationElement, PreviewAutomationError, PreviewAutomationEvaluateInput, PreviewAutomationExecutionError, PreviewAutomationHost, PreviewAutomationHostFocus, PreviewAutomationHostIdentity, PreviewAutomationHoverInput, PreviewAutomationInvalidSelectorError, PreviewAutomationMalformedResponseError, PreviewAutomationNavigateInput, PreviewAutomationNetworkEntry, PreviewAutomationNoAvailableHostError, PreviewAutomationOpenInput, PreviewAutomationOperation, PreviewAutomationPressInput, PreviewAutomationProfile, PreviewAutomationRecordingArtifact, PreviewAutomationRecordingDeadlineExpiredError, PreviewAutomationRecordingDesktopUpdateRequiredError, PreviewAutomationRecordingStatus, PreviewAutomationRecordingTooLargeError, PreviewAutomationRecordingTransferError, PreviewAutomationRemoteUnavailableError, PreviewAutomationRequest, PreviewAutomationRequestQueueClosedError, PreviewAutomationResizeInput, PreviewAutomationResizeResult, PreviewAutomationResponse, PreviewAutomationResultTooLargeError, PreviewAutomationScrollInput, PreviewAutomationSelectInput, PreviewAutomationSelectResult, PreviewAutomationSetColorSchemeInput, PreviewAutomationSetColorSchemeResult, PreviewAutomationSnapshot, PreviewAutomationStatus, PreviewAutomationStreamEvent, PreviewAutomationTabNotFoundError, PreviewAutomationTabOwner, PreviewAutomationTabTargetInput, PreviewAutomationTargetNotEditableError, PreviewAutomationTimeoutError, PreviewAutomationTypeInput, PreviewAutomationUnavailableError, PreviewAutomationUnsupportedClientError, PreviewAutomationUploadInput, PreviewAutomationWaitForInput, PreviewUrlResolution, SERVER_BROWSER_AUTOMATION_CLIENT_ID
+- `packages/contracts/src/previewCapture.ts` — exports: PreviewCaptureFailure, PreviewCaptureFailureEncoded
+- `packages/contracts/src/project.ts` — exports: Project, ProjectChange, ProjectContentMatch, ProjectContentMatchRange, ProjectCreateNewInput, ProjectCreateNewResult, ProjectCreatePayload, ProjectEnsureScratchResult, ProjectEntriesFailure, ProjectEntry, ProjectEntryKind, ProjectFaviconPath, ProjectFileFailure, ProjectFileOperation, ProjectIconColor, ProjectIconOverride, ProjectIgnoredFile, ProjectListEntriesError, ProjectListEntriesInput, ProjectListEntriesResult, ProjectListIgnoredFilesInput, ProjectListIgnoredFilesResult, ProjectMonogramText, ProjectMutation, ProjectMutationError, ProjectReadFileError, ProjectReadFileInput, ProjectReadFileResult, ProjectScript, ProjectScriptIcon, ProjectSearchContentsError, ProjectSearchContentsInput, ProjectSearchContentsResult, ProjectSearchEntriesError, ProjectSearchEntriesInput, ProjectSearchEntriesResult, ProjectSnapshot, ProjectUpdatePayload, ProjectWriteFileError, ProjectWriteFileInput, ProjectWriteFileResult, ReceivedProjectIcon, StoredProjectIcon
+- `packages/contracts/src/projectClone.ts` — exports: PROJECT_CLONE_DETAIL_MAX_LENGTH, PROJECT_CLONE_ERROR_MAX_LENGTH, ProjectCloneActionInput, ProjectCloneActionResult, ProjectCloneListEvent, ProjectClonePhase, ProjectCloneSnapshot, ProjectCloneStage, ProjectCloneStartInput, ProjectCloneStartResult, ProjectCloneSubscribeInput, projectCloneDisplayName, projectCloneProgressSummary
+- `packages/contracts/src/provider.ts` — exports: ProviderEvent, ProviderInterruptTurnInput, ProviderRespondToRequestInput, ProviderRespondToUserInputInput, ProviderSendTurnInput, ProviderSession, ProviderSessionStartInput, ProviderStopSessionInput, ProviderTurnStartResult, ProviderUploadFeedbackError, ProviderUploadFeedbackInput, ProviderUploadFeedbackResult
+- `packages/contracts/src/providerInstance.ts` — exports: ProviderDriverKind, ProviderInstanceConfig, ProviderInstanceConfigMap, ProviderInstanceEnvironment, ProviderInstanceEnvironmentVariable, ProviderInstanceEnvironmentVariableName, ProviderInstanceId, ProviderInstanceMutation, ProviderInstanceRef, defaultInstanceIdForDriver, isProviderDriverKind
+- `packages/contracts/src/providerPolicy.ts` — exports: AssistantDeliveryMode, DEFAULT_PROVIDER_INTERACTION_MODEProviderInteractionMode, DEFAULT_RUNTIME_MODERuntimeMode, ProviderApprovalDecision, ProviderApprovalFullAccessOverride, ProviderApprovalOption, ProviderApprovalPolicy, ProviderInteractionMode, ProviderRequestKind, ProviderSandboxMode, ProviderUserInputAnswers, RuntimeMode, UserInputAttachmentAnswerPayload, UserInputAttachments
+- `packages/contracts/src/providerRuntime.ts` — exports: AccountRateLimitsUpdatedPayload, AccountUpdatedPayload, AuthStatusPayload, CanonicalItemType, CanonicalRequestType, ConfigWarningPayload, ContentDeltaPayload, DeprecationNoticePayload, FilesPersistedPayload, HookCompletedPayload, HookProgressPayload, HookStartedPayload, ItemLifecyclePayload, McpOauthCompletedPayload, McpStatusUpdatedPayload, ModelReroutedPayload, ProviderRefs, ProviderRequestId, ProviderRuntimeAccountRateLimitsUpdatedEvent, ProviderRuntimeAccountUpdatedEvent, ProviderRuntimeAuthStatusEvent, ProviderRuntimeConfigWarningEvent, ProviderRuntimeContentDeltaEvent, ProviderRuntimeDeprecationNoticeEvent, ProviderRuntimeErrorEvent, ProviderRuntimeEvent, ProviderRuntimeEventBase, ProviderRuntimeEventV2, ProviderRuntimeFilesPersistedEvent, ProviderRuntimeHookCompletedEvent, ProviderRuntimeHookProgressEvent, ProviderRuntimeHookStartedEvent, ProviderRuntimeItemCompletedEvent, ProviderRuntimeItemStartedEvent, ProviderRuntimeItemUpdatedEvent, ProviderRuntimeMcpOauthCompletedEvent, ProviderRuntimeMcpStatusUpdatedEvent, ProviderRuntimeModelReroutedEvent, ProviderRuntimeRequestOpenedEvent, ProviderRuntimeRequestResolvedEvent, ProviderRuntimeSessionConfiguredEvent, ProviderRuntimeSessionExitedEvent, ProviderRuntimeSessionStartedEvent, ProviderRuntimeSessionStateChangedEvent, ProviderRuntimeTaskCompletedEvent, ProviderRuntimeTaskProgressEvent, ProviderRuntimeTaskStartedEvent, ProviderRuntimeTaskUpdatedEvent, ProviderRuntimeThreadMetadataUpdatedEvent, ProviderRuntimeThreadRealtimeAudioDeltaEvent, ProviderRuntimeThreadRealtimeClosedEvent, ProviderRuntimeThreadRealtimeErrorEvent, ProviderRuntimeThreadRealtimeItemAddedEvent, ProviderRuntimeThreadRealtimeStartedEvent, ProviderRuntimeThreadStartedEvent, ProviderRuntimeThreadStateChangedEvent, ProviderRuntimeThreadTokenUsageUpdatedEvent, ProviderRuntimeToolDeniedEvent, ProviderRuntimeToolProgressEvent, ProviderRuntimeToolSummaryEvent, ProviderRuntimeTurnAbortedEvent, ProviderRuntimeTurnCompletedEvent, ProviderRuntimeTurnDiffUpdatedEvent, ProviderRuntimeTurnPlanUpdatedEvent, ProviderRuntimeTurnProposedCompletedEvent, ProviderRuntimeTurnProposedDeltaEvent, ProviderRuntimeTurnStartedEvent, ProviderRuntimeTurnStatus, ProviderRuntimeUserInputRequestedEvent, ProviderRuntimeUserInputResolvedEvent, ProviderRuntimeWarningEvent, RequestOpenedPayload, RequestResolvedPayload, RuntimeContentStreamKind, RuntimeErrorClass, RuntimeErrorPayload, RuntimeEventRaw, RuntimeEventRawSource, RuntimeItemStatus, RuntimePlanStep, RuntimePlanStepStatus, RuntimeSessionExitKind, RuntimeSessionState, RuntimeTaskStatus, RuntimeTaskUsage, RuntimeThreadState, RuntimeTurnState, RuntimeWarningPayload, SessionConfiguredPayload, SessionExitedPayload, SessionStartedPayload, SessionStateChangedPayload, TaskAgentLinkage, TaskCompletedPayload, TaskProgressPayload, TaskRunHandles, TaskStartedPayload, TaskUpdatedPayload, TaskWorkflowPhase, ThreadMetadataUpdatedPayload, ThreadRealtimeAudioDeltaPayload, ThreadRealtimeClosedPayload, ThreadRealtimeErrorPayload, ThreadRealtimeItemAddedPayload, ThreadRealtimeStartedPayload, ThreadStartedPayload, ThreadStateChangedPayload, ThreadTokenUsageSnapshot, ThreadTokenUsageUpdatedPayload, ToolActivityIcon, ToolActivityNativeAppReference, ToolActivitySource, ToolActivitySurface, ToolDeniedPayload, ToolLifecycleItemType, ToolProgressPayload, ToolSummaryPayload, TurnAbortedPayload, TurnCompletedPayload, TurnDiffUpdatedPayload, TurnPlanUpdatedPayload, TurnProposedCompletedPayload, TurnProposedDeltaPayload, TurnStartedPayload, TurnTokenUsage, UserInputQuestion, UserInputQuestionOption, UserInputRequestedPayload, UserInputResolvedPayload, isToolLifecycleItemType
+- `packages/contracts/src/providerSetup.ts` — exports: ChatGptHandoffInput, ChatGptHandoffState, ChatGptImportProfileInput, ChatGptReconnectProfile, ChatGptReconnectProfileInput, ChatGptTransferredProfile, CodexAuthCallbackInput, CodexAuthCallbackState, ProviderAuthCancelInput, ProviderAuthCompleteInput, ProviderAuthInteraction, ProviderAuthMethod, ProviderAuthRespondInput, ProviderAuthResponse, ProviderAuthStartInput, ProviderAuthState, ProviderInstallCancelInput, ProviderInstallState, ProviderSetupError, ProviderSetupInput
+- `packages/contracts/src/providerUsageLimits.ts` — exports: ProviderConsumeResetCreditInput, ProviderConsumeResetCreditOutcome, ProviderConsumeResetCreditResult, ProviderUsageLimitsUpdate, ServerProviderResetCredits, ServerProviderUsageLimits, ServerProviderUsageWindow, UsageLimitSourceAccount, UsageLimitSourceConsumeResetCreditInput, UsageLimitSourceError, UsageLimitSourceSnapshot, UsageLimitSourceSnapshots, UsageLimitsReport
+- `packages/contracts/src/pullRequest.ts` — exports: PullRequestAction, PullRequestActionInput, PullRequestActivity, PullRequestActor, PullRequestBaseComparison, PullRequestCapabilities, PullRequestChangeBreakdown, PullRequestCheck, PullRequestCheckStatus, PullRequestChecks, PullRequestChecksState, PullRequestComment, PullRequestCommentInput, PullRequestCommentKind, PullRequestCommentUpdateInput, PullRequestCommit, PullRequestDetail, PullRequestDetailView, PullRequestDiffFileContentsInput, PullRequestDiffFileContentsResult, PullRequestDiffInput, PullRequestDiffResult, PullRequestDiffSide, PullRequestDiffStat, PullRequestEditCapabilities, PullRequestFileViewed, PullRequestFileViewedState, PullRequestFilesViewedResult, PullRequestInvalidateInput, PullRequestInvolvement, PullRequestLabel, PullRequestLabelCandidate, PullRequestLabelCandidateList, PullRequestLabelChangeInput, PullRequestLinkedThreadsResult, PullRequestListCursors, PullRequestListEntry, PullRequestListFilters, PullRequestListInput, PullRequestListProjectError, PullRequestListResult, PullRequestListState, PullRequestListStatsInput, PullRequestListStatsResult, PullRequestMergeCapabilities, PullRequestMergeMethod, PullRequestMergeability, PullRequestOmittedFileStat, PullRequestOperationError, PullRequestPreview, PullRequestProviderSummary, PullRequestReaction, PullRequestReactionContent, PullRequestReactionInput, PullRequestRef, PullRequestReportStateInput, PullRequestReviewCapabilities, PullRequestReviewCommentDraft, PullRequestReviewDecision, PullRequestReviewPosition, PullRequestReviewThread, PullRequestReviewVerdict, PullRequestReviewerCandidate, PullRequestReviewerCandidateList, PullRequestReviewerCapabilities, PullRequestReviewerKind, PullRequestReviewerRequestInput, PullRequestRoutingIdentityInput, PullRequestRoutingIdentityResult, PullRequestRoutingResult, PullRequestSetFilesViewedInput, PullRequestStack, PullRequestStackHead, PullRequestStackMembership, PullRequestState, PullRequestSubmitReviewInput, PullRequestSummary, PullRequestThreadComment, PullRequestThreadCommentsInput, PullRequestThreadCommentsResult, PullRequestThreadReplyInput, PullRequestThreadResolutionInput, PullRequestUnavailableError, PullRequestUnavailableReason, PullRequestUpdateInput, PullRequestUpdateMethod, PullRequestViewedFilesStore, PullRequestViewerPermissions, pullRequestHostOf, pullRequestProviderRequirement, resolvePullRequestAuthorFilter
+- `packages/contracts/src/pullRequestReviewGuide.ts` — exports: PullRequestReviewGuide, PullRequestReviewGuideAttention, PullRequestReviewGuideExcerpt, PullRequestReviewGuideNote, PullRequestReviewGuideResult, PullRequestReviewGuideRun, PullRequestReviewGuideStop
+- `packages/contracts/src/relay.ts` — exports: RelayAccessTokenType, RelayAgentActivityAggregateRow, RelayAgentActivityAggregateState, RelayAgentActivityPublishProof, RelayAgentActivityPublishProofExpiredError, RelayAgentActivityPublishProofInvalidError, RelayAgentActivityPublishProofInvalidReason, RelayAgentActivityPublishProofPayload, RelayAgentActivityPublishRequest, RelayAgentActivitySnapshotEndpoint, RelayAgentActivitySnapshotResponse, RelayAgentActivityState, RelayAgentAwarenessPhase, RelayAgentAwarenessPlatform, RelayAgentAwarenessPreferences, RelayApi, RelayApnsEnvironment, RelayAuthInvalidError, RelayAuthInvalidReason, RelayAuthorizationServerMetadata, RelayBearerRequestHeaders, RelayClientAuth, RelayClientDeviceRecord, RelayClientEnvironmentRecord, RelayClientPrincipal, RelayCloudEnvironmentHealthProof, RelayCloudEnvironmentHealthProofPayload, RelayCloudEnvironmentHealthRequest, RelayCloudMintCredentialProof, RelayCloudMintCredentialProofPayload, RelayCloudMintCredentialRequest, RelayConnectEnvironmentEndpoint, RelayDeliveryKind, RelayDeliveryResult, RelayDeviceRegistrationRequest, RelayDeviceUnregistrationParams, RelayDpopAccessTokenRequest, RelayDpopAccessTokenResponse, RelayDpopAccessTokenScope, RelayDpopClientAuth, RelayDpopFailureReason, RelayDpopProofRequestHeaders, RelayDpopRequestHeaders, RelayDpopTokenExchangeGrantType, RelayEnvironmentAuth, RelayEnvironmentConfigRequest, RelayEnvironmentConnectNotAuthorizedError, RelayEnvironmentConnectNotAuthorizedReason, RelayEnvironmentConnectRequest, RelayEnvironmentConnectResponse, RelayEnvironmentConnectScope, RelayEnvironmentEndpointFailure, RelayEnvironmentEndpointTimedOutError, RelayEnvironmentEndpointUnavailableError, RelayEnvironmentEndpointUnavailableReason, RelayEnvironmentHealthResponse, RelayEnvironmentHealthResponseProofPayload, RelayEnvironmentLinkChallengeRequest, RelayEnvironmentLinkChallengeResponse, RelayEnvironmentLinkFailedError, RelayEnvironmentLinkFailedReason, RelayEnvironmentLinkLimitExceededError, RelayEnvironmentLinkPreferencesRequest, RelayEnvironmentLinkProof, RelayEnvironmentLinkProofExpiredError, RelayEnvironmentLinkProofInvalidError, RelayEnvironmentLinkProofInvalidReason, RelayEnvironmentLinkProofPayload, RelayEnvironmentLinkRequest, RelayEnvironmentLinkResponse, RelayEnvironmentLinkScope, RelayEnvironmentLinkUnavailableError, RelayEnvironmentLinkUnavailableReason, RelayEnvironmentMintResponse, RelayEnvironmentMintResponseProofPayload, RelayEnvironmentPrincipal, RelayEnvironmentStatusResponse, RelayEnvironmentStatusScope, RelayEnvironmentStatusValue, RelayEnvironmentUnlinkParams, RelayExchangeDpopAccessTokenEndpoint, RelayGetEnvironmentStatusEndpoint, RelayHealthResponse, RelayHookDeliveryProofPayload, RelayInternalError, RelayInternalErrorReason, RelayJwtSubjectTokenType, RelayLinkProofRequest, RelayListDevicesResponse, RelayListDevicesResponseV1, RelayListEnvironmentsResponse, RelayLiveActivityRegistrationRequest, RelayManagedEndpoint, RelayManagedEndpointOrigin, RelayManagedEndpointProviderKind, RelayManagedEndpointRecoveryProofPayload, RelayManagedEndpointRecoveryRegistrationRequest, RelayManagedEndpointRecoveryRegistrationResponse, RelayManagedEndpointRecoveryRequest, RelayManagedEndpointRecoveryResponse, RelayManagedEndpointRuntimeConfig, RelayMobileClientId, RelayMobileRegistrationScope, RelayOkResponse, RelayProtectedError, RelayProtectedResourceMetadata, RelayPublicClientId, RelayPublishResponse, RelayRegisterDeviceEndpoint, RelayRegisterLiveActivityEndpoint, RelayUnregisterDeviceEndpoint, RelayWakeHeldHooksResponse, RelayWebClientId
+- `packages/contracts/src/relayClient.ts` — exports: RelayClientInstallFailedError, RelayClientInstallFailureReason, RelayClientInstallFailureReasonSchema, RelayClientInstallProgressEvent, RelayClientInstallProgressEventSchema, RelayClientInstallProgressStage, RelayClientInstallProgressStageSchema, RelayClientStatus, RelayClientStatusSchema
+- `packages/contracts/src/remoteAccess.ts` — exports: AdvertisedEndpoint, AdvertisedEndpointCompatibility, AdvertisedEndpointHostedHttpsCompatibility, AdvertisedEndpointProvider, AdvertisedEndpointProviderKind, AdvertisedEndpointReachability, AdvertisedEndpointSource, AdvertisedEndpointStatus
+- `packages/contracts/src/resourceTelemetry.ts` — exports: DesktopElectronProcessMetric, DesktopElectronProcessType, DesktopHostTelemetryHello, DesktopHostTelemetryMessage, DesktopHostTelemetrySnapshot, DesktopTelemetryCancelDesktopUpdate, DesktopTelemetryCommitDesktopUpdate, DesktopTelemetryControlMessage, DesktopTelemetryRequestDesktopUpdate, DesktopTelemetrySetDiagnosticsDemand, DesktopTelemetrySetHostPowerIntervals, DesktopUpdateRemoteOutcome, DesktopUpdateStatusReport, HostResourcesSnapshot, RESOURCE_MONITOR_PROTOCOL_VERSION, ResourceAttributionEntry, ResourceAttributionSnapshot, ResourceMonitorCapabilities, ResourceMonitorCommand, ResourceMonitorConfigureCommand, ResourceMonitorErrorEvent, ResourceMonitorEvent, ResourceMonitorExternalProcess, ResourceMonitorHelloEvent, ResourceMonitorHistoryChunkEvent, ResourceMonitorProcessSample, ResourceMonitorProcessTableCommand, ResourceMonitorProcessTableEntry, ResourceMonitorProcessTableEvent, ResourceMonitorReadHistoryCommand, ResourceMonitorSampleNowCommand, ResourceMonitorSetExternalProcessesCommand, ResourceMonitorSetSampleIntervalCommand, ResourceMonitorSetStreamingCommand, ResourceMonitorShutdownCommand, ResourceMonitorSnapshotEvent, ResourceTelemetryAggregate, ResourceTelemetryGroups, ResourceTelemetryHealth, ResourceTelemetryHistory, ResourceTelemetryHistoryBucket, ResourceTelemetryHistoryInput, ResourceTelemetryIoSemantics, ResourceTelemetryProcess, ResourceTelemetryProcessCategory, ResourceTelemetryProcessIdentity, ResourceTelemetryProcessSummary, ResourceTelemetryRetryResult, ResourceTelemetrySnapshot, ResourceTelemetrySourceHealth, ResourceTelemetrySourceStatus
+- `packages/contracts/src/review.ts` — exports: ReviewDiffFileContentsInput, ReviewDiffFileContentsResult, ReviewDiffFileStat, ReviewDiffPreviewError, ReviewDiffPreviewInput, ReviewDiffPreviewResult, ReviewDiffPreviewSource, ReviewDiffPreviewSourceKind
+- `packages/contracts/src/rpc.ts` — exports: RpcScopeAuthorization, WS_METHODS, WsRpcGroup, WsSubscribeServerConfigRpc
+- `packages/contracts/src/scheduledTask.ts` — exports: MAX_WEBHOOK_DELIVERY_AGE_MINUTES, MAX_WEBHOOK_FILTERS, MIN_SCHEDULED_TASK_INTERVAL_MS, ScheduledTask, ScheduledTaskDeleteInput, ScheduledTaskDeleteResult, ScheduledTaskError, ScheduledTaskGetWebhookDeliveryInput, ScheduledTaskGetWebhookDeliveryResult, ScheduledTaskListInput, ScheduledTaskListResult, ScheduledTaskListWebhookDeliveriesInput, ScheduledTaskListWebhookDeliveriesResult, ScheduledTaskMutationResult, ScheduledTaskRotateWebhookTokenInput, ScheduledTaskRunNowInput, ScheduledTaskRunNowResult, ScheduledTaskRunStatus, ScheduledTaskSchedule, ScheduledTaskSetEnabledInput, ScheduledTaskUpsertInput, ScheduledTaskUpsertSchedule, ScheduledTaskWebhookDelivery, ScheduledTaskWebhookDeliveryId, ScheduledTaskWebhookDeliveryOutcome, ScheduledTaskWebhookDeliverySummary, ScheduledTaskWebhookEndpoint, ScheduledTaskWebhookFilter, ScheduledTaskWebhookFilterOp, ScheduledTaskWebhookSignature, isWebhookDedupeTemplate
+- `packages/contracts/src/secretRequest.ts` — exports: SecretRequestAnswerInput, SecretRequestError, SecretRequestFailureReason
+- `packages/contracts/src/server.ts` — exports: DesktopUpdateCommitInput, EnvironmentTheme, EnvironmentThemeColor, EnvironmentThemeFile, EnvironmentThemeId, OtlpEndpointCheckInput, OtlpEndpointCheckResult, OtlpSignal, PROVIDER_WORKSPACE_SNAPSHOT_TTL_MS, ServerConfig, ServerConfigEnvironmentThemesUpdatedPayload, ServerConfigIssue, ServerConfigKeybindingsUpdatedPayload, ServerConfigProviderStatusesPayload, ServerConfigSettingsUpdatedPayload, ServerConfigStreamEnvironmentThemesUpdatedEvent, ServerConfigStreamEvent, ServerConfigStreamKeybindingsUpdatedEvent, ServerConfigStreamProviderStatusesEvent, ServerConfigStreamSettingsUpdatedEvent, ServerConfigStreamSnapshotEvent, ServerConfigStreamUsageLimitSourcesUpdatedEvent, ServerConfigUpdatedPayload, ServerConfigUsageLimitSourcesUpdatedPayload, ServerDirectEndpoint, ServerDirectEndpointKind, ServerEventLoopStall, ServerLifecycleLegacyThreadMigrationPayload, ServerLifecycleReadyPayload, ServerLifecycleStreamEvent, ServerLifecycleStreamLegacyThreadMigrationEvent, ServerLifecycleStreamReadyEvent, ServerLifecycleStreamWelcomeEvent, ServerLifecycleWelcomePayload, ServerObservability, ServerProcessDiagnosticsEntry, ServerProcessDiagnosticsResult, ServerProcessResourceHistoryBucket, ServerProcessResourceHistoryFailureTag, ServerProcessResourceHistoryInput, ServerProcessResourceHistoryResult, ServerProcessResourceHistorySummary, ServerProcessSignal, ServerProvider, ServerProviderAuth, ServerProviderAuthStatus, ServerProviderAvailability, ServerProviderCompatibilityAdvisory, ServerProviderCompatibilityStatus, ServerProviderContinuation, ServerProviderModel, ServerProviderSkill, ServerProviderSlashCommand, ServerProviderSlashCommandInput, ServerProviderState, ServerProviderUpdateError, ServerProviderUpdateInput, ServerProviderUpdateRequiredModel, ServerProviderUpdateState, ServerProviderUpdateStatus, ServerProviderUpdatedPayload, ServerProviderVersionAdvisory, ServerProviderVersionAdvisoryStatus, ServerProviderWorkspaceSnapshot, ServerProviders, ServerRemoveKeybindingInput, ServerRemoveKeybindingResult, ServerSelfUpdateError, ServerSelfUpdateInput, ServerSelfUpdateOutcome, ServerSelfUpdateProgressEvent, ServerSelfUpdateProgressStage, ServerSelfUpdateResult, ServerSignalProcessInput, ServerSignalProcessResult, ServerTraceDiagnosticsErrorKind, ServerTraceDiagnosticsFailureSummary, ServerTraceDiagnosticsLogEvent, ServerTraceDiagnosticsRecentFailure, ServerTraceDiagnosticsResult, ServerTraceDiagnosticsSpanOccurrence, ServerTraceDiagnosticsSpanSummary, ServerUpsertKeybindingInput, ServerUpsertKeybindingResult, environmentThemeFileHasColors, isProviderAvailable, isProviderTextGenerationCapable, isProviderWorkspaceSnapshotCurrent, resolveEnvironmentMachineKind
+- `packages/contracts/src/settings.ts` — exports: ANTIGRAVITY_AUTH_METHODS, AntigravityAuthMethod, AntigravitySettings, AppearanceContrast, BROWSER_CUSTOM_SEARCH_URL_MAX_LENGTH, BROWSER_RECORDING_FRAME_RATES, BackgroundActivityOverrides, BackgroundActivityProfile, BackgroundActivityProfileSelection, BackgroundActivitySettings, BranchNamingMode, BranchNamingOptions, BrowserCustomSearchUrl, BrowserLinkTarget, BrowserRecordingFrameRate, BrowserSearchEngine, ChatWidth, ClaudeSettings, ClientSettings, ClientSettingsPatch, ClientSettingsSchema, CodeFontSize, CodexSettings, DATABASE_COMPACTION_RECOMMENDED_BYTES, DEFAULT_AUTOMATIC_GIT_FETCH_INTERVAL, DEFAULT_BACKGROUND_ACTIVITY_PROFILEBackgroundActivityProfile, DEFAULT_BROWSER_AUTO_SHOW_FLOATING_PREVIEW, DEFAULT_BROWSER_LINK_TARGETBrowserLinkTarget, DEFAULT_BROWSER_RECORDING_FRAME_RATEBrowserRecordingFrameRate, DEFAULT_BROWSER_SEARCH_ENGINEBrowserSearchEngine, DEFAULT_BROWSER_VIEWPORTPreviewViewportSetting, DEFAULT_CLIENT_SETTINGSClientSettings, DEFAULT_CODE_FONT_SIZECodeFontSize, DEFAULT_ENVIRONMENT_IDENTIFICATION_MODEEnvironmentIdentificationMode, DEFAULT_INTERFACE_FONT_SIZEInterfaceFontSize, DEFAULT_PROMPT_FONT_SIZEPromptFontSize, DEFAULT_PROVIDER_HEALTH_REFRESH_INTERVAL, DEFAULT_SERVER_SETTINGSServerSettings, DEFAULT_SIDEBAR_PROJECT_SORT_ORDERSidebarProjectSortOrder, DEFAULT_UNIFIED_SETTINGSUnifiedSettings, DatabaseStorageStatus, DefaultThemePreference, DiffColorScheme, DiffLayout, EnvironmentIdentificationMode, FontFamilyPreference, GitHubHost, GlassOpacity, IDLE_COMPACTION_MODES, IdleCompactionMode, InterfaceFontSize, LoadBalancingWeights, MAX_APPEARANCE_CONTRAST, MAX_CODE_FONT_SIZE, MAX_GLASS_OPACITY, MAX_INTERFACE_FONT_SIZE, MAX_PANEL_ANIMATION_DURATION_MS, MAX_PROMPT_FONT_SIZE, MAX_SIDEBAR_AUTO_SETTLE_AFTER_DAYS, MAX_SIDEBAR_THREAD_PREVIEW_COUNT, MAX_TERMINAL_FONT_SIZE, MIN_APPEARANCE_CONTRAST, MIN_CODE_FONT_SIZE, MIN_GLASS_OPACITY, MIN_INTERFACE_FONT_SIZE, MIN_PANEL_ANIMATION_DURATION_MS, MIN_PROMPT_FONT_SIZE, MIN_SIDEBAR_AUTO_SETTLE_AFTER_DAYS, MIN_SIDEBAR_THREAD_PREVIEW_COUNT, MIN_TERMINAL_FONT_SIZE, ModelFavorite, ModelFavorites, ModelPreferences, NotificationMode, ObservabilitySettings, PROJECT_SCOPED_SERVER_SETTING_KEYS, PanelAnimationDurationMs, ProjectProviderInstanceOverride, ProjectScopedServerSettingKey, ProjectSettingsOverrides, PromptFontSize, ProviderModelPreferences, ProviderSettingsFormAnnotation, ProviderSettingsFormControl, ProviderSettingsFormOption, ProviderSettingsFormSchemaAnnotation, ProviderSettingsOrder, QuitConfirmationMode, ResponseStreamingMode, SNAP_SHOT_MODIFIERS, ServerSettings, ServerSettingsError, ServerSettingsOperation, ServerSettingsPatch, SidebarAutoSettleAfterDays, SidebarProjectGroupingMode, SidebarProjectSortOrder, SidebarThreadPreviewCount, SidebarThreadSortOrder, SnapShotKeyChord, SnapShotModifier, SnapShotModifierPairShortcut, SnapShotShortcut, SnapShotSound, SourceControlHostSettings, SourceControlWritingStyleMode, SourceControlWritingStyleSettings, StorageCleanupReport, StorageCleanupReportEntry, StorageCleanupSettings, TerminalFontSize, TimestampFormat, UnifiedSettings, UsageLimitSourceConfig, UsageModelPriceOverride, WorktreeCleanup, WorktreeCleanupRules, WorktreeKeepWhen, isModifierPairShortcut, isNullableProjectSettingsOverride, isSecretSetting, isUnconfiguredDefaultInstanceEnabled, makeBinaryPathSetting, makeProviderSettingsSchema, requiredScopesForProjectMutation, requiredScopesForServerSettingsPatch, secretSetting, secretSettingsFields, shouldRecommendDatabaseCompaction, snapShotModifierPairLabel, snapShotShortcutModifierPair
+- `packages/contracts/src/sourceControl.ts` — exports: ChangeRequest, ChangeRequestState, SourceControlCloneProtocol, SourceControlCloneRepositoryInput, SourceControlCloneRepositoryResult, SourceControlDiscoveryResult, SourceControlDiscoveryStatus, SourceControlProviderAuth, SourceControlProviderAuthStatus, SourceControlProviderDiscoveryItem, SourceControlProviderError, SourceControlProviderInfo, SourceControlProviderKind, SourceControlPublishRepositoryInput, SourceControlPublishRepositoryResult, SourceControlPublishStatus, SourceControlRepositoryCloneUrls, SourceControlRepositoryError, SourceControlRepositoryInfo, SourceControlRepositoryLookupInput, SourceControlRepositoryVisibility, VcsDiscoveryItem
+- `packages/contracts/src/t3ProjectFile.ts` — exports: ProjectFileBackedSettingKey, ResolvedServerSettings, T3ProjectFile, T3ProjectFileScript, T3_PROJECT_FILE_NAME, T3_PROJECT_FILE_SCHEMA_URL
+- `packages/contracts/src/terminal.ts` — exports: DEFAULT_MAX_TERMINAL_BUFFER_BYTES, DEFAULT_TERMINAL_ID, TerminalAttachInput, TerminalAttachStreamEvent, TerminalClearInput, TerminalCloseInput, TerminalCwdError, TerminalCwdNotDirectoryError, TerminalCwdNotFoundError, TerminalCwdStatError, TerminalError, TerminalEvent, TerminalHistoryError, TerminalMetadataStreamEvent, TerminalNotRunningError, TerminalObserveInput, TerminalOpenInput, TerminalProviderEnvironmentError, TerminalProviderInstanceNotFoundError, TerminalResizeError, TerminalResizeInput, TerminalRestartInput, TerminalSessionInput, TerminalSessionLookupError, TerminalSessionSnapshot, TerminalSessionStatus, TerminalSummary, TerminalThreadInput, TerminalWriteError, TerminalWriteInput
+- `packages/contracts/src/threadMetadataMcp.ts` — exports: ThreadMetadataMcpAction, ThreadMetadataMcpPullRequest, ThreadMetadataMcpUpdateInput, ThreadMetadataMcpUpdateResult
+- `packages/contracts/src/threadPullRequest.ts` — exports: ThreadLinkedPullRequest, ThreadPullRequestKey, ThreadPullRequestLink, ThreadPullRequestLinkSource, ThreadPullRequestSnapshot, ThreadPullRequestStack, ThreadPullRequestStackLayer, ThreadPullRequestWatch
+- `packages/contracts/src/threadSearch.ts` — exports: OrchestrationSearchThreadsError, OrchestrationSearchThreadsInput, OrchestrationSearchThreadsResult, OrchestrationThreadSearchMatch, OrchestrationThreadSearchSource
+- `packages/contracts/src/threadTitle.ts` — exports: ThreadTitleRegeneration
+- `packages/contracts/src/usage.ts` — exports: USAGE_CONTRACT_VERSION, USAGE_MERGE_COMPATIBLE_SINCE, UsageBucket, UsageCategoryCost, UsageCostSource, UsageDay, UsagePricing, UsagePricingStatus, UsageProviderKind, UsageReadError, UsageResolution, UsageSource, UsageSourceFingerprint, UsageSourceStatus, UsageSummary, UsageSummaryInput, UsageTokenTotals
+- `packages/contracts/src/usageLimitSourceId.ts` — exports: UsageLimitSourceId
+- `packages/contracts/src/vcs.ts` — exports: VcsDriverCapabilities, VcsDriverKind, VcsError, VcsFreshness, VcsFreshnessSource, VcsListRemotesResult, VcsListWorkspaceFilesResult, VcsOutputDecodeError, VcsProcessErrorContext, VcsProcessExitError, VcsProcessExitFailure, VcsProcessExitFailureKind, VcsProcessMissingExitCodeError, VcsProcessOutputLimitError, VcsProcessOutputReadError, VcsProcessSpawnError, VcsProcessSpawnFailure, VcsProcessStdinWriteError, VcsProcessTimeoutError, VcsProcessTimeoutFailure, VcsRemote, VcsRepositoryDetectionError, VcsRepositoryIdentity, VcsUnsupportedOperationError
+- `packages/contracts/src/worktreeMcp.ts` — exports: WorktreeMcpContinuationStatus, WorktreeMcpFailure, WorktreeMcpHandoffInput, WorktreeMcpHandoffResult, WorktreeMcpSetupScriptStatus, WorktreeMcpStatusResult
+- `packages/contracts/src/worktreeSetup.ts` — exports: WORKTREE_SETUP_ACTIVITY_KIND, WORKTREE_SETUP_DETAIL_MAX_LENGTH, WORKTREE_SETUP_ERROR_MAX_LENGTH, WORKTREE_SETUP_STAGE_ORDERReadonlyArrayWorktreeSetupStageId, WORKTREE_SETUP_TAIL_LINE_MAX_LENGTH, WorktreeSetupCancelInput, WorktreeSetupCancelResult, WorktreeSetupPhase, WorktreeSetupSnapshot, WorktreeSetupStage, WorktreeSetupStageId, WorktreeSetupStageStatus, WorktreeSetupStreamEvent, WorktreeSetupSubscribeInput, worktreeSetupStageLabel
+- `packages/effect-acp/scripts/generate.ts` — exports: AGENT_METHODS, CLIENT_METHODS, PROTOCOL_VERSION
+- `packages/effect-acp/src/_generated/meta.gen.ts` — exports: AGENT_METHODS, CLIENT_METHODS, PROTOCOL_VERSION
+- `packages/effect-acp/src/_generated/schema-v1.gen.ts` — exports: AcceptNesNotification, AgentAuthCapabilities, AgentCapabilities, AgentNotification, AgentRequest, AgentResponse, Annotations, AudioContent, AuthCapabilities, AuthMethod, AuthMethodAgent, AuthMethodId, AuthMethodTerminal, AuthenticateRequest, AuthenticateResponse, AvailableCommand, AvailableCommandInput, AvailableCommandsUpdate, BlobResourceContents, BooleanConfigOptionCapabilities, BooleanPropertySchema, CancelNotification, CancelRequestNotification, ClientCapabilities, ClientNesCapabilities, ClientNotification, ClientRequest, ClientResponse, ClientSessionCapabilities, CloseNesRequest, CloseNesResponse, CloseSessionRequest, CloseSessionResponse, CompactionCapabilities, CompactionId, CompactionStatus, CompactionSummaryChunk, CompactionUpdate, CompleteElicitationNotification, ConfigOptionUpdate, ConnectMcpRequest, ConnectMcpResponse, Content, ContentBlock, ContentChunk, Cost, CreateElicitationRequest, CreateElicitationResponse, CreateTerminalRequest, CreateTerminalResponse, CurrentModeUpdate, DeleteSessionRequest, DeleteSessionResponse, DidChangeDocumentNotification, DidCloseDocumentNotification, DidFocusDocumentNotification, DidOpenDocumentNotification, DidSaveDocumentNotification, Diff, DisableProviderRequest, DisableProviderResponse, DisconnectMcpRequest, DisconnectMcpResponse, ElicitationAcceptAction, ElicitationCapabilities, ElicitationContentValue, ElicitationFormCapabilities, ElicitationFormMode, ElicitationId, ElicitationPropertySchema, ElicitationRequestScope, ElicitationSchema, ElicitationSchemaType, ElicitationSessionScope, ElicitationUrlCapabilities, ElicitationUrlMode, EmbeddedResource, EmbeddedResourceResource, EnumOption, EnvVariable, Error, ErrorCode, ExtNotification, ExtRequest, ExtResponse, FileSystemCapabilities, ForkSessionRequest, ForkSessionResponse, HttpHeader, ImageContent, Implementation, InitializeRequest, InitializeResponse, IntegerPropertySchema, KillTerminalRequest, KillTerminalResponse, ListProvidersRequest, ListProvidersResponse, ListSessionsRequest, ListSessionsResponse, LlmProtocol, LoadSessionRequest, LoadSessionResponse, LogoutCapabilities, LogoutRequest, LogoutResponse, McpCapabilities, McpConnectionId, McpServer, McpServerAcp, McpServerAcpId, McpServerHttp, McpServerSse, McpServerStdio, MessageId, MessageMcpNotification, MessageMcpRequest, MessageMcpResponse, MultiSelectItems, MultiSelectPropertySchema, NesCapabilities, NesContextCapabilities, NesDiagnostic, NesDiagnosticSeverity, NesDiagnosticsCapabilities, NesDocumentDidChangeCapabilities, NesDocumentDidCloseCapabilities, NesDocumentDidFocusCapabilities, NesDocumentDidOpenCapabilities, NesDocumentDidSaveCapabilities, NesDocumentEventCapabilities, NesEditHistoryCapabilities, NesEditHistoryEntry, NesEditSuggestion, NesEventCapabilities, NesExcerpt, NesJumpCapabilities, NesJumpSuggestion, NesOpenFile, NesOpenFilesCapabilities, NesRecentFile, NesRecentFilesCapabilities, NesRejectReason, NesRelatedSnippet, NesRelatedSnippetsCapabilities, NesRenameCapabilities, NesRenameSuggestion, NesRepository, NesSearchAndReplaceCapabilities, NesSearchAndReplaceSuggestion, NesSuggestContext, NesSuggestion, NesSuggestionId, NesTextEdit, NesTriggerKind, NesUserAction, NesUserActionsCapabilities, NewSessionRequest, NewSessionResponse, NumberPropertySchema, PermissionOption, PermissionOptionId, PermissionOptionKind, Plan, PlanCapabilities, PlanEntry, PlanEntryPriority, PlanEntryStatus, PlanFile, PlanId, PlanItems, PlanMarkdown, PlanRemoved, PlanUpdate, PlanUpdateContent, Position, PositionEncodingKind, PromptCapabilities, PromptRequest, PromptResponse, ProtocolVersion, ProviderCurrentConfig, ProviderId, ProviderInfo, ProvidersCapabilities, Range, ReadTextFileRequest, ReadTextFileResponse, RejectNesNotification, ReleaseTerminalRequest, ReleaseTerminalResponse, RequestId, RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse, ResourceLink, ResumeSessionRequest, ResumeSessionResponse, Role, SelectedPermissionOutcome, SessionAdditionalDirectoriesCapabilities, SessionCapabilities, SessionCloseCapabilities, SessionConfigBoolean, SessionConfigGroupId, SessionConfigId, SessionConfigOption, SessionConfigOptionCategory, SessionConfigOptionsCapabilities, SessionConfigSelect, SessionConfigSelectGroup, SessionConfigSelectOption, SessionConfigSelectOptions, SessionConfigValueId, SessionDeleteCapabilities, SessionForkCapabilities, SessionId, SessionInfo, SessionInfoUpdate, SessionListCapabilities, SessionMode, SessionModeId, SessionModeState, SessionNotification, SessionResumeCapabilities, SessionUpdate, SetProviderRequest, SetProviderResponse, SetSessionConfigOptionRequest, SetSessionConfigOptionResponse, SetSessionModeRequest, SetSessionModeResponse, StartNesRequest, StartNesResponse, StopReason, StringFormat, StringMultiSelectItems, StringPropertySchema, SuggestNesRequest, SuggestNesResponse, Terminal, TerminalExitStatus, TerminalId, TerminalOutputRequest, TerminalOutputResponse, TextContent, TextDocumentContentChangeEvent, TextDocumentSyncKind, TextResourceContents, TitledMultiSelectItems, ToolCall, ToolCallContent, ToolCallId, ToolCallLocation, ToolCallStatus, ToolCallUpdate, ToolKind, UnstructuredCommandInput, Usage, UsageUpdate, WaitForTerminalExitRequest, WaitForTerminalExitResponse, WorkspaceFolder, WriteTextFileRequest, WriteTextFileResponse
+- `packages/effect-acp/src/_generated/schema.gen.ts` — exports: AbsolutePath, AcceptNesNotification, AgentAuthCapabilities, AgentCapabilities, AgentMessage, AgentNotification, AgentRequest, AgentResponse, AgentThought, Annotations, AudioContent, AuthCapabilities, AuthMethod, AuthMethodAgent, AuthMethodId, AuthMethodTerminal, AvailableCommand, AvailableCommandInput, AvailableCommandsUpdate, BlobResourceContents, BooleanPropertySchema, CancelRequestNotification, CancelSessionNotification, ClientCapabilities, ClientNesCapabilities, ClientNotification, ClientRequest, ClientResponse, CloseNesRequest, CloseNesResponse, CloseSessionRequest, CloseSessionResponse, CommandPermissionSubject, CompactionId, CompactionStatus, CompactionSummaryChunk, CompactionUpdate, CompleteElicitationNotification, ConfigOptionUpdate, ConnectMcpRequest, ConnectMcpResponse, Content, ContentBlock, ContentChunk, Cost, CreateElicitationRequest, CreateElicitationResponse, DeleteSessionRequest, DeleteSessionResponse, DidChangeDocumentNotification, DidCloseDocumentNotification, DidFocusDocumentNotification, DidOpenDocumentNotification, DidSaveDocumentNotification, Diff, DiffChange, DiffFileType, DiffPatch, DiffPatchFormat, DiffPathChange, DiffPathPairChange, DisableProviderRequest, DisableProviderResponse, DisconnectMcpRequest, DisconnectMcpResponse, ElicitationAcceptAction, ElicitationCapabilities, ElicitationContentValue, ElicitationFormCapabilities, ElicitationFormMode, ElicitationId, ElicitationPropertySchema, ElicitationRequestScope, ElicitationSchema, ElicitationSchemaType, ElicitationSessionScope, ElicitationUrlCapabilities, ElicitationUrlMode, EmbeddedResource, EmbeddedResourceResource, EnumOption, EnvVariable, Error, ErrorCode, ExtNotification, ExtRequest, ExtResponse, ForkSessionRequest, ForkSessionResponse, HttpHeader, Icon, IconTheme, IdleStateUpdate, ImageContent, Implementation, InitializeRequest, InitializeResponse, IntegerPropertySchema, ListProvidersRequest, ListProvidersResponse, ListSessionsRequest, ListSessionsResponse, LlmProtocol, LoginAuthRequest, LoginAuthResponse, LogoutAuthRequest, LogoutAuthResponse, McpAcpCapabilities, McpCapabilities, McpConnectionId, McpHttpCapabilities, McpServer, McpServerAcp, McpServerAcpId, McpServerHttp, McpServerStdio, McpStdioCapabilities, MediaType, MessageId, MessageMcpNotification, MessageMcpRequest, MessageMcpResponse, MultiSelectItems, MultiSelectPropertySchema, NesCapabilities, NesContextCapabilities, NesDiagnostic, NesDiagnosticSeverity, NesDiagnosticsCapabilities, NesDocumentDidChangeCapabilities, NesDocumentDidCloseCapabilities, NesDocumentDidFocusCapabilities, NesDocumentDidOpenCapabilities, NesDocumentDidSaveCapabilities, NesDocumentEventCapabilities, NesEditHistoryCapabilities, NesEditHistoryEntry, NesEditSuggestion, NesEventCapabilities, NesExcerpt, NesJumpCapabilities, NesJumpSuggestion, NesOpenFile, NesOpenFilesCapabilities, NesRecentFile, NesRecentFilesCapabilities, NesRejectReason, NesRelatedSnippet, NesRelatedSnippetsCapabilities, NesRenameCapabilities, NesRenameSuggestion, NesRepository, NesSearchAndReplaceCapabilities, NesSearchAndReplaceSuggestion, NesSuggestContext, NesSuggestion, NesSuggestionId, NesTextEdit, NesTriggerKind, NesUserAction, NesUserActionsCapabilities, NewSessionRequest, NewSessionResponse, NumberPropertySchema, PermissionOption, PermissionOptionId, PermissionOptionKind, PlanEntry, PlanEntryPriority, PlanEntryStatus, PlanFile, PlanId, PlanItems, PlanMarkdown, PlanRemoved, PlanUpdate, PlanUpdateContent, Position, PositionEncodingKind, PromptAudioCapabilities, PromptCapabilities, PromptEmbeddedContextCapabilities, PromptImageCapabilities, PromptRequest, PromptResponse, ProtocolLevelNotification, ProtocolVersion, ProviderCurrentConfig, ProviderId, ProviderInfo, ProvidersCapabilities, Range, RejectNesNotification, ReplayFrom, ReplayFromStart, RequestId, RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse, RequestPermissionSubject, RequiresActionStateUpdate, ResourceLink, ResumeSessionRequest, ResumeSessionResponse, Role, RunningStateUpdate, SelectedPermissionOutcome, SessionAdditionalDirectoriesCapabilities, SessionCapabilities, SessionConfigBoolean, SessionConfigGroupId, SessionConfigId, SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelect, SessionConfigSelectGroup, SessionConfigSelectOption, SessionConfigSelectOptions, SessionConfigValueId, SessionDeleteCapabilities, SessionForkCapabilities, SessionId, SessionInfo, SessionInfoUpdate, SessionListCursor, SessionUpdate, SetProviderRequest, SetProviderResponse, SetSessionConfigOptionRequest, SetSessionConfigOptionResponse, StartNesRequest, StartNesResponse, StateUpdate, StopReason, StringFormat, StringMultiSelectItems, StringPropertySchema, SuggestNesRequest, SuggestNesResponse, Terminal, TerminalAuthCapabilities, TerminalExitStatus, TerminalId, TerminalOutput, TerminalOutputChunk, TerminalUpdate, TextCommandInput, TextContent, TextDocumentContentChangeEvent, TextDocumentSyncKind, TextResourceContents, TitledMultiSelectItems, ToolCallContent, ToolCallContentChunk, ToolCallId, ToolCallLocation, ToolCallPermissionSubject, ToolCallStatus, ToolCallUpdate, ToolKind, UpdateSessionNotification, Usage, UsageUpdate, UserMessage, WorkspaceFolder
+- `packages/effect-acp/src/_internal/shared.ts` — exports: AcpErrorAcpError, I, R, callRpc, decodeExtNotificationRegistration, decodeExtRequestRegistration, encodeJsonl, isolateNotificationHandler, jsonRpcNotification, jsonRpcRequest, jsonRpcResponse
+- `packages/effect-acp/src/_internal/stdio.ts` — exports: makeChildStdio
+- `packages/effect-acp/src/agent.ts` — exports: AcpAgent, AcpAgentOptions, AcpRequestHandler, StdioStdio, layer, layerStdio, never
+- `packages/effect-acp/src/client.ts` — exports: AcpClient, AcpClientOptions, AcpRequestHandler
+- `packages/effect-acp/src/compat.ts` — exports: AbsolutePath, AgentCapabilities, AuthMethod, AuthenticateRequest, AuthenticateResponse, AvailableCommand, CancelNotification, ClientCapabilities, CloseSessionRequest, CloseSessionResponse, CompleteElicitationNotification, ConnectMcpRequest, ConnectMcpResponse, ContentBlock, CreateElicitationRequest, CreateElicitationResponse, CreateTerminalRequest, CreateTerminalResponse, DeleteSessionRequest, DeleteSessionResponse, DisableProviderRequest, DisableProviderResponse, DisconnectMcpRequest, DisconnectMcpResponse, ElicitationContentValue, ForkSessionRequest, ForkSessionResponse, InitializeRequest, InitializeResponse, KillTerminalRequest, KillTerminalResponse, ListProvidersRequest, ListProvidersResponse, ListSessionsRequest, ListSessionsResponse, LoadSessionRequest, LoadSessionResponse, LogoutRequest, LogoutResponse, McpServer, MessageMcpNotification, MessageMcpRequest, MessageMcpResponse, ModelInfo, NewSessionRequest, NewSessionResponse, PermissionOption, PromptRequest, PromptResponse, ReadTextFileRequest, ReadTextFileResponse, ReleaseTerminalRequest, ReleaseTerminalResponse, RequestPermissionRequest, RequestPermissionResponse, ResumeSessionRequest, ResumeSessionResponse, SessionConfigOption, SessionConfigSelectOption, SessionConfigSelectOptions, SessionMode, SessionModeState, SessionModelState, SessionNotification, SessionUpdate, SetProviderRequest, SetProviderResponse, SetSessionConfigOptionRequest, SetSessionConfigOptionResponse, SetSessionModeResponse, SetSessionModelRequest, SetSessionModelResponse, StopReason, TerminalExitStatus, TerminalOutputRequest, TerminalOutputResponse, ToolCallContent, ToolCallLocation, ToolCallStatus, ToolCallUpdate, ToolKind, Usage, WaitForTerminalExitRequest, WaitForTerminalExitResponse, WriteTextFileRequest, WriteTextFileResponse
+- `packages/effect-acp/src/errors.ts` — exports: AcpError, AcpInputStreamEndedError, AcpProcessExitedError, AcpProtocolParseError, AcpProtocolParseOperation, AcpRequestDiagnostics, AcpRequestError, AcpRequestId, AcpSpawnError, AcpTransportError
+- `packages/effect-acp/src/protocol.ts` — exports: AcpIncomingNotification, AcpPatchedProtocol, AcpPatchedProtocolOptions, AcpProtocolLogEvent, AcpRequestContext, AcpRequestHandler, AcpStdio, RPC_REQUEST_ID_START, acpRequestIdentity
+- `packages/effect-acp/src/rpc.ts` — exports: AgentRpcs, ClientRpcs, CompatAgentRpcs, CompatClientRpcs, V1_AGENT_METHODS, V1_CLIENT_METHODS
+- `packages/effect-acp/src/schema.ts` — exports: AuthenticateRequest, AuthenticateResponse, CancelNotification, LoadSessionRequest, LoadSessionResponse, LogoutRequest, LogoutResponse, SessionNotification
+- `packages/effect-acp/test/fixtures/acp-mock-peer.ts` — exports: 
+- `packages/effect-codex-app-server/scripts/generate.ts` — exports: $, ClientNotificationMethod, ClientRequestMethod, ServerNotificationMethod, ServerRequestMethod
+- `packages/effect-codex-app-server/src/_generated/meta.gen.ts` — exports: CLIENT_NOTIFICATION_METHODS, CLIENT_NOTIFICATION_PARAMS, CLIENT_REQUEST_METHODS, CLIENT_REQUEST_PARAMS, CLIENT_REQUEST_RESPONSES, ClientNotificationMethod, ClientNotificationParamsByMethod, ClientRequestMethod, ClientRequestParamsByMethod, ClientRequestResponsesByMethod, SERVER_NOTIFICATION_METHODS, SERVER_NOTIFICATION_PARAMS, SERVER_REQUEST_METHODS, SERVER_REQUEST_PARAMS, SERVER_REQUEST_RESPONSES, ServerNotificationMethod, ServerNotificationParamsByMethod, ServerRequestMethod, ServerRequestParamsByMethod, ServerRequestResponsesByMethod
+- `packages/effect-codex-app-server/src/_generated/namespaces.gen.ts` — exports: v1, v2
+- `packages/effect-codex-app-server/src/_internal/shared.ts` — exports: CodexErrorCodexAppServerProtocolParseError, IEffectEffectA, IEffectEffectIundefined, JsonRpcId, JsonRpcResponseEnvelope, decodeNotificationPayload, decodeOptionalPayload, encodeOptionalPayload
+- `packages/effect-codex-app-server/src/_internal/stdio.ts` — exports: makeChildStdio, makeTerminationError
+- `packages/effect-codex-app-server/src/client.ts` — exports: CodexAppServerClient, CodexAppServerClientOptions, layerChildProcess
+- `packages/effect-codex-app-server/src/errors.ts` — exports: CodexAppServerError, CodexAppServerIdentifierGenerationError, CodexAppServerIdentifierPurpose, CodexAppServerInputStreamEndedError, CodexAppServerProcessExitedError, CodexAppServerProtocolErrorShape, CodexAppServerProtocolParseError, CodexAppServerProtocolParseOperation, CodexAppServerRequestDiagnostics, CodexAppServerRequestError, CodexAppServerSpawnError, CodexAppServerTransportError, CodexAppServerTransportOperation
+- `packages/effect-codex-app-server/src/protocol.ts` — exports: CodexAppServerIncomingNotification, CodexAppServerIncomingRequest, CodexAppServerPatchedProtocol, CodexAppServerPatchedProtocolOptions, CodexAppServerProtocolLogEvent
+- `packages/effect-codex-app-server/src/replay.ts` — exports: CodexAppServerReplayDriver, CodexAppServerReplayEntry, CodexAppServerReplayError, CodexAppServerReplayExhaustedError, CodexAppServerReplayFrameMismatchError, CodexAppServerReplayIncompleteError, CodexAppServerReplayJsonParseError, CodexAppServerReplayRuntimeExitError, CodexAppServerReplayState, CodexAppServerReplayTranscript, CodexAppServerReplayUnexpectedOutboundError, layerReplay, layerReplayWithDriver
+- `packages/effect-codex-app-server/src/rpc.ts` — exports: 
+- `packages/effect-codex-app-server/src/schema.ts` — exports: 
+- `packages/effect-codex-app-server/test/examples/codex-app-server-probe.ts` — exports: 
+- `packages/effect-codex-app-server/test/fixtures/codex-app-server-mock-peer.ts` — exports: 
+- `packages/provider-acp-registry/src/client.ts` — exports: acpRegistryClient
+- `packages/provider-acp-registry/src/server.ts` — exports: AcpRegistryAdapterV2Driver, AcpRegistryAdapterV2DriverEnv, AcpRegistryDriver, AcpRegistryDriverEnv, acpRegistryManagedBinaryDirectories
+- `packages/provider-acp-registry/src/server/AcpRegistryRuntimeCoordinator.ts` — exports: AcpRegistryRuntimeCoordinator, layer
+- `packages/provider-acp-registry/src/server/AcpRegistrySupport.ts` — exports: AcpRegistryAgent, AcpRegistryCatalog, AcpRegistryCatalogOptions, AcpRegistryError, AcpRegistryErrorReason, AcpRegistryIndex, AcpRegistryInspection, AcpRegistryPlatformTarget, ResolvedAcpRegistryAgent, ResolvedAcpRegistryDistribution, resolveAcpRegistryDistribution, toAcpRegistryOperationError
+- `packages/provider-acp-registry/src/server/adapter.ts` — exports: ACP_REGISTRY_DEFAULT_INSTANCE_ID, ACP_REGISTRY_PROVIDER, AcpRegistryAdapterV2DriverEnv, AcpRegistryAdapterV2DriverProviderAdapterDriverAcpRegistrySettings, AcpRegistryAdapterV2Options, acpRegistryPromptFailure, registerMistralVibeAcpExtensions
+- `packages/provider-acp-registry/src/server/auth.ts` — exports: 
+- `packages/provider-acp-registry/src/server/authenticationState.ts` — exports: 
+- `packages/provider-acp-registry/src/server/claudeAcp.ts` — exports: extractClaudeSubagentSessionEvent, extractClaudeSubagentUpdate, isClaudeProvisionalSubagentTool
+- `packages/provider-acp-registry/src/server/copilotAcp.ts` — exports: copilotClientCapabilitiesMeta, extractCopilotSubagentUpdate, makeCopilotSubagentRouting
+- `packages/provider-acp-registry/src/server/devinAcp.ts` — exports: extractDevinSubagentUpdate, normalizeDevinSessionUpdate, normalizeDevinToolCall
+- `packages/provider-acp-registry/src/server/driver.ts` — exports: AcpRegistryDriverEnv, AcpRegistryDriverProviderDriverAcpRegistrySettings, applyAcpRegistryAvailableCommands, applyAcpRegistryLiveConfiguration, buildCheckedAcpRegistrySnapshot
+- `packages/provider-acp-registry/src/server/droidAcp.ts` — exports: 
+- `packages/provider-acp-registry/src/server/probe.ts` — exports: AcpRegistryAuthSpawnContext, AcpRegistryAvailableCommands, AcpRegistryConfigurationProbe, AcpRegistryConfigurationProbeInput, AcpRegistryConfigurationProbeResult, AcpRegistryLiveConfiguration, acpRegistryProbeFailure, acpRegistryProbeResult, normalizeAcpRegistryAuthMethods, normalizeAcpRegistryCommands, normalizeAcpRegistryLiveConfiguration, normalizeAcpRegistryWebUrl
+- `packages/provider-acp-registry/src/settings.ts` — exports: AcpRegistryDistributionPreference, AcpRegistrySettings
+- `packages/provider-acp-registry/src/testing.ts` — exports: ACP_REGISTRY_DEFAULT_INSTANCE_ID, ACP_REGISTRY_PROVIDER, AcpRegistryAvailableCommands, AcpRegistryLiveConfiguration, acpRegistryProbeFailure, acpRegistryProbeResult, acpRegistryPromptFailure, extractCopilotSubagentUpdate, extractDevinSubagentUpdate, listAcpRegistrySessions, logoutAcpRegistry, makeAcpRegistryAdapterV2, makeCopilotSubagentRouting, normalizeAcpRegistryAuthMethods, normalizeAcpRegistryCommands, normalizeDevinSessionUpdate, normalizeDevinToolCall, registerMistralVibeAcpExtensions
+- `packages/provider-acp/src/server/AcpSessionRuntime.ts` — exports: AcpLinuxCgroupController, AcpLinuxCgroupLease, AcpOwnedPosixProcess, AcpPosixOwnershipRoot, AcpPosixProcessIdentity, AcpPosixProcessTreeController, AcpProcessGroupTerminationError, AcpSessionActivationOptions, AcpSessionEventStreamBarrier, AcpSessionRequestLogEvent, AcpSessionRuntime, AcpSessionRuntimeEvent, AcpSessionRuntimeOptions, AcpSessionRuntimeStartResult, AcpSpawnInput, ChildProcessSpawnerChildProcessSpawnerCryptoCrypto, EffectAcpErrorsAcpError, SweepStaleLinuxCgroupSiblingsOptions, capturePosixOwnershipLedger, isSafeCgroupPath, layer, makeLinuxCgroupController, makePosixProcessTreeController, observePosixOwnershipLedger, parseCgroup2Mount, parseCgroup2Mounts, parseUnifiedCgroupPath, posixProcessIsZombie, resolveLinuxCgroupTargetCommand, selectAcpAgentAuthMethod, signalLinuxCgroupRootTerm, sweepStaleLinuxCgroupSiblings, terminateLinuxCgroupLease, terminatePosixOwnedProcessTree, wrapCommandForLinuxCgroup
+- `packages/provider-acp/src/server/adapter.ts` — exports: ACP_PROTOCOL, AcpAdapterV2Env, AcpAdapterV2ExtensionContext, AcpAdapterV2Flavor, AcpAdapterV2NativeLogging, AcpAdapterV2Options, AcpAdapterV2RuntimeInput, AcpAdapterV2SubagentUpdate, AcpAdapterV2UserInputRequest, AcpProviderCapabilitiesV2, AcpSubagentSessionEvent, acpCompletedTurnShouldTerminalizeTool, acpPostSettleContinuationOfferEvidence, acpPostSettleWakeEvidence, acpScopedNativeId, acpToolCallDiffPatch
+- `packages/provider-acp/src/server/clientPolicy.ts` — exports: AcpApprovalGrantInput, AcpClientPolicyGrants, AcpPermissionDisposition, AcpRuntimePolicy, acpClientExecuteDisposition, acpMcpToolApprovalElicitationDisposition, acpPermissionDisposition, makeAcpClientPolicyGrants, unknownRecord
+- `packages/provider-acp/src/server/clientTerminals.ts` — exports: AcpClientTerminals, AcpClientTerminalsOptions, AcpTerminalOutputSnapshot, resolveEmbeddedTerminalContent
+- `packages/provider-acp/src/server/coreRuntimeEvents.ts` — exports: makeAcpAssistantItemEvent, makeAcpContentDeltaEvent, makeAcpPlanUpdatedEvent, makeAcpRequestOpenedEvent, makeAcpRequestResolvedEvent, makeAcpToolCallEvent
+- `packages/provider-acp/src/server/mcpOverAcpBridge.ts` — exports: AcpMcpOverAcpBridge, AcpMcpOverAcpBridgeOptions, AcpMcpOverAcpError
+- `packages/provider-acp/src/server/nativeLogging.ts` — exports: 
+- `packages/provider-acp/src/server/runtimeModel.ts` — exports: AcpAgentTerminalState, AcpMcpToolCallIdentity, AcpParsedSessionEvent, AcpPermissionRequest, AcpPlanUpdate, AcpSessionMode, AcpSessionModeState, AcpToolCallEmitDecision, AcpToolCallEmitDecisionInput, AcpToolCallState, SessionLoadGate, acpContentBlockDisplayText, applyAcpAgentTerminalUpdate, canonicalItemTypeFromAcpToolKind, collectSessionConfigOptionValues, decideToolCallUpdateEmission, embeddedTerminalIdsFromSessionUpdate, extractMcpToolCallIdentity, extractModelConfigId, findModelConfigOption, findSessionConfigOption, mergeToolCallState, parsePermissionRequest, parseSessionModeState, parseSessionUpdateEvent, sessionModelStateFromInitialize, sessionUpdateCountsAsLoadReplayActivity, sessionUpdateIsReplay, syntheticLoadSessionResponseFromInitialize, toolCallProgressLength, toolCallVisibleOutputChanged
+- `packages/provider-acp/src/server/sessionConfig.ts` — exports: ACP_EMPTY_OPTION_VALUE, ACP_SESSION_MODE_OPTION_ID, acpProviderOptionDescriptors, flattenSelectChoices
+- `packages/provider-acp/src/server/stderr.ts` — exports: appendAcpStderrTail, sanitizeAcpStderrExcerpt
+- `packages/provider-core/src/client.ts` — exports: ProviderClientDefinition, ProviderClientRegistry, ProviderEnvironmentField, ProviderIcon, ProviderIconGradient, ProviderSettingsSchema, defineProviderClient, makeProviderClientRegistry
+- `packages/provider-core/src/server/IdAllocator.ts` — exports: IdAllocatorV2, IdAllocatorV2Allocate, IdAllocatorV2AllocationError, IdAllocatorV2Derive, IdAllocatorV2Error, IdAllocatorV2Kind, deriveIdAllocatorV2Derive, deriveProviderThread, deriveThreadFromProviderThread, layerLayerLayerIdAllocatorV2
+- `packages/provider-core/src/server/McpProviderSessions.ts` — exports: McpProviderSessions, layer
+- `packages/provider-core/src/server/ModelCatalog.ts` — exports: CatalogMatching, ModelCatalog, ProviderCatalog, ProviderCatalogModel, applyCatalogDefault, applyModelCatalog, catalogServerModel, classifyCatalogModels
+- `packages/provider-core/src/server/ProviderAdapter.ts` — exports: ProviderAdapterCapabilitiesError, ProviderAdapterCloseSessionError, ProviderAdapterEnsureThreadError, ProviderAdapterEventStreamError, ProviderAdapterFailureReason, ProviderAdapterForkThreadError, ProviderAdapterInterruptError, ProviderAdapterOpenSessionError, ProviderAdapterProtocolError, ProviderAdapterReadThreadSnapshotError, ProviderAdapterResumeThreadError, ProviderAdapterRollbackThreadError, ProviderAdapterRuntimeRequestResponseError, ProviderAdapterSteerRunError, ProviderAdapterSteerRunUnsupportedError, ProviderAdapterTurnStartError, ProviderAdapterV2, ProviderAdapterV2EnsureThreadInput, ProviderAdapterV2Error, ProviderAdapterV2Event, ProviderAdapterV2EventSubscription, ProviderAdapterV2ForkThreadInput, ProviderAdapterV2HistoricalContext, ProviderAdapterV2InterruptInput, ProviderAdapterV2McpApps, ProviderAdapterV2McpCallToolResult, ProviderAdapterV2McpTool, ProviderAdapterV2OpenSessionInput, ProviderAdapterV2ReadThreadSnapshotInput, ProviderAdapterV2RollbackTarget, ProviderAdapterV2RollbackThreadInput, ProviderAdapterV2RuntimePolicy, ProviderAdapterV2RuntimeRequestResponseInput, ProviderAdapterV2SessionRuntime, ProviderAdapterV2SessionStatus, ProviderAdapterV2SteerInput, ProviderAdapterV2SubagentOutcome, ProviderAdapterV2ThreadSnapshot, ProviderAdapterV2TurnInput, ProviderAdapterV2TurnMessage
+- `packages/provider-core/src/server/ProviderContinuationRequests.ts` — exports: ProviderContinuationRequest, ProviderContinuationRequests
+- `packages/provider-core/src/server/ProviderEventLoggers.ts` — exports: EventNdjsonLogger, NoOpProviderEventLoggersProviderEventLoggers, ProviderEventLoggers
+- `packages/provider-core/src/server/ProviderHost.ts` — exports: ProviderCredentials, ProviderHost, ProviderHostPaths
+- `packages/provider-core/src/server/ProviderLatestVersions.ts` — exports: ProviderLatestVersions, layer
+- `packages/provider-core/src/server/adapterDriver.ts` — exports: AnyProviderAdapterDriver, ProviderAdapterDriver, ProviderAdapterDriverCreateError, ProviderAdapterDriverCreateInput
+- `packages/provider-core/src/server/attachmentPrompt.ts` — exports: isProviderNativeImageAttachment, providerMessageTextWithAttachmentPaths
+- `packages/provider-core/src/server/auth.ts` — exports: ProviderAuthController
+- `packages/provider-core/src/server/collectStreamText.ts` — exports: CollectedUint8StreamText, decodeUtf8, textinvalidUtf8
+- `packages/provider-core/src/server/driver.ts` — exports: AnyProviderDriver, ProviderContinuationIdentity, ProviderDriver, ProviderDriverCreateInput, ProviderDriverMetadata, ProviderInstance, ProviderUsageReaderEnv, ProviderWorkspaceSnapshot, defaultProviderContinuationIdentity
+- `packages/provider-core/src/server/errors.ts` — exports: ProviderCredentialError, ProviderDriverError
+- `packages/provider-core/src/server/failure.ts` — exports: ContextHandoffBudgetError, MAX_PROVIDER_FAILURE_MESSAGE_LENGTH, knownProviderFailureMessage, makeProviderFailure, makeProviderFailureTurnItem, makeProviderRetryTurnItem
+- `packages/provider-core/src/server/handoffBudget.ts` — exports: DEFAULT_HANDOFF_TOKEN_CAP, attachmentTokenAllowance, contextUsageForHandoff, handoffBudget, handoffCoverage, handoffTokenCapConfig, historicalMessage, historyCost, historyResponseItems, latestNativeContextUsage, renderHistory, selectHistory
+- `packages/provider-core/src/server/instanceEnvironment.ts` — exports: 
+- `packages/provider-core/src/server/instanceIdentity.ts` — exports: 
+- `packages/provider-core/src/server/maintenance.ts` — exports: ProviderMaintenanceCapabilities, ProviderMaintenanceCommandAction
+- `packages/provider-core/src/server/maintenanceResolver.ts` — exports: HomebrewOwnership, PackageManagedProviderMaintenanceDefinition, ProviderMaintenanceCapabilities, ProviderMaintenanceCapabilitiesResolver, ProviderMaintenanceCommandAction, ProviderMaintenanceResolutionContext, ProviderMaintenanceResolverServices, createProviderVersionAdvisory, homebrewOwnershipFromCommandPath, latestProviderVersionCacheKeys, makeManualOnlyProviderMaintenanceCapabilities, makePackageManagedProviderMaintenanceResolver, makeProviderMaintenanceCapabilities, makeTargetedProviderUpdateAction, normalizeCommandPath, npmGlobalPrefixFromCommandPath, parseHomebrewLatestVersion, resolveLatestProviderUpdateAction
+- `packages/provider-core/src/server/managedProvider.ts` — exports: 
+- `packages/provider-core/src/server/mcpSession.ts` — exports: McpProviderSessionConfig, withAgentDeviceEnvironment
+- `packages/provider-core/src/server/mcpToolPresentation.ts` — exports: mcpToolPresentation, normalizeMcpHttpUrl, normalizeMcpText
+- `packages/provider-core/src/server/nativeProtocolLogging.ts` — exports: structuralProtocolMethod, summarizeNativeProtocolPayload
+- `packages/provider-core/src/server/notification.ts` — exports: BackgroundWork, BackgroundWorkReport, backgroundWorkNotification, notificationTurnItem, reportLabel
+- `packages/provider-core/src/server/orchestrationInstructions.ts` — exports: T3AcpInstructionState, T3_CODE_BROWSER_TOOL_INSTRUCTIONS, T3_CODE_ORCHESTRATION_INSTRUCTIONS, andrecordingsForbrowserwork, andthefocusedinteractiontoolsPrefersnapshotprovidedlocatorsovercoordinatespreview_statuslistseverybrowsertabinthisthread, callpreview_openbeforeconcludingthatthebrowserisunavailableThenusepreview_navigate, firstcallpreview_statusIfnoautomationcapablepreviewisattached, includingpreview_evaluate, includingtabstheuseropenedWhentheuserasksaboutthispageorapagetheyhaveopen, inspection, interaction, onlywhileitsownerisunclaimed, oromittabIdwhenyouhavenotabofyourownYoumayactontheuserstab, preferthosetoolsforbrowsernavigation, preview_snapshot, readtheirtabpassitstabIdtopreview_snapshotorpreview_wait_for, screenshots, t3AcpPromptWithInstructions, t3OrchestrationPromptForFirstRun, t3OrchestrationSystemPrompt
+- `packages/provider-core/src/server/pathExpansion.ts` — exports: expandHomePath
+- `packages/provider-core/src/server/processGroup.ts` — exports: signalProcessGroup
+- `packages/provider-core/src/server/providerAuthFlow.ts` — exports: ProviderAuthFlowContext
+- `packages/provider-core/src/server/randomUuid.ts` — exports: 
+- `packages/provider-core/src/server/runtimeInstructions.ts` — exports: buildRuntimeInstructions
+- `packages/provider-core/src/server/selectionTransition.ts` — exports: ProviderSelectionTransitionInput, ProviderSelectionTransitionPlan, acpSelectionTransition, turnScopedSelectionTransition
+- `packages/provider-core/src/server/snapshot.ts` — exports: ManagedServerProvider
+- `packages/provider-core/src/server/snapshotProbe.ts` — exports: AUTH_PROBE_TIMEOUT_MS, COMPACT_SLASH_COMMAND, CommandResult, DEFAULT_TIMEOUT_MS, E, ProviderCommandNotFoundError, ProviderProbeResult, ServerProviderDraft, ServerProviderPresentation, buildBooleanOptionDescriptor, buildSelectOptionDescriptor, buildServerProvider, collectStreamAsString, isCommandMissingCause, nonEmptyTrimmed, parseGenericCliVersion, providerModelsFromSettings
+- `packages/provider-core/src/server/snapshotSettings.ts` — exports: ProviderSnapshotSettings, haveProviderSnapshotSettingsChanged
+- `packages/provider-core/src/server/subagentProjection.ts` — exports: delegatedTaskProgress, makeSubagentChildThread, makeSubagentConversationArtifacts, subagentResultForRun, subagentThreadTitle
+- `packages/provider-core/src/server/textGeneration.ts` — exports: BranchNameGenerationInput, BranchNameGenerationResult, CommitMessageGenerationInput, CommitMessageGenerationResult, PrContentGenerationInput, PrContentGenerationResult, ProviderTextGeneration, ReviewGuideGenerationInput, ReviewGuideGenerationResult, ReviewGuideStackLayer, ThreadTitleGenerationInput, ThreadTitleGenerationResult
+- `packages/provider-core/src/server/textGenerationOperations.ts` — exports: Operation, Request, Runner, fromRunner, investigationUnsupported, withoutInvestigation
+- `packages/provider-core/src/server/textGenerationPolicy.ts` — exports: TextGenerationPolicy, TextGenerationPolicyKind
+- `packages/provider-core/src/server/textGenerationPrompts.ts` — exports: BranchNamePromptInput, CommitMessagePromptInput, PrContentPromptInput, ReviewGuidePromptInput, ThreadTitlePromptInput, buildBranchNamePrompt, buildCommitMessagePrompt, buildPrContentPrompt, buildReviewGuidePrompt, buildThreadTitlePrompt
+- `packages/provider-core/src/server/textGenerationUtils.ts` — exports: limitSection, normalizeCliError, sanitizeCommitSubject, sanitizePrTitle, sanitizeThreadTitle, toJsonSchemaObject
+- `packages/provider-core/src/server/threadTitleContext.ts` — exports: ThreadTitleMessage, formatThreadTitleContext, limitTitleMessage
+- `packages/provider-core/src/server/usage.ts` — exports: EMPTY_TOTALSUsageTokenTotals, ProviderUsageInstance, ProviderUsageReader, ProviderUsageScan, ProviderUsageScanInput, SelectedFields, TranscriptUsageFormat, UsageRecord, UsageSpeed, parseTimestampMs, tokenCount, totalTokens
+- `packages/provider-core/src/server/usageLimits.ts` — exports: applyUsageLimitsUpdate, clampPercent, makeUnavailableUsageLimits, makeUsageLimits, resolveUsageLimitsAfterProbe
+- `packages/provider-cursor/src/client.ts` — exports: cursorClient
+- `packages/provider-cursor/src/server.ts` — exports: CursorAdapterV2Driver, CursorAdapterV2DriverEnv, CursorDriver, CursorDriverEnv
+- `packages/provider-cursor/src/server/CursorAccountReader.ts` — exports: CursorAccountReader
+- `packages/provider-cursor/src/server/CursorAgentSdk.ts` — exports: CURSOR_AGENT_SDK_PROTOCOL, CURSOR_PROVIDER, CursorAgentSdkLoggedAgentOptions, CursorAgentSdkLoggedSendOptions, CursorAgentSdkOpenInput, CursorAgentSdkProtocolLogEvent, CursorAgentSdkProtocolLogger, CursorAgentSdkRun, CursorAgentSdkRunner, CursorAgentSdkRunnerError, CursorAgentSdkSendInput, CursorAgentSdkSession, cursorSdkFailureMessage, isCursorAgentSdkRunnerError, isCursorCancellationError, loggedCursorAgentOptions, loggedCursorSendOptions
+- `packages/provider-cursor/src/server/CursorKeychain.ts` — exports: CursorKeychain, CursorKeychainReadError, CursorKeychainTimeoutError, isCursorKeychainTimeoutError, layer
+- `packages/provider-cursor/src/server/CursorSdk.ts` — exports: CursorSdk
+- `packages/provider-cursor/src/server/CursorSdkCatalog.ts` — exports: CursorSdkCatalog, CursorSdkCatalogError, CursorSdkCatalogProbes, CursorSdkCatalogSnapshot, layer, layerTest
+- `packages/provider-cursor/src/server/CursorUsageAccounts.ts` — exports: CursorUsageAccounts, layer
+- `packages/provider-cursor/src/server/accountCache.ts` — exports: CURSOR_ACCOUNT_CACHE_FILE_NAME, CURSOR_ACCOUNT_TTL_MS, CursorAccountCache, CursorCredentialSource, cursorFetchRange, decodeCursorAccountCaches, encodeCursorAccountCaches, isCursorCacheFresh, mergeCursorFetch
+- `packages/provider-cursor/src/server/accountUsage.ts` — exports: CursorAccountUsageReadResult, cursorRateModel
+- `packages/provider-cursor/src/server/adapter.ts` — exports: CURSOR_DEFAULT_INSTANCE_ID, CURSOR_DRIVER_KIND, CursorAdapterV2DriverEnv, CursorAdapterV2DriverProviderAdapterDriverCursorSettings, CursorAdapterV2Options, CursorProviderCapabilitiesV2, CursorRuntimeAgentPolicy, cursorMcpServers, cursorRuntimeAgentPolicy, cursorSdkModelSelection, makeCursorAgentOptions, nestedToolCallFromEnvelope
+- `packages/provider-cursor/src/server/auth.ts` — exports: CursorAuth, CursorAuthOptions
+- `packages/provider-cursor/src/server/credentialStore.ts` — exports: 
+- `packages/provider-cursor/src/server/driver.ts` — exports: CursorDriverEnv, CursorDriverProviderDriverCursorSettings
+- `packages/provider-cursor/src/server/sdk.ts` — exports: 
+- `packages/provider-cursor/src/server/sdkModel.ts` — exports: cursorContextWindowTokens, cursorSdkModelSelection, cursorSdkParameterPriority, cursorSdkProviderOptionId
+- `packages/provider-cursor/src/server/skills.ts` — exports: hasCursorSkillMention, rewriteCursorSkillMentions
+- `packages/provider-cursor/src/server/status.ts` — exports: buildCursorCapabilitiesFromSdkModel, buildCursorDiscoveredModelsFromSdk, buildCursorProviderSnapshot
+- `packages/provider-cursor/src/server/textGeneration.ts` — exports: 
+- `packages/provider-cursor/src/server/transportFailure.ts` — exports: CursorTransportFailure
+- `packages/provider-cursor/src/server/usageLimits.ts` — exports: cursorUsageResponseToLimits
+- `packages/provider-cursor/src/settings.ts` — exports: CursorSettings
+- `packages/provider-cursor/src/testing.ts` — exports: CURSOR_DEFAULT_INSTANCE_ID, CURSOR_DRIVER_KIND, CursorProviderCapabilitiesV2, cursorSdkModelSelection, makeCursorAgentOptions
+- `packages/provider-grok/src/client.ts` — exports: grokClient
+- `packages/provider-grok/src/server.ts` — exports: GrokAdapterV2DriverEnv, GrokDriver, GrokDriverEnv
+- `packages/provider-grok/src/server/acpSupport.ts` — exports: GROK_ACP_CANCEL_META, GROK_ACP_INITIALIZE_META, GROK_DEFAULT_MODEL_SLUG, GROK_SUPPORTED_RUNTIME_MODES, applyGrokAcpModelSelection, currentGrokModelIdFromSessionSetup, currentGrokReasoningEffortFromSessionSetup, grokAcpSpawnArgs, grokApprovalOptions, isValidGrokReasoningEffortToken, resolveGrokAcpBaseModelId
+- `packages/provider-grok/src/server/adapter.ts` — exports: GROK_DEFAULT_INSTANCE_ID, GROK_PROVIDER, GrokAdapterV2DriverEnv, GrokAdapterV2DriverProviderAdapterDriverGrokSettings, GrokAdapterV2Options, grokLaunchRuntimeMode, makeGrokAcpAdapterFlavor
+- `packages/provider-grok/src/server/driver.ts` — exports: GrokDriverEnv, GrokDriverProviderDriverGrokSettings
+- `packages/provider-grok/src/server/probeEnvironment.ts` — exports: grokProbeEnvironment
+- `packages/provider-grok/src/server/skills.ts` — exports: 
+- `packages/provider-grok/src/server/status.ts` — exports: GrokModelsCliOutput, buildGrokModelCapabilities, grokSlashCommandsFromInitialize, parseGrokModelsCliOutput
+- `packages/provider-grok/src/server/textGeneration.ts` — exports: 
+- `packages/provider-grok/src/server/usage.ts` — exports: GROK_COST_USD_TICKS_PER_DOLLAR, grokUsageFormatTranscriptUsageFormatvoid, grokUsageReaderProviderUsageReaderGrokSettings, parseGrokLine
+- `packages/provider-grok/src/server/usageLimits.ts` — exports: grokUsageResponseToLimits
+- `packages/provider-grok/src/server/xaiAcpExtension.ts` — exports: GrokPlanPathHost, XAI_EMPTY_PLAN_MARKDOWN, XAiAcpBackgroundToolMutation, XAiAcpSubagentEndNotice, XAiAcpSubagentUpdate, XAiAskUserQuestionRequest, XAiBackgroundTaskLifecycleMutation, XAiExitPlanModeOutcome, XAiExitPlanModeRequest, XAiExitPlanModeResponse, XAiPromptFailureText, XAiSubagentFinishedNotice, extractGrokPlanMarkdownFromToolCallData, extractXAiAcpBackgroundToolMutation, extractXAiAcpSubagentEndNotice, extractXAiAcpSubagentUpdate, extractXAiAskUserQuestionIdentity, extractXAiAskUserQuestions, extractXAiBackgroundTaskCompletion, extractXAiExitPlanMarkdown, extractXAiKilledBackgroundTasks, extractXAiMonitorTaskId, isGrokPlanMarkdownPath, isXAiMonitorTool, isXAiPersistentMonitor, isXAiTaskCompletedWakeNotification, makeXAiAskUserQuestionCancelledResponse, makeXAiAskUserQuestionResponse, makeXAiExitPlanModeCapturedResponse, normalizeXAiAcpToolCallState, registerXAiBackgroundTaskTracking, xAiBackgroundShellTaskId, xAiBackgroundTaskLifecycleMutation, xAiPromptCompleteFromSessionUpdate, xAiRateLimitedErrorCode, xAiSubagentFinishedNotice
+- `packages/provider-grok/src/server/xaiBackgroundTasks.ts` — exports: GrokBackgroundTaskRecord, buildGrokBackgroundTaskEvents
+- `packages/provider-grok/src/settings.ts` — exports: GrokSettings
+- `packages/provider-grok/src/testing.ts` — exports: GROK_ACP_CANCEL_META, GROK_ACP_INITIALIZE_META, GROK_DEFAULT_INSTANCE_ID, GROK_PROVIDER, GrokAdapterV2Options, buildGrokModelCapabilities, buildInitialGrokProviderSnapshot, checkGrokProviderStatus, extractXAiAcpSubagentUpdate, grokLaunchRuntimeMode, grokSlashCommandsFromInitialize, grokUsageResponseToLimits, makeGrokAcpAdapterFlavor, makeGrokAcpRuntime, makeGrokAdapterV2, makeGrokTextGeneration, makeXAiPromptCompletionRuntime, normalizeXAiAcpToolCallState, parseGrokModelsCliOutput, readGrokAccount, registerXAiBackgroundTaskTracking, xAiRateLimitedErrorCode
+- `packages/provider-muse/src/client.ts` — exports: museClient
+- `packages/provider-muse/src/server.ts` — exports: MuseAdapterV2Options, MuseDriver, MuseDriverEnv, makeMuseAdapterV2
+- `packages/provider-muse/src/server/adapter.ts` — exports: MuseAdapterV2Options
+- `packages/provider-muse/src/server/driver.ts` — exports: MuseDriverEnv, MuseDriverProviderDriverMuseSettings
+- `packages/provider-muse/src/server/itemPresentation.ts` — exports: museItemStatus, museToolPresentation
+- `packages/provider-muse/src/server/maintenance.ts` — exports: compareMuseVersions, parseMuseVersion
+- `packages/provider-muse/src/server/modelCatalog.ts` — exports: museModelCapabilities, resolveMuseReasoningEffort
+- `packages/provider-muse/src/server/protocol.ts` — exports: LATEST_DATE_MS, MuseApproval, MuseCompactResult, MuseContextUsage, MuseDelta, MuseItem, MuseItemEvent, MuseSessionResult, MuseSubscriptionUsage, MuseTodoList, MuseTokenUsageEvent, MuseTurnCompleted, MuseTurnRetryScheduled, MuseTurnStartResult, MuseUserInput, museApprovalChoices, museApprovalDecision, museApprovalOptions
+- `packages/provider-muse/src/server/sdk.ts` — exports: MuseLaunch, MuseSdkHost, MuseSdkHostOptions, createMuseSdkHost, makeMuseEnvironment, museApprovalMode, museInitializeParams, musePermissionProfile, museServeArgs, museVerbatimPath
+- `packages/provider-muse/src/server/status.ts` — exports: 
+- `packages/provider-muse/src/server/textGeneration.ts` — exports: 
+- `packages/provider-muse/src/server/usageLimits.ts` — exports: isMuseUsageLimitFailure, museUsageLimitResetAt
+- `packages/provider-muse/src/settings.ts` — exports: MuseSettings
+- `packages/provider-muse/src/testing.ts` — exports: MuseSdkHost, MuseSdkHostOptions, makeMuseEnvironment, museInitializeParams, museLaunch, museServeArgs, museWorkspaceRoot, parseMuseVersion
+- `packages/provider-opencode/src/client.ts` — exports: openCodeClient
+- `packages/provider-opencode/src/server.ts` — exports: OpenCodeAdapterV2Driver, OpenCodeAdapterV2DriverEnv, OpenCodeDriver, OpenCodeDriverEnv
+- `packages/provider-opencode/src/server/OpenCodeRuntime.ts` — exports: MINIMUM_OPENCODE_VERSION, OpenCodeCommandResult, OpenCodeInventory, OpenCodeRuntime, OpenCodeRuntimeError, OpenCodeServerConnection, OpenCodeServerProcess, OpenCodeSkill, OpenCodeSlashCommand, OpenCodeStartupFailureReason, ParsedOpenCodeModelSlug, buildOpenCodePermissionRules, isOpenCodeRuntimeError, layer, loadOpenCodeCommands, openCodeQuestionId, openCodeRuntimeErrorDetail, parseAgentListCliOutput, parseModelsCliOutput, parseOpenCodeModelSlug, parseSkillsCliOutput, resolveOpenCodeServerPassword, runOpenCodeSdk, toOpenCodeFileParts, toOpenCodePermissionReply, toOpenCodeQuestionAnswers
+- `packages/provider-opencode/src/server/OpenCodeServerLedger.ts` — exports: OpenCodeServerLedger, layerTest
+- `packages/provider-opencode/src/server/OpenCodeServerOwner.ts` — exports: OpenCodeServerOwner
+- `packages/provider-opencode/src/server/adapter.ts` — exports: OPENCODE_DEFAULT_INSTANCE_ID, OPENCODE_PROVIDER, OPENCODE_SDK_PROTOCOL, OpenCodeAdapterV2DriverEnv, OpenCodeAdapterV2DriverProviderAdapterDriverOpenCodeSettings, OpenCodeAdapterV2Options, OpenCodeProtocolLogEvent, advanceOpenCodePromptAdmission, cancelOpenCodePromptAdmission, makeOpenCodeProtocolLogger, openCodeBoundaryAfterProviderTurn, openCodeChildPermissionRules, openCodePermissionRequestKind, openCodePermissionRules
+- `packages/provider-opencode/src/server/driver.ts` — exports: OpenCodeDriverEnv, OpenCodeDriverProviderDriverOpenCodeSettings, openCodeUpdateFor
+- `packages/provider-opencode/src/server/openCode2Catalog.ts` — exports: loadOpenCode2Catalog
+- `packages/provider-opencode/src/server/probeResponses.fixture.ts` — exports: OPENCODE_1_RESPONSES, OPENCODE_2_RESPONSES, OPENCODE_2_WORKSPACE_RESPONSES, RecordedResponse, replayOpenCodeServer
+- `packages/provider-opencode/src/server/status.ts` — exports: OpenCode2Model, OpenCode2Workspace, openCode2CommandsToServerProviderSlashCommands, openCode2SkillsToServerProviderSkills, openCodeCommandsToServerProviderSlashCommands, openCodeSkillsToServerProviderSkills
+- `packages/provider-opencode/src/server/textGeneration.ts` — exports: OpenCodeTextGenerationEmptyOutputError, OpenCodeTextGenerationPromptRequestError, OpenCodeTextGenerationPromptResponseError, OpenCodeTextGenerationSessionPayloadError, OpenCodeTextGenerationSessionRequestError
+- `packages/provider-opencode/src/server/toolItems.ts` — exports: openCodeToolTurnItem
+- `packages/provider-opencode/src/server/usage.ts` — exports: OpenCodeUsageReadResult, OpenCodeUsageReaderEnv, openCodeUsageReaderProviderUsageReaderOpenCodeSettings
+- `packages/provider-opencode/src/server/usageLimits.ts` — exports: 
+- `packages/provider-opencode/src/server/v2/OpenCode2Client.ts` — exports: E, Item, OpenCode2Api, OpenCode2Client, OpenCode2SilentStreamError, OpenCode2StreamEvent, OpenCode2UnreadableStart, OpenCode2UnreadableTerminal, layer, paginate
+- `packages/provider-opencode/src/server/v2/OpenCode2Server.ts` — exports: OpenCode2Connection, OpenCode2Server, verifyServer
+- `packages/provider-opencode/src/server/v2/adapter.ts` — exports: OPENCODE_2_STILL_STOPPING
+- `packages/provider-opencode/src/server/v2/textGeneration.ts` — exports: 
+- `packages/provider-opencode/src/server/versionProbe.ts` — exports: ProbedOpenCode, classifyOpenCodeCliVersion, makeOpenCodeRuntimeProbe
+- `packages/provider-opencode/src/settings.ts` — exports: OpenCodeSettings
+- `packages/provider-opencode/src/testing.ts` — exports: OPENCODE_2_STILL_STOPPING, OPENCODE_DEFAULT_INSTANCE_ID, OPENCODE_PROVIDER, OPENCODE_SDK_PROTOCOL, t3McpServerName
+- `packages/provider-pi/src/client.ts` — exports: piClient
+- `packages/provider-pi/src/server.ts` — exports: PI_PROVIDER, PiAdapterV2Driver, PiAdapterV2DriverEnv, PiDriver, PiDriverEnv
+- `packages/provider-pi/src/server/adapter.ts` — exports: PI_PROVIDER, PiAdapterV2DriverEnv, PiAdapterV2DriverProviderAdapterDriverPiSettings, PiAdapterV2Options
+- `packages/provider-pi/src/server/commands.ts` — exports: PiCompactCommand, PiDiscoveredCommands, parsePiCompactCommand, parsePiDiscoveredCommands, withPiBuiltinSlashCommands
+- `packages/provider-pi/src/server/driver.ts` — exports: PiDriverEnv, PiDriverProviderDriverPiSettings
+- `packages/provider-pi/src/server/mcpBridge.testkit.ts` — exports: default, loadMcpBridge
+- `packages/provider-pi/src/server/mcpExtensionSource.ts` — exports: PI_FILE_CHANGE_TOOLS, PI_T3_MCP_EXTENSION_FILENAME, PI_T3_MCP_EXTENSION_SOURCE, T3_MCP_BEARER_ENV, T3_MCP_URL_ENV, T3_PI_MCP_EXTENSION_PATH_ENV, T3_PI_RUNTIME_MODE_ENV, default, t3McpExtension
+- `packages/provider-pi/src/server/mcpInjection.ts` — exports: PiLaunchArgsResolution, buildPiRpcLaunch, resolvePiLaunchArgs
+- `packages/provider-pi/src/server/rpc.ts` — exports: PiRpcConnection, PiRpcError, PiRpcRecord, PiRpcSpawnOptions, PiRpcTimeoutError, parsePiModelSlug, piRecordField, piRecordNumber, piRecordString
+- `packages/provider-pi/src/server/status.ts` — exports: MINIMUM_PI_VERSION
+- `packages/provider-pi/src/server/textGeneration.ts` — exports: 
+- `packages/provider-pi/src/server/thinkingCapabilities.ts` — exports: EMPTY_PI_MODEL_CAPABILITIESModelCapabilities, PiThinkingLevel, thinkingCapabilitiesForPiModel
+- `packages/provider-pi/src/server/usage.ts` — exports: piUsageReaderProviderUsageReaderPiSettings
+- `packages/provider-pi/src/settings.ts` — exports: PiSettings
+- `packages/provider-testing/src/TestProviderHost.ts` — exports: TestProviderHostOptions, TestProviderHostSettings, layer, never
+- `packages/provider-testing/src/fakeCli.ts` — exports: FakeCliOptions, execScriptSource, writeFakeCli
+- `packages/provider-testing/src/replayGate.ts` — exports: ProviderReplayGate, makeProviderReplayGate
+- `packages/provider-testing/src/replayTranscript.ts` — exports: ProviderReplayNdjsonEmptyError, ProviderReplayNdjsonLineParseError, ProviderReplayNdjsonMissingHeaderError, ProviderReplayNdjsonParseError, ProviderReplayTranscriptMetadata, decodeProviderReplayNdjson, materializeReplayTranscriptWorkspace
+- `packages/provider-testing/src/replayWorkspace.ts` — exports: ReplayWorkspaceFiles, checkpointWorkspace, makeCheckpointWorkspace
+- `packages/shared/src/AgentScope.ts` — exports: AGENT_OOM_SCORE_ADJ, AgentScope, AgentScopeCommand, AgentScopeShape, AgentScopeThreadId, AgentSystemdScope, agentScopeCommand
+- `packages/shared/src/Array.ts` — exports: copySorted
+- `packages/shared/src/DrainableWorker.ts` — exports: DrainableWorker
+- `packages/shared/src/HostProcess.ts` — exports: Architecture, Arguments, Environment, ExecutablePath, HomeDirectory, Hostname, InvokedAs, IsExecutable, Platform, UserId, WorkingDirectory, isWindows
+- `packages/shared/src/KeyedCoalescingWorker.ts` — exports: KeyedCoalescingWorker
+- `packages/shared/src/KeyedLock.ts` — exports: KeyedLock
+- `packages/shared/src/Net.ts` — exports: NetError, NetService, NetServiceShape, layer
+- `packages/shared/src/PtyAdapter.ts` — exports: PtyAdapter, PtyExitEvent, PtyProcess, PtySpawnError, PtySpawnInput
+- `packages/shared/src/String.ts` — exports: truncate
+- `packages/shared/src/Struct.ts` — exports: DeepPartial, deepMerge
+- `packages/shared/src/advertisedEndpoint.ts` — exports: CreateAdvertisedEndpointInput, createAdvertisedEndpoint, deriveWsBaseUrl, normalizeHttpBaseUrl
+- `packages/shared/src/agentAwareness.ts` — exports: AgentAwarenessPhase, AgentAwarenessState, ProjectThreadAwarenessV2Input, projectThreadAwarenessV2
+- `packages/shared/src/assistantCitations.ts` — exports: assistantCitationLabel, assistantCitationsToPlainText, collectAssistantCitations, expandAssistantCitationsForProvider, formatAssistantCitationHref, parseAssistantCitationHref, renderAssistantCitationsAsText, serializeAssistantCitation, withAssistantCitationComment
+- `packages/shared/src/atomicWrite.ts` — exports: 
+- `packages/shared/src/authScopeOptions.ts` — exports: 
+- `packages/shared/src/backgroundActivitySettings.ts` — exports: ResolvedBackgroundActivitySettings, getBackgroundActivityBaseProfile, getBackgroundActivityPresetSettings, normalizeBackgroundActivitySettings, normalizeServerBackgroundActivitySettings, resolveBackgroundActivitySettings, resolveServerBackgroundActivitySettings
+- `packages/shared/src/changeRequestUrl.ts` — exports: ChangeRequestLink, changeRequestRepositoryUrl, changeRequestUrlFor, gitHubPullRequestBrowserUrl, matchesLinkedPullRequestUrl, parseChangeRequestUrl, pullRequestCandidateUrlFromReferenceAutolink, siblingPullRequestUrl
+- `packages/shared/src/changedFileKind.ts` — exports: ChangedFileKind, classifyChangedFile
+- `packages/shared/src/chatList.ts` — exports: CHAT_LIST_ANCHOR_OFFSET, ChatListAnchorOptions, ChatListAnchoredEndSpace, resolveChatListAnchoredEndSpace
+- `packages/shared/src/claudeCompaction.ts` — exports: CLAUDE_RESUME_COMPACTION_NEVER_ANSWER, COMPACTION_SUGGESTION_MIN_TOKENS, formatClaudeResumeCompactionQuestion, isClaudeResumeCompactionQuestion
+- `packages/shared/src/cliArgs.ts` — exports: ParseCliArgsOptions, ParsedCliArgs, parseCliArgs, tokenizeCliArgs
+- `packages/shared/src/cliRelease.ts` — exports: CLI_RELEASES_PAGE_URL, CLI_RELEASE_BASE_URL_ENV, CLI_RELEASE_CHANNELSReadonlyArrayCliReleaseChannel, CLI_RELEASE_CHECKSUMS_FILE, CliArchivePlatformKey, CliReleaseChannel, cliArchiveFileName, cliArchivePlatformKey, cliArchiveTarCommand, cliReleaseChannelOf, cliReleaseDownloadBaseUrl, cliReleaseIndexPageUrl, newestCliReleaseVersion, parseChecksums
+- `packages/shared/src/codexArtifactTemplates.ts` — exports: CodexArtifactTemplate, CodexArtifactTemplateAttributes, CodexArtifactTemplateGalleryKind, CodexArtifactTemplateKind, appendCodexArtifactTemplateUsePrompt, codexArtifactTemplatePresentationLabel, codexArtifactTemplateUsePrompt, resolveCodexArtifactTemplate
+- `packages/shared/src/codexAuthCallback.ts` — exports: CodexAuthCallbackError, cancelCodexAuthCallback, receiveCodexAuthCallback
+- `packages/shared/src/codexAuthHandoff.ts` — exports: CodexAuthHandoff, codexAuthDeliveryUrl, codexAuthHandoffUrl, codexAuthorizationRequest, codexCallbackUrl, readCodexAuthDelivery, readCodexAuthHandoff
+- `packages/shared/src/codexFileCitations.ts` — exports: CodexFileCitationAttributes, CodexFileCitationLink, codexFileCitationMarkdown, resolveCodexFileCitationLink
+- `packages/shared/src/codexMarkdownDirectives.ts` — exports: CODEX_ARTIFACT_TEMPLATE_HAST_PROPERTIES, CodexArtifactTemplateMarkdownSegment, artifactTemplateFromHastProperties, remarkCodexDirectives, renderCodexDirectivesForCopy, renderCodexInlineDirectivesAsMarkdown, splitCodexArtifactTemplateMarkdown
+- `packages/shared/src/composerContextClipboard.ts` — exports: COMPOSER_CONTEXT_CLIPBOARD_MIME, decodeComposerContextClipboardHtml, decodeComposerContextFragment, encodeComposerContextClipboardHtml, encodeComposerContextFragment
+- `packages/shared/src/composerContextLegacy.ts` — exports: UpgradedLegacyContext, upgradeLegacyContextMessage
+- `packages/shared/src/composerContextLegacySend.ts` — exports: serializeLegacyContextMessage
+- `packages/shared/src/composerContextReferences.ts` — exports: ATTACHMENT_ONLY_BOOTSTRAP_PROMPT, ComposerContextReferenceOccurrence, collectComposerContextReferences, formatComposerContextHref, formatComposerContextReference, isImageReferencesOnly, parseComposerContextHref, projectComposerContextForProvider, remapComposerContextAttachments, replaceComposerContextReferences, sanitizeComposerContextLabel, threadContextsOutsideEnvironment, toComposerContextId, toKindScopedComposerContextId
+- `packages/shared/src/composerInlineTokens.ts` — exports: CollectComposerInlineTokensOptions, ComposerInlineToken, SKILL_MENTION_PATTERN, collectComposerInlineTokens, composerMathRanges
+- `packages/shared/src/composerPullRequestMatches.ts` — exports: ComposerPullRequestMatch, composerPullRequestsFromLinks, filterComposerPullRequestMatches
+- `packages/shared/src/composerTrigger.ts` — exports: ComposerSlashCommand, ComposerTrigger, ComposerTriggerKind, detectComposerTrigger, isCurrencyAmountQuery, isPathWord, replaceTextRange, serializeComposerFileLink
+- `packages/shared/src/connectAuth.ts` — exports: CONNECT_OAUTH_SCOPES, ConnectAuthorizeRequest, DEFAULT_HOSTED_APP_URL, buildConnectAuthorizeRequestUrl, buildConnectClerkAuthorizeUrl, connectLoopbackRedirectUri, readConnectAuthorizeRequest
+- `packages/shared/src/dateTime.ts` — exports: compareDateTimeStrings
+- `packages/shared/src/delimitedPreview.ts` — exports: filePreviewDelimiter, parseDelimitedPreview
+- `packages/shared/src/desktopAppControl.ts` — exports: DesktopAppControlAddress, resolveDesktopAppControlAddress
+- `packages/shared/src/desktopBootstrapToken.ts` — exports: DESKTOP_BOOTSTRAP_TOKEN_WINDOW_MS, currentDesktopBootstrapToken, isValidDesktopBootstrapToken
+- `packages/shared/src/devHome.ts` — exports: 
+- `packages/shared/src/devProxy.ts` — exports: DEV_PROXIED_ORIGIN_PRESERVING_PREFIXESReadonlySetstring, DEV_PROXIED_PATH_PREFIXES, isDevProxiedPath
+- `packages/shared/src/dpop.ts` — exports: DPOP_MAX_CLOCK_SKEW_SECONDS, DpopPublicJwk, DpopVerificationFailureCode, DpopVerificationResult, computeDpopAccessTokenHash, computeDpopJwkThumbprint, normalizeDpopHtu, verifyDpopProof
+- `packages/shared/src/dpopCommon.ts` — exports: DpopPublicJwk, normalizeDpopHtu
+- `packages/shared/src/editor.ts` — exports: 
+- `packages/shared/src/favicon.ts` — exports: faviconUrlForOrigin, toolActivityFaviconUrl
+- `packages/shared/src/fileLinks.ts` — exports: FilePathPosition, buildFileLinkParentSuffixByPath, fileLinkLabel, formatFilePathPosition, parseFileUrlHref, resolvePathLinkTarget, splitFilePathPosition
+- `packages/shared/src/filePreview.ts` — exports: FILE_TEXT_PREVIEW_MAX_BYTES, FilePreviewKind, WORKSPACE_BROWSER_PREVIEW_EXTENSIONS, WORKSPACE_IMAGE_PREVIEW_EXTENSIONS, audioMimeTypeFromExtension, decodeFilePreviewText, fileIconPathForMimeType, filePreviewKind, hostPreviewMimeTypeFromExtension, isWorkspaceAudioPreviewPath, isWorkspaceBrowserPreviewPath, isWorkspaceImagePreviewPath, isWorkspacePreviewEntryPath, isWorkspaceVideoPreviewPath, mediaKindFromPath, mediaMimeType, mediaMimeTypeFromExtension
+- `packages/shared/src/git.ts` — exports: WORKTREE_BRANCH_PREFIX, applyGitStatusStreamEvent, buildTemporaryWorktreeBranchName, dedupeRemoteBranchesWithLocalMatches, deriveLocalBranchNameFromRemoteRef, detectSourceControlProviderFromGitRemoteUrl, flattenTemporaryWorktreeBranchName, formatGeneratedBranchName, isBareGitConfig, isTemporaryWorktreeBranch, mergeGitStatusParts, normalizeGitRemoteUrl, parseGitHubRepositoryNameWithOwnerFromRemoteUrl, parseOriginUrlFromGitConfig, resolveAutoFeatureBranchName, sanitizeBranchFragment, sanitizeFeatureBranchName, sanitizeNewRefName
+- `packages/shared/src/gitPatchPath.ts` — exports: quoteGitPatchPath, unquoteGitPatchPath
+- `packages/shared/src/githubMarkdownLinks.ts` — exports: githubMarkdownLinks
+- `packages/shared/src/githubMedia.ts` — exports: githubMediaFetchUrl, githubMediaFileName
+- `packages/shared/src/hostClassification.ts` — exports: normalizeHostname
+- `packages/shared/src/htmlRender.ts` — exports: HTML_RENDER_COLUMN_WIDTH, HTML_RENDER_DEFAULT_FONTSHtmlRenderFonts, HTML_RENDER_LAYOUT_GUIDE, HTML_RENDER_MAX_FIT_HEIGHT, HTML_RENDER_MAX_HEIGHT, HTML_RENDER_MAX_TITLE_LENGTH, HTML_RENDER_MEASURE_FONTSHtmlRenderFonts, HTML_RENDER_MEASURE_WIDTHS, HTML_RENDER_MIN_HEIGHT, HTML_RENDER_TOOL_NAME, HtmlRenderFonts, HtmlRenderReference, HtmlRenderShortcut, HtmlRenderTheme, clampHtmlRenderHeight, htmlRenderFileName, htmlRenderFrameHeight, htmlRenderReferencesEqual, htmlRenderResult, htmlRenderShortcutsMessage, htmlRenderTheme, htmlRenderThemeFragment, htmlRenderThemeMessage, injectHtmlRenderBootstrap, readHtmlRenderContentHeight, readHtmlRenderImageRequest, readHtmlRenderKeyDown, readHtmlRenderLinkRequest, readHtmlRenderReference
+- `packages/shared/src/httpObservability.ts` — exports: layer
+- `packages/shared/src/httpReadiness.ts` — exports: 
+- `packages/shared/src/image.ts` — exports: GENERIC_MIME_TYPES, imageMimeType
+- `packages/shared/src/imageDimensions.ts` — exports: IMAGE_DIMENSIONS_HEADER_BYTES, ImageDimensions, readImageDimensions
+- `packages/shared/src/inlineSkills.ts` — exports: InlineSkill, formatProviderSkillDisplayName
+- `packages/shared/src/keybindings.ts` — exports: DEFAULT_KEYBINDINGSReadonlyArrayKeybindingRule, DEFAULT_RESOLVED_KEYBINDINGS, EVENT_CODE_SHORTCUT_KEYSReadonlyRecordstring, ShortcutEventLike, ShortcutModifierStateLike, US_SHIFTED_TO_UNSHIFTED_KEYSReadonlyMapstring, compileResolvedKeybindingRule, compileResolvedKeybindingsConfig, isMacPlatform, matchesKeybindingShortcut, matchesKeybindingShortcutModifiers, mergeWithDefaultKeybindings, normalizeEventKey, parseKeybindingShortcut, parseKeybindingWhenExpression, resolveEventKeys, shortcutKeyFromEvent
+- `packages/shared/src/logging.ts` — exports: RotatingFileSink, RotatingFileSinkConfigurationError, RotatingFileSinkError, RotatingFileSinkOptions
+- `packages/shared/src/markdownGithubAlerts.ts` — exports: remarkGithubAlerts
+- `packages/shared/src/markdownLinks.ts` — exports: extractInlineCodeSpans, extractMarkdownLinkHrefs, inlineCodeFilePathCandidate, isMarkdownFileLinkLabel, isRelativeFilePath, isWindowsDrivePathHref, normalizeMarkdownLinkDestination, parseMarkdownFileLink, resolveMarkdownFileLinkTarget, safeDecodeURIComponent, splitMarkdownLinkSearchAndHash
+- `packages/shared/src/markdownListIndentation.ts` — exports: remarkNormalizeListItemIndentation
+- `packages/shared/src/markdownMath.ts` — exports: markdownMathRanges, mathKind, parseMarkdownWithMath
+- `packages/shared/src/markdownPipeline.ts` — exports: CHAT_MARKDOWN_REHYPE_PLUGINSPluggableList, CHAT_MARKDOWN_REMARK_PLUGINSPluggableList, CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKSPluggableList, shouldPreserveAssistantLineBreaks
+- `packages/shared/src/mcpApp.ts` — exports: MCP_APP_DEFAULT_HEIGHT, MCP_APP_EXTENSION_ID, MCP_APP_MAX_HEIGHT, MCP_APP_MAX_HTML_BYTES, MCP_APP_MIME_TYPE, MCP_APP_OUTPUT_KEY, MCP_APP_PROTOCOL_VERSION, MCP_APP_RESOURCE_SCHEME, McpAppCsp, McpAppPermissions, McpAppReference, clampMcpAppHeight, injectMcpAppCookieBootstrap, injectMcpAppCsp, injectMcpAppThemeBootstrap, mcpAppAllowAttribute, mcpAppContentSecurityPolicy, mcpAppFileName, mcpAppReferencesEqual, mcpAppToolCallableByApp, readMcpAppCsp, readMcpAppPermissions, readMcpAppReference, readMcpAppResourceUri
+- `packages/shared/src/mcpResponsePayloads.ts` — exports: discardResponseBody, responsePayloads
+- `packages/shared/src/model.ts` — exports: CustomModelDefinition, SelectableModelOption, applyClaudePromptEffortPrefix, buildExplicitProviderOptionSelectionsFromDescriptors, buildProviderOptionSelectionsFromDescriptors, codexModelFamily, createModelCapabilities, createModelSelection, draftModelPickMatchesThread, formatCodexModelName, formatModelSlugName, getModelSelectionBooleanOptionValue, getModelSelectionStringOptionValue, getProviderOptionCurrentLabel, getProviderOptionCurrentValue, getProviderOptionDescriptors, getProviderOptionStatedValue, isClaudeUltrathinkPrompt, modelSelectionCommandType, modelSelectionsEqual, normalizeCustomModelSlug, normalizeModelSlug, readCustomModelEntries, resolvePromptInjectedEffort, resolveSelectableModel, toCustomModelSetting
+- `packages/shared/src/nodeRuntime.ts` — exports: NodeRuntimeUnavailableError, SelfInvocation, nodeRuntimeUnavailableMessage, selfInvocationArgs, thenretry
+- `packages/shared/src/nodeSqliteClient.ts` — exports: E, R, REffectEffectA, SqlError, SqliteClientConfig, UnsupportedNodeSqliteOperationError, UnsupportedNodeSqliteVersionError, layer, readOnly
+- `packages/shared/src/oauthScope.ts` — exports: OAuthScopeEncodingError, encodeOAuthScope, oauthScopeSetEquals, parseAllowedOAuthScope, parseOAuthScope
+- `packages/shared/src/observability.ts` — exports: DEFAULT_SIGNAL_EXPORTSignalExport, EffectTraceRecord, LocalFileTracerOptions, OtlpProtocol, OtlpTraceRecord, SignalExport, TraceAttributes, TraceRecord, TraceRecordEvent, TraceRecordLink, TraceSink, TraceSinkFlushStats, TraceSinkOptions, causeErrorTag, compactTraceAttributes, decodeOtlpTraceRecords, errorTag, layerOtlpSerialization, truncateTraceAttributes
+- `packages/shared/src/orchestrationTiming.ts` — exports: deriveActiveWorkStartedAt, deriveSubagentElapsedMs, formatDuration
+- `packages/shared/src/orchestrationV2BoundedSnapshot.ts` — exports: boundedSnapshotProjection, omitLocalVisibleTurnItems, restoreLocalVisibleTurnItems
+- `packages/shared/src/orchestrationV2PendingBackgroundWork.ts` — exports: PendingBackgroundWorkTask, backgroundWorkHoldsCompletion, deriveBlockedOnThreadWait, derivePendingBackgroundWork, pendingBackgroundTurnItems, turnItemUpdateCanEndBackgroundWork
+- `packages/shared/src/orchestrationV2ThreadError.ts` — exports: latestExecutedRun, latestRootProviderFailure, latestUnheldRun, runRanAfter, threadErrorSummary, usageLimitBlockedRun, usageLimitRunPresentedAsLatest
+- `packages/shared/src/orchestrationV2Timeline.ts` — exports: createOrchestrationV2TurnItemVisibility, isOrchestrationV2SupersededInterrupt, isOrchestrationV2TurnItemVisible
+- `packages/shared/src/otelEnvironment.ts` — exports: OtelEnvironment, OtelSignal, SignalEndpoint, SignalName, isRelayTracingEnabled, layerResourceAttributes, noneOtelEnvironment
+- `packages/shared/src/path.ts` — exports: fileBasename, isAbsolutePath, isExplicitRelativePath, isHostPath, isNetworkPath, isUncPath, isWindowsAbsolutePath, isWindowsDrivePath, newProjectFolderName, normalizeProjectPathForComparison, normalizeProjectPathForDispatch, resolveWorkspaceFilePath, stripSlashPrefixedWindowsDrive, workspaceRelativeFilePath
+- `packages/shared/src/preview.ts` — exports: LSOF_LOCAL_HOST_TOKENSReadonlySetstring, PreviewUrlNormalizationError, isLoopbackHost, isPreviewUrlNormalizationError, isValidSearchUrlTemplate, newPreviewTabId, normalizePreviewUrl, previewPdfAssetUrl, resolveAddressBarInput, resolveSearchUrlTemplate
+- `packages/shared/src/previewViewport.ts` — exports: PREVIEW_VIEWPORT_PRESETSReadonlyArrayPreviewViewportPreset, PreviewViewportPreset, resolvePreviewViewport
+- `packages/shared/src/projectFavicon.ts` — exports: PROJECT_FAVICON_EXTENSIONS, PROJECT_FAVICON_FALLBACK_MARKER, getProjectFaviconCacheKey, getProjectFaviconResourceKey, isProjectFaviconFallbackUrl, isProjectFaviconPath
+- `packages/shared/src/projectScripts.ts` — exports: projectScriptCwd, projectScriptMenuLabel, projectScriptRuntimeEnv, projectScriptTerminalInput, projectScriptsInheritDefaults, resolveProjectScripts, settleProjectScript, setupProjectScript
+- `packages/shared/src/projectSettings.ts` — exports: LegacyProjectSettingsFields, ProjectSettingSource, ProjectSettingSources, ResolvedProjectSettings, clearProjectSettingsOverrides, hasProjectSettingsOverrides, resolveNewThreadEnvMode, resolveProjectFileBackedSetting, resolveProjectSettings, resolveSendEnvMode, resolveWorktreeCleanup
+- `packages/shared/src/promptLinks.ts` — exports: LinkedPrompt, NewThreadLink, PROMPT_LINK_MAX_PROMPT_LENGTH, PromptLinkPullRequest, PromptLinkRepository, PromptLinkResult, buildNewThreadLink, parseNewThreadLink, parsePromptLinkRepository, parseThreadLinkPrompt, promptLinkAppPath, promptLinkDeepLink, promptLinkPullRequestUrl, sanitizeLinkedPrompt, withoutPromptLinkParams
+- `packages/shared/src/proposedPlanText.ts` — exports: proposedPlanTitle, stripDisplayedPlanMarkdown
+- `packages/shared/src/providerAuthReturnUrl.ts` — exports: providerAuthReturnUrl
+- `packages/shared/src/qrCode.ts` — exports: QrCode, QrSegment
+- `packages/shared/src/relayAuth.ts` — exports: ClerkPublishableKeyDecodeError, ClerkPublishableKeyFrontendApiError, clerkFrontendApiHostnameFromPublishableKey, clerkFrontendApiUrlFromPublishableKey, relayClerkTokenOptions
+- `packages/shared/src/relayClient.ts` — exports: AvailableRelayClient, CLOUDFLARED_MIN_VERSION, CLOUDFLARED_VERSION, CloudflaredRelayClientOptions, CloudflaredReleaseAsset, RelayClient, RelayClientExecutableSource, RelayClientInstallError, RelayClientShape, RelayClientStatus, compareCloudflaredVersions, isPinnedManagedRelayClient, layerCloudflared, parseCloudflaredVersionOutput
+- `packages/shared/src/relayJwt.ts` — exports: RELAY_ACTIVITY_PUBLISH_TYP, RELAY_HEALTH_REQUEST_TYP, RELAY_HEALTH_RESPONSE_TYP, RELAY_HOOK_DELIVERY_HEADER, RELAY_HOOK_DELIVERY_TYP, RELAY_LINK_PROOF_TYP, RELAY_MANAGED_TUNNEL_RECOVERY_TYP, RELAY_MINT_REQUEST_TYP, RELAY_MINT_RESPONSE_TYP, RelayJwtError, decodeRelayJwt, normalizeRelayIssuer, signRelayJwt, verifyRelayJwt
+- `packages/shared/src/relaySigning.ts` — exports: stableStringify
+- `packages/shared/src/relayTracing.ts` — exports: E, R, REffectEffectA, RelayClientTracer, RelayClientTracingConfig, RelayClientTracingResource, layer, withLocalTracing, withRelayClientTracing
+- `packages/shared/src/relayUrl.ts` — exports: isSecureRelayUrl, normalizeSecureRelayUrl
+- `packages/shared/src/remote.ts` — exports: HostedPairingRequest, RemoteBackendUrlInvalidError, RemoteBackendUrlMissingError, RemotePairingCodeMissingError, RemotePairingTargetError, RemotePairingTokenMissingError, RemotePairingUrlInvalidError, ResolvedRemotePairingTarget, readHashParams
+- `packages/shared/src/schemaJson.ts` — exports: decodeJsonResult, extractJsonObject, fromJsonStringPretty, fromLenientJson, never, unknown
+- `packages/shared/src/schemaYaml.ts` — exports: YamlParseOptions, YamlStringifyOptions, fromYaml
+- `packages/shared/src/searchRanking.ts` — exports: RankedSearchResult, insertRankedSearchResult, normalizeSearchQuery, scoreQueryMatch, scoreSubsequenceMatch
+- `packages/shared/src/semver.ts` — exports: compareSemverVersions, normalizeSemverVersion, parseSemver
+- `packages/shared/src/serverSettings.ts` — exports: PersistedServerObservabilitySettings, applyServerSettingsPatch, deriveLegacyProjectOverrides, fallbackTextGenerationModelSelection, isModelSelectionProviderEnabled, modelPreferencesMigrationPatch, parsePersistedServerObservabilitySettings, resolveModelPreferences, resolveProjectAgentBrowserAccess, resolveProjectAutoPull, resolveReviewGuideModelSelection, resolveSourceControlWriterModelSelection
+- `packages/shared/src/shell.ts` — exports: CommandAvailability, CommandAvailabilityChecker, CommandAvailabilityOptions, CommandResolutionCache, CommandResolutionCacheEntry, ResolvedSpawnCommand, ShellEnvironmentReader, SpawnCommandOptions, SpawnExecutableResolution, SpawnExecutableResolver, WindowsEnvironmentProbeOptions, WindowsShellEnvironment, WindowsShellEnvironmentReader, XcodeGitLocation, XcodeGitLocator, buildEnvironmentCaptureCommand, listLoginShellCandidates, mergePathEntries, mergePathValues, npmShimExecutable, preferGitForWindowsBinary, readEnvironmentFromWindowsShell, readPathFromLaunchctl, setWindowsPath
+- `packages/shared/src/sourceControl.ts` — exports: ChangeRequestPresentation, ChangeRequestTerminology, canonicalRepositoryKey, detectSourceControlProviderFromRemoteUrl, getChangeRequestTerminologyForKind, isSshRemoteUrl, sourceControlRepositorySelector
+- `packages/shared/src/symlink.ts` — exports: 
+- `packages/shared/src/t3McpToolPresentation.ts` — exports: T3McpToolDefinition, T3McpToolLogo, T3McpToolPresentation, T3McpToolSummaryAction, T3_MCP_TOOL_NAMESReadonlySetstring, resolveT3McpToolDefinition, resolveT3McpToolId, resolveT3McpToolPresentation
+- `packages/shared/src/t3ProjectFile.ts` — exports: T3ProjectFileFromJson, buildT3ProjectFileJsonSchema, parseT3ProjectFile
+- `packages/shared/src/telemetryId.ts` — exports: hashTelemetryId, isTelemetryIdHash
+- `packages/shared/src/terminalLabels.ts` — exports: getTerminalLabel, nextTerminalId, resolveTerminalSessionLabel
+- `packages/shared/src/terminalOutput.ts` — exports: EMPTY_TERMINAL_OUTPUTTerminalOutputState, TERMINAL_OUTPUT_TAIL_CHARS, TERMINAL_PALETTES, TerminalOutputState, TerminalSpan, TerminalSpanStyle, appendTerminalOutput, normalizeTerminalOutput, terminalOutputPlainText, terminalOutputResumeText, terminalOutputSpans, terminalOutputTail
+- `packages/shared/src/testing/longTempDir.ts` — exports: 
+- `packages/shared/src/testing/providerEnv.ts` — exports: 
+- `packages/shared/src/testing/symlinks.ts` — exports: 
+- `packages/shared/src/themePalettes.ts` — exports: BUILT_IN_THEMESReadonlyArrayThemeDefinition, BUILT_IN_THEME_IDS, BuiltInThemeId, EMBER_THEMEThemeDefinition, GROVE_THEMEThemeDefinition, IRIS_THEMEThemeDefinition, MOBILE_DEFAULT_THEME_ID, MOBILE_THEME_IDS, MobileThemeId, OCEAN_THEMEThemeDefinition, RESERVED_THEME_IDSReadonlySetstring, T3_CHAT_THEMEThemeDefinition, T3_CODE_DARK_THEME_COLORSThemeColors, T3_CODE_LIGHT_THEME_COLORSThemeColors, THEME_COLOR_ROLES, ThemeAppearance, ThemeColorRole, ThemeColors, ThemeDefinition, ThemeVariants, UNPUBLISHABLE_THEME_IDSReadonlySetstring, getThemeColorsForAppearance
+- `packages/shared/src/themePreview.ts` — exports: STANDARD_THEME_PREVIEW_COLORSReadonlyRecordThemeAppearance, THEME_PREVIEW_RENDER_SPECSReadonlyRecordThemeAppearance, ThemePreviewColors, ThemePreviewRenderSpec, mixThemePreviewBase
+- `packages/shared/src/thirdPartyLicenses.ts` — exports: ThirdPartyLicenseEntry, ThirdPartyLicenseManifest, decodeThirdPartyLicenseManifest, filterThirdPartyLicenseEntries, findThirdPartyLicenseEntry, formatLicenseBundles, thirdPartyLicenseEntryKey
+- `packages/shared/src/threadFindText.ts` — exports: THREAD_FIND_BLOCK_TAGS, searchableMessageSegments, searchablePlanSegments
+- `packages/shared/src/threadLinks.ts` — exports: THREAD_LINK_PROTOCOL, formatThreadLink, hasThreadLinks, parseThreadLinkHref, percentDecodedThreadLinkId, relabelThreadLinks, resolveThreadLinkRef
+- `packages/shared/src/threadPullRequests.ts` — exports: PullRequestListLine, ThreadCurrentPullRequest, ThreadPullRequestBadge, ThreadPullRequestChain, applyThreadPullRequestLinkUpdate, legacyLinkedPullRequestOf, legacyThreadPullRequestKey, normalizeThreadPullRequestKey, pullRequestListLines, resolveThreadCurrentPullRequest, resolveThreadCurrentPullRequestLink, resolveThreadPullRequestBadge, resolveThreadPullRequestChains, threadPullRequestKeyOf, threadPullRequestKeysEqual, threadPullRequestSearchTerms, threadPullRequestsOf, visibleThreadPullRequests
+- `packages/shared/src/threadReference.ts` — exports: ThreadReferenceCopyTarget, resolveThreadReferenceCopyTarget
+- `packages/shared/src/threadSearch.ts` — exports: countThreadSearchOccurrences, findThreadSearchOccurrences, splitThreadSearchText
+- `packages/shared/src/threadTranscript.ts` — exports: threadTranscriptHeader
+- `packages/shared/src/toolActivity.ts` — exports: COMPUTER_USE_TOOL_SOURCE, ToolActivityAction, ToolActivityPresentation, ToolActivityPresentationInput, classifyToolActivity, claudeSkillInvocation, collectToolFilePaths, deriveToolActivityPresentation, dynamicToolSurface, dynamicToolTitle, formatReadToolLabel, formatSearchToolLabel, isJavaScriptReplTool, mergeToolActivityData
+- `packages/shared/src/toolOutput.ts` — exports: MAX_TOOL_OUTPUT_IMAGES, MAX_TOOL_OUTPUT_IMAGE_BASE64_LENGTH, ToolOutputImage, compactDynamicToolOutput, htmlRenderFromToolItem, mcpAppFromToolItem, omitToolOutputImageData, readToolOutputImage, toolOutputImageBlocks, toolOutputImages, toolOutputIndicatesFailure
+- `packages/shared/src/usageFormat.ts` — exports: enumerateDays, enumerateHourStarts, formatCount, formatDateTimeShort, formatDayShort, formatHourShort, formatPercent, formatRelativeHourShort, formatTokens, formatUsageContractMismatch, formatUsd, makeWindow
+- `packages/shared/src/usageLimits.ts` — exports: CHATGPT_USAGE_URL, CURSOR_USAGE_WINDOWS, LimitAccount, LimitPace, LimitPool, LimitPoolMember, LimitPoolWindow, LimitPresentations, USAGE_LIMITS_COMMAND, collectExternalUsageLinks, collectLimitAccounts, collectLimitNotices, collectLimitPools, collectProviderUsageLimits, cursorUsageWindowDetails, displayLimitWindows, elapsedShare, formatDuration, formatResetsIn, hasProviderUsageLimits, isUsageLimitsCommand, limitsNotice, paceOf, paceRemainingPercent, remainingPercent, sameUsageLimitCommandCoverage, usesChatGptSharing, withUsageLimitsCommands
+- `packages/shared/src/usageMerge.ts` — exports: CategoryCost, CostQuality, DailyTotals, EnvironmentUsage, HourlyTotals, MergedUsage, ModelTotals, ProviderTotals, SpeedCost, UsageContractMismatch, isCompatibleUsageContractVersion, isModelCostUnknown, mergeUsage
+- `packages/shared/src/video.ts` — exports: VIDEO_FILE_EXTENSIONS, videoMimeType
+- `packages/source-control-azure-devops/src/client/definition.ts` — exports: 
+- `packages/source-control-azure-devops/src/server/AzureDevOpsCli.ts` — exports: AzureDevOpsCli, AzureDevOpsCliAuthenticationError, AzureDevOpsCliError, AzureDevOpsCliRateLimitError, AzureDevOpsCliUnavailableError, AzureDevOpsCommandFailedError, AzureDevOpsPullRequestDecodeError, AzureDevOpsPullRequestListDecodeError, AzureDevOpsPullRequestNotFoundError, AzureDevOpsRepositoryCloneUrls, AzureDevOpsRepositoryDecodeError, layer
+- `packages/source-control-azure-devops/src/server/AzureDevOpsPullRequestCli.ts` — exports: AzureDevOpsIterationChanges, AzureDevOpsPullRequestCli, AzureDevOpsPullRequestCliError, AzureDevOpsPullRequestIncompleteError, AzureDevOpsPullRequestReadError, AzureDevOpsReviewerNameError, AzureDevOpsViewerUnavailableError, layer
+- `packages/source-control-azure-devops/src/server/AzureDevOpsPullRequestProvider.ts` — exports: LOCATION_CACHE_CAPACITY, MAX_DIFF_SPAWNS
+- `packages/source-control-azure-devops/src/server/AzureDevOpsSourceControlProvider.ts` — exports: discovery
+- `packages/source-control-azure-devops/src/server/azureDevOpsDiff.ts` — exports: AzureDevOpsDiffCursor, AzureDevOpsFilePatch, AzureDevOpsFileTexts, MAX_DIFF_SLICE_BYTES, MAX_DIFF_SLICE_EDITS, MAX_DIFF_SLICE_FILES, MAX_FILE_DIFF_EDITS, azureDevOpsFilePatch, azureDevOpsUnreadableFilePatch, byteLength, formatAzureDevOpsDiffCursor, parseAzureDevOpsDiffCursor
+- `packages/source-control-azure-devops/src/server/azureDevOpsPullRequestJson.ts` — exports: AzureDevOpsChangeEntry, AzureDevOpsChangePage, AzureDevOpsItemContent, AzureDevOpsIteration, AzureDevOpsPullRequest, AzureDevOpsPullRequestBatch, AzureDevOpsRepositoryLocation, decodeItemContentJson, decodeIterationChangesJson, decodeIterationsJson, decodePullRequestJson, decodePullRequestListJson, decodeThreadsJson, decodeViewerJson
+- `packages/source-control-azure-devops/src/server/azureDevOpsPullRequests.ts` — exports: NormalizedAzureDevOpsPullRequestRecord, azureDevOpsPullRequestWebUrl, decodeAzureDevOpsPullRequestJson, decodeAzureDevOpsPullRequestListJson
+- `packages/source-control-azure-devops/src/server/driver.ts` — exports: driver
+- `packages/source-control-bitbucket/src/client/definition.ts` — exports: BitbucketSettings, definition, settings
+- `packages/source-control-bitbucket/src/server/BitbucketApi.ts` — exports: BitbucketApi, BitbucketApiError, BitbucketCheckoutError, BitbucketPullRequestBodyReadError, BitbucketRepositoryLocator, BitbucketRepositoryLocatorError, BitbucketRepositoryRemoteNotFoundError, BitbucketRepositoryRemotesListError, BitbucketRepositoryVcsResolveError, BitbucketRequestError, BitbucketResponseBodyReadError, BitbucketResponseDecodeError, BitbucketResponseError, BitbucketUntrustedUrlError, layer
+- `packages/source-control-bitbucket/src/server/BitbucketPullRequestApi.ts` — exports: BitbucketDiffCommitError, BitbucketPullRequestApi, BitbucketPullRequestApiError, BitbucketPullRequestBatch, BitbucketPullRequestReadError, BitbucketRepositoryUnsupportedError, BitbucketViewerUnavailableError, layer
+- `packages/source-control-bitbucket/src/server/BitbucketPullRequestProvider.ts` — exports: bitbucketProviderFailure, bitbucketViewerPermissions
+- `packages/source-control-bitbucket/src/server/BitbucketSourceControlProvider.ts` — exports: 
+- `packages/source-control-bitbucket/src/server/bitbucketPullRequestJson.ts` — exports: BitbucketComments, BitbucketDiffStat, BitbucketDiffStatPage, BitbucketPage, BitbucketPullRequest, BitbucketRawComment, buildReviewThreads, decodeCommentsJson, decodeCommitsJson, decodeConflictsJson, decodeDiffstatJson, decodePullRequestJson, decodePullRequestPageJson, decodeRepositoryPermissionJson, decodeStatusesJson, decodeViewerJson, decodeWorkspaceMembersJson
+- `packages/source-control-bitbucket/src/server/bitbucketPullRequests.ts` — exports: BitbucketPullRequestBranchSchema, BitbucketPullRequestListSchema, BitbucketPullRequestSchema, BitbucketRepositoryRefSchema, NormalizedBitbucketPullRequestRecord, normalizeBitbucketPullRequestRecord
+- `packages/source-control-bitbucket/src/server/driver.ts` — exports: driver
+- `packages/source-control-core/src/client/definition.ts` — exports: ChangeRequestCheckoutInput, ChangeRequestProjectIdentity, ChangeRequestTerminology, ChangeRequestUrlInput, SourceControlClientDefinition, SourceControlClientRegistry, SourceControlHostSettingsSchema, UNKNOWN_SOURCE_CONTROL_CLIENTSourceControlClientDefinition, defineSourceControlClient, isChangeRequestAuthorityOfProject, isChangeRequestInProjectRepository, isChangeRequestOnProjectHost, isChangeRequestPath, makeSourceControlClientRegistry, readSourceControlHostSettings
+- `packages/source-control-core/src/server/PullRequestProvider.ts` — exports: ProviderBatchedChangeRequest, ProviderBatchedChangeRequestPage, ProviderChangeRequest, ProviderChangeRequestActivity, ProviderChangeRequestDetail, ProviderChangeRequestPage, ProviderChangeRequestStack, ProviderChangeRequestStackLayer, ProviderChangeRequestStat, ProviderChangeRequestSummary, ProviderChangeRequestWatchFingerprint, ProviderDiffFileContents, ProviderDiffSlice, ProviderFileRevisions, ProviderFileStats, ProviderFilesViewed, ProviderListCursor, ProviderRepositoryRef, PullRequestProviderApi, PullRequestProviderError, PullRequestProviderFailure
+- `packages/source-control-core/src/server/SourceControlHost.ts` — exports: SourceControlGitOutput, SourceControlGitRemoteBranch, SourceControlHost, SourceControlProcessInput, SourceControlProcessOutput
+- `packages/source-control-core/src/server/SourceControlProvider.ts` — exports: ResolveSourceControlLink, SourceControlLinkSubject, SourceControlProvider, SourceControlProviderContext, SourceControlRefSelector, parseSourceControlOwnerRef, repositoryPathFromRemoteUrl, sourceBranch, sourceControlRefFromInput, transportSafeSourceControlErrorValue
+- `packages/source-control-core/src/server/SourceControlRateLimit.ts` — exports: CredentialScope, Interactive, SourceControlRateLimit, SourceControlRateLimitPausedError, layer, retryAtFromHeader
+- `packages/source-control-core/src/server/diffFileRevisions.ts` — exports: parseDiffFilePaths, parseDiffFileRevisions
+- `packages/source-control-core/src/server/discovery.ts` — exports: SourceControlApiDiscoverySpec, SourceControlAuthProbeInput, SourceControlCliDiscoverySpec, SourceControlManagedCliDiscoverySpec, SourceControlProviderDiscoverySpec, SourceControlUnknownRemoteRefinementInput, UnknownRemoteVerdict, combinedAuthOutput, detailFromCause, firstNonEmptyLine, firstSafeAuthLine, isMissingExecutable, matchFirst, parseCliHost, probeSourceControlProvider, providerAuth
+- `packages/source-control-core/src/server/driver.ts` — exports: SourceControlDriver, SourceControlDriverInstance, defineSourceControlDriver
+- `packages/source-control-core/src/server/mergeMessage.ts` — exports: removeAgentCredits
+- `packages/source-control-core/src/server/pullRequestChecks.ts` — exports: dedupeChecks, sortChecks
+- `packages/source-control-forgejo/src/client/definition.ts` — exports: 
+- `packages/source-control-forgejo/src/server/ForgejoCli.ts` — exports: ForgejoApiInput, ForgejoCli, ForgejoCliError, ForgejoKeysSchema, ForgejoLoginSchema, ForgejoRepository, ForgejoRepositoryInput, layer, matchForgejoLogin, parseForgejoLogins, parseForgejoRemote
+- `packages/source-control-forgejo/src/server/ForgejoPullRequestProvider.ts` — exports: 
+- `packages/source-control-forgejo/src/server/ForgejoSourceControlProvider.ts` — exports: repositoryNameFromRemoteUrl
+- `packages/source-control-forgejo/src/server/driver.ts` — exports: driver
+- `packages/source-control-forgejo/src/server/forgejoPullRequestJson.ts` — exports: FORGEJO_REACTIONSRecordPullRequestReactionContent, ForgejoComment, ForgejoCommit, ForgejoLabel, ForgejoPullRequest, ForgejoReaction, ForgejoRepository, ForgejoReview, ForgejoReviewComment, ForgejoStatus, ForgejoUser, forgejoActor, forgejoChangeRequest, forgejoChecks, forgejoComment, forgejoCommit, forgejoReactions, forgejoReview, forgejoReviewThread, string
+- `packages/source-control-forgejo/src/server/forgejoPullRequests.ts` — exports: ForgejoPullRequestSchema, toForgejoChangeRequest
+- `packages/source-control-forgejo/src/server/forgejoRequiredChecks.ts` — exports: ForgejoBranchStatusChecks, markRequiredForgejoChecks
+- `packages/source-control-gitcafe/src/client/definition.ts` — exports: GitCafeSettings, settings
+- `packages/source-control-gitcafe/src/server/GitCafeApi.ts` — exports: GitCafeApi, GitCafeApiError, GitCafeApiFailure, GitCafeApiRequest, layer
+- `packages/source-control-gitcafe/src/server/GitCafeCredentials.ts` — exports: GitCafeCliFailedError, GitCafeCliMissingError, GitCafeCredential, GitCafeCredentialUnavailableError, GitCafeCredentials, GitCafeNotSignedInError, environmentToken, layer
+- `packages/source-control-gitcafe/src/server/GitCafePullRequestProvider.ts` — exports: 
+- `packages/source-control-gitcafe/src/server/GitCafeSourceControlProvider.ts` — exports: parseAuth
+- `packages/source-control-gitcafe/src/server/driver.ts` — exports: driver
+- `packages/source-control-gitcafe/src/server/gitCafeHosts.ts` — exports: GITCAFE_HOSTS, GitCafeHost, gitCafeHost, gitCafeRepositoryPath, isGitCafeHost, parseGitCafeRemote
+- `packages/source-control-gitcafe/src/server/gitCafePullRequestJson.ts` — exports: GitCafeChecks, GitCafeComments, GitCafeCommits, GitCafeDiff, GitCafeDiffFile, GitCafeDiffFiles, GitCafePull, GitCafePullDetail, GitCafePulls, GitCafeReactions, GitCafeReviews, GitCafeStack, GitCafeStackEnvelope, REACTION_EMOJIReadonlyRecordPullRequestReactionContent, reactionContent, string, toActivity, toChangeRequest, toChecks, toDiff, toReviewers, toStack, toViewerPermissions
+- `packages/source-control-github/graphql.config.ts` — exports: default
+- `packages/source-control-github/schema/github.graphql.ts` — exports: Actor, CheckConclusionState, CheckRunState, CheckStatusState, DiffSide, EnablePullRequestAutoMergeInput, FileViewedState, GitObject, Int, MergePullRequestInput, MergeStateStatus, MergeableState, Node, PullRequestBranchUpdateMethod, PullRequestMergeMethod, PullRequestReviewDecision, PullRequestReviewState, PullRequestState, PullRequestTimelineItems, Reactable, ReactionContent, Reactor, RefUpdate, RepositoryOwner, RepositoryPermission, RequestedReviewer, SearchResultItem, StatusCheckRollupContext, StatusState, UpdateRefsInput
+- `packages/source-control-github/src/client/definition.ts` — exports: GitHubHostChoice, GitHubSettings, definition, settings
+- `packages/source-control-github/src/server/GitHubCredentials.ts` — exports: GitHubCliFailedError, GitHubCliMissingError, GitHubCredential, GitHubCredentialSource, GitHubCredentialUnavailableError, GitHubCredentials, GitHubHostDisabledError, GitHubNotSignedInError, environmentToken, layer
+- `packages/source-control-github/src/server/GitHubPullRequestApi.ts` — exports: GitHubBranchDeletionRefusedError, GitHubDiffCommitError, GitHubDiffCursorError, GitHubDiffFileContentsUnavailableError, GitHubDiffRevisionsUnavailableError, GitHubPullRequestApi, GitHubPullRequestApiError, GitHubPullRequestDiffSlice, GitHubPullRequestFileStats, GitHubPullRequestFilesViewed, GitHubPullRequestListBatch, GitHubPullRequestReadError, GitHubPullRequestSearchBatch, GitHubPullRequestStat, GitHubPullRequestUpdatedAtUnavailableError, GitHubRepositorySelectorError, GitHubSubjectScopeError, GitHubViewerLoginUnavailableError, GitHubWorkflowApprovalHeadChangedError, GitHubWorkflowApprovalHeadUnavailableError, GitHubWorkflowApprovalRefusedError, NODE_ID_CACHE_CAPACITY, layer
+- `packages/source-control-github/src/server/GitHubPullRequestProvider.ts` — exports: gitHubProviderFailure, gitHubViewerPermissions, loginAvatarUrl
+- `packages/source-control-github/src/server/GitHubQuota.ts` — exports: GitHubQuota, layer
+- `packages/source-control-github/src/server/GitHubRequestPolicy.ts` — exports: GitHubAnswer, GitHubApiAuthenticationError, GitHubApiError, GitHubApiNotFoundError, GitHubApiRateLimitError, GitHubApiRequestError, GitHubApiResponseError, GitHubRequest, GitHubRequestPolicy, gitHubApiUrls, isRateLimited, layer, normalizeHost
+- `packages/source-control-github/src/server/GitHubRest.ts` — exports: GitHubRest, GitHubRestInput, GitHubRestResponse, layer, layerWithDependencies
+- `packages/source-control-github/src/server/GitHubSourceControlProvider.ts` — exports: discovery, parseGitHubAuth, pullRequestCheckoutBranchName
+- `packages/source-control-github/src/server/driver.ts` — exports: driver
+- `packages/source-control-github/src/server/gitHubAuthStatus.ts` — exports: GitHubAuthStatus, GitHubAuthStatusAccount, effectiveGitHubAccount, findAuthenticatedGitHubAccount, parseGitHubAuthStatus
+- `packages/source-control-github/src/server/gitHubChangeRequestTemplate.ts` — exports: 
+- `packages/source-control-github/src/server/gitHubConditionalChecks.ts` — exports: KnownWorkflowRun
+- `packages/source-control-github/src/server/gitHubGraphQlClient.ts` — exports: GitHubGraphQlAuth, GitHubGraphQlTarget, batchKey, isNotFoundOnly, layer
+- `packages/source-control-github/src/server/gitHubPullRequestJson.ts` — exports: GitHubBaseComparison, GitHubCheckContext, GitHubPullRequestActivity, GitHubPullRequestActivityPage, GitHubPullRequestCore, GitHubPullRequestDetail, GitHubPullRequestFileStat, GitHubPullRequestFileStatsPage, GitHubPullRequestFilesPatch, GitHubPullRequestFilesViewedPage, GitHubPullRequestHead, GitHubPullRequestListItem, GitHubPullRequestSearchItem, GitHubPullRequestStack, GitHubPullRequestStackLayer, GitHubPullRequestSummary, GitHubPullRequestWatchFingerprint, GitHubRepositoryAccess, GitHubReviewThreadComments, GitHubReviewThreadEntry, GitHubReviewThreadPage, GitHubViewerAccess, GitHubWorkflowRunApproval, GitHubWorkflowRunPage, IMMEDIATELY_MERGEABLEReadonlySetstring, LenientPullRequestList, LenientPullRequestSearch, PULL_REQUEST_SEARCH_MAX_ROWS, buildLabelRequest, buildReviewSubmission, buildReviewerRequest, decodeCommitFilesJson, decodePullRequestDetailJson, decodePullRequestFilesJson, decodePullRequestStacksJson, decodeWorkflowRunsJson, gitHubReactionContent, isSubjectOfPullRequest, pageRows, pullRequestChecksFromContexts, pullRequestLookup, reviewThreadConversation, toActorAvatars, toCanWrite, toLabelCandidates, toPullRequestActivityPage, toPullRequestCheckContextsPage, toPullRequestCore, toPullRequestFileStatsPage, toPullRequestFilesViewedPage, toPullRequestHeads, toPullRequestNodeId, toPullRequestPreview, toPullRequestRows, toPullRequestSummary, toPullRequestWatchFingerprint, toReviewDismissalsPage, toReviewThreadCommentsPage, toReviewThreadPage, toReviewerCandidates, toStackMembership, toViewerPermissions
+- `packages/source-control-github/src/server/gitHubPullRequests.ts` — exports: NormalizedGitHubPullRequestRecord, decodeGitHubPullRequestListJson, normalizeGitHubPullRequestRecord
+- `packages/source-control-github/src/server/gitHubRepositoryResolution.ts` — exports: GitHubRepositoryLocator, gitHubApiHostForRemote, parseFetchRemotes, parseGitHubRepositorySelector, parsePullRequestReference, resolveGitHubRepository, selectGitHubBaseRepository
+- `packages/source-control-github/src/server/githubStackActions.ts` — exports: GitHubStackActionError, GitHubStackChangedError, GitHubStackMergePendingError, GitHubStackMergeRejectedError, GitHubStackPermissionError, GitHubStackRebaseFailedError, GitHubStackResponseInvalidError, GitHubStackUnsupportedError
+- `packages/source-control-github/src/server/githubStackRebase.ts` — exports: CascadeLayer, GitHubStackRebaseConflictError, GitHubStackRebaseGitError
+- `packages/source-control-github/src/server/pullRequestBatches.graphql.ts` — exports: Actor, ActorOther, CheckRunStateCount, IssueComment, IssueCommentConnection, LatestReviewsNodesPullRequestReview, LatestReviewsPullRequestReviewConnection, PullRequestReviewThreadConnection, PullRequestStack, PullRequestStackEntry, PullRequestStackMembershipRepositoryPullRequestPullRequest, PullRequestStackMembershipRepositoryRepository, PullRequestStatsRepositoryPullRequestPullRequest, PullRequestStatsRepositoryRepository, PullRequestSummaryRepositoryPullRequestCommitsNodesCommitCommit, PullRequestSummaryRepositoryPullRequestCommitsNodesCommitStatusCheckRollupStatusCheckRollup, PullRequestSummaryRepositoryPullRequestCommitsNodesPullRequestCommit, PullRequestSummaryRepositoryPullRequestCommitsPullRequestCommitConnection, PullRequestSummaryRepositoryPullRequestPullRequest, PullRequestSummaryRepositoryRepository, PullRequestWatchFingerprintRepositoryPullRequestCommitsNodesCommitCommit, PullRequestWatchFingerprintRepositoryPullRequestCommitsNodesCommitStatusCheckRollupStatusCheckRollup, PullRequestWatchFingerprintRepositoryPullRequestCommitsNodesPullRequestCommit, PullRequestWatchFingerprintRepositoryPullRequestCommitsPullRequestCommitConnection, PullRequestWatchFingerprintRepositoryPullRequestPullRequest, PullRequestWatchFingerprintRepositoryRepository, Result, ReviewsNodesPullRequestReview, ReviewsPullRequestReviewConnection, StatusCheckRollupContextConnection, StatusContextStateCount, User, Variables
+- `packages/source-control-github/src/server/pullRequestListings.graphql.ts` — exports: Actor, ActorOther, AuthorUser, Commit, Label, LabelConnection, PageInfo, PullRequest, PullRequestCommit, PullRequestCommitConnection, PullRequestConnection, PullRequestListRepositoryRepository, PullRequestReview, PullRequestReviewConnection, PullRequestRow, PullRequestRowRepositoryRepository, PullRequestStack, PullRequestStackEntry, RequestedReviewerOther, RequestedReviewerUser, Result, ReviewRequest, ReviewRequestConnection, SearchResultItemConnection, SearchResultItemOther, StatusCheckRollup, Team, Variables
+- `packages/source-control-github/src/server/pullRequestMutations.graphql.ts` — exports: AddCommentPayload, AddPullRequestReviewThreadReplyPayload, AddReactionPayload, ClosePullRequestPayload, ConvertPullRequestToDraftPayload, DisablePullRequestAutoMergePayload, EnablePullRequestAutoMergePayload, IssueComment, MarkFileAsViewedPayload, MarkPullRequestReadyForReviewPayload, MergePullRequestPayload, PullRequest, PullRequestReviewComment, PullRequestReviewThread, Reaction, RemoveReactionPayload, ReopenPullRequestPayload, ResolveReviewThreadPayload, Result, RevertPullRequestPayload, UnmarkFileAsViewedPayload, UnresolveReviewThreadPayload, UpdateIssueCommentPayload, UpdatePullRequestBranchPayload, UpdatePullRequestPayload, UpdatePullRequestReviewCommentPayload, UpdateRefsPayload, Variables
+- `packages/source-control-github/src/server/pullRequestReads.graphql.ts` — exports: Actor, ActorAvatarsNodesUser, ActorOther, AssignableUsersNodesUser, AutoMergeRequest, BaseRefRef, CheckContext, CheckRun, CheckSuite, Comparison, DefaultBranchRefRef, GitActor, GitActorConnection, GitObject, HeadRefRef, IssueCommentConnection, LabelCandidatesRepositoryPullRequestLabelsLabelConnection, LabelCandidatesRepositoryPullRequestLabelsNodesLabel, LabelCandidatesRepositoryPullRequestPullRequest, LabelCandidatesRepositoryRepository, NodeIssueComment, NodePullRequestReview, NodeRepository, NodesBot, NodesIssueComment, NodesNodeOther, NodesPullRequest, NodesPullRequestReview, PullRequestActionStateRepositoryPullRequestPullRequest, PullRequestActionStateRepositoryRepository, PullRequestActivityRepositoryPullRequestCommitsNodesCommitCommit, PullRequestActivityRepositoryPullRequestCommitsNodesPullRequestCommit, PullRequestActivityRepositoryPullRequestCommitsPullRequestCommitConnection, PullRequestActivityRepositoryPullRequestPullRequest, PullRequestActivityRepositoryRepository, PullRequestBranchToDeleteRepositoryPullRequestHeadRepositoryRepository, PullRequestBranchToDeleteRepositoryPullRequestPullRequest, PullRequestBranchToDeleteRepositoryRepository, PullRequestCheckContextsRepositoryPullRequestCommitsNodesCommitCommit, PullRequestCheckContextsRepositoryPullRequestCommitsNodesCommitStatusCheckRollupContextsPageInfoPageInfo, PullRequestCheckContextsRepositoryPullRequestCommitsNodesCommitStatusCheckRollupContextsStatusCheckRollupContextConnection, PullRequestCheckContextsRepositoryPullRequestCommitsNodesCommitStatusCheckRollupStatusCheckRollup, PullRequestCheckContextsRepositoryPullRequestCommitsNodesPullRequestCommit, PullRequestCheckContextsRepositoryPullRequestCommitsPullRequestCommitConnection, PullRequestCheckContextsRepositoryPullRequestPullRequest, PullRequestCheckContextsRepositoryRepository, PullRequestConnection, PullRequestCoreRepositoryPullRequestAuthorUser, PullRequestCoreRepositoryPullRequestCommitsNodesCommitCommit, PullRequestCoreRepositoryPullRequestCommitsNodesCommitStatusCheckRollupContextsPageInfoPageInfo, PullRequestCoreRepositoryPullRequestCommitsNodesCommitStatusCheckRollupContextsStatusCheckRollupContextConnection, PullRequestCoreRepositoryPullRequestCommitsNodesCommitStatusCheckRollupStatusCheckRollup, PullRequestCoreRepositoryPullRequestCommitsNodesPullRequestCommit, PullRequestCoreRepositoryPullRequestCommitsPullRequestCommitConnection, PullRequestCoreRepositoryPullRequestHeadRepositoryRepository, PullRequestCoreRepositoryPullRequestLabelsLabelConnection, PullRequestCoreRepositoryPullRequestLabelsNodesLabel, PullRequestCoreRepositoryPullRequestPullRequest, PullRequestCoreRepositoryPullRequestReviewRequestsNodesReviewRequest, PullRequestCoreRepositoryPullRequestReviewRequestsReviewRequestConnection, PullRequestCoreRepositoryRepository, PullRequestFileStatsRepositoryPullRequestFilesNodesPullRequestChangedFile, PullRequestFileStatsRepositoryPullRequestFilesPullRequestChangedFileConnection, PullRequestFileStatsRepositoryPullRequestPullRequest, PullRequestFileStatsRepositoryRepository, PullRequestFilesViewedRepositoryPullRequestFilesNodesPullRequestChangedFile, PullRequestFilesViewedRepositoryPullRequestFilesPullRequestChangedFileConnection, PullRequestFilesViewedRepositoryPullRequestPullRequest, PullRequestFilesViewedRepositoryRepository, PullRequestHeadsRepositoryRepository, PullRequestMergeMessageRepositoryPullRequestPullRequest, PullRequestMergeMessageRepositoryRepository, PullRequestNodeIdRepositoryPullRequestPullRequest, PullRequestNodeIdRepositoryRepository, PullRequestPreviewRepositoryPullRequestAuthorUser, PullRequestPreviewRepositoryPullRequestPullRequest, PullRequestPreviewRepositoryRepository, PullRequestReviewComment, PullRequestReviewConnection, PullRequestSourceBranchNodeNodeOther, PullRequestSubjectNodeNodeOther, RefRef, RepositoryLabelsLabelConnection, RepositoryLabelsNodesLabel, RepositoryOwner, RequestedReviewerBot, RequestedReviewerOther, RequestedReviewerUser, Result, ReviewerCandidatesRepositoryPullRequestPullRequest, ReviewerCandidatesRepositoryPullRequestReviewRequestsNodesReviewRequest, ReviewerCandidatesRepositoryPullRequestReviewRequestsReviewRequestConnection, ReviewerCandidatesRepositoryRepository, StatusCheckRollupContextOther, StatusContext, Team, UserConnection, UserUser, Variables, ViewerPermissionsRepositoryPullRequestHeadRepositoryRepository, ViewerPermissionsRepositoryPullRequestPullRequest, ViewerPermissionsRepositoryRepository, ViewerUser, Workflow, WorkflowRun
+- `packages/source-control-github/src/server/pullRequestReviews.graphql.ts` — exports: Actor, Commit, CommitConnection, GitActor, GitActorConnection, IssueComment, IssueCommentConnection, LatestReviewsNodesPullRequestReview, LatestReviewsPullRequestReviewConnection, Mannequin, NodeCommentsPullRequestReviewCommentConnection, NodeOther, NodePullRequestReviewThread, NodesBot, NodesCommentsPullRequestReviewCommentConnection, NodesPullRequestReviewThread, NodesUser, Organization, PageInfo, PullRequestCommit, PullRequestCommitConnection, PullRequestReviewThreadConnection, PullRequestTimelineItemsConnection, PullRequestTimelineItemsOther, ReactionGroup, Reactions, ReactorConnection, ReactorOther, RequestedReviewerBot, RequestedReviewerOther, RequestedReviewerUser, Result, ReviewDismissalsRepositoryPullRequestPullRequest, ReviewDismissalsRepositoryRepository, ReviewDismissedEvent, ReviewPullRequestReview, ReviewRequest, ReviewRequestConnection, ReviewThreadCommentsRepositoryPullRequestPullRequest, ReviewThreadCommentsRepositoryRepository, ReviewThreadsRepositoryPullRequestPullRequest, ReviewThreadsRepositoryRepository, ReviewsNodesPullRequestReview, ReviewsPullRequestReviewConnection, Team, ThreadComment, Variables, ViewerUser
+- `packages/source-control-github/src/server/sourceControlProvider.graphql.ts` — exports: HeadRepositoryRepository, PullRequestByNumberRepositoryRepository, PullRequestConnection, PullRequestNode, PullRequestsByHeadRepositoryRepository, RepositoryOwner, Result, Variables
+- `packages/source-control-github/src/server/stackActions.graphql.ts` — exports: HeadRepositoryRepository, PullRequest, RepositoryRepository, Result, Variables
+- `packages/source-control-gitlab/src/client/definition.ts` — exports: definition
+- `packages/source-control-gitlab/src/server/GitLabCli.ts` — exports: GitLabCli, GitLabCliAuthenticationError, GitLabCliCommandError, GitLabCliError, GitLabCliRateLimitError, GitLabCliUnavailableError, GitLabMergeRequestDecodeError, GitLabMergeRequestListDecodeError, GitLabMergeRequestNotFoundError, GitLabMergeRequestSummary, GitLabNamespaceDecodeError, GitLabRepositoryCloneUrls, GitLabRepositoryDecodeError, layer
+- `packages/source-control-gitlab/src/server/GitLabPullRequestCli.ts` — exports: GitLabDiffCommitError, GitLabDiffCommitParentUnavailableError, GitLabDiffCursorError, GitLabDiffFileContentsUnavailableError, GitLabDiffRefsUnavailableError, GitLabMergeRequestDiffSlice, GitLabMergeRequestListBatch, GitLabMergeRequestReadError, GitLabPullRequestCli, GitLabPullRequestCliError, GitLabViewerUnavailableError, layer
+- `packages/source-control-gitlab/src/server/GitLabPullRequestProvider.ts` — exports: gitLabViewerPermissions
+- `packages/source-control-gitlab/src/server/GitLabSourceControlProvider.ts` — exports: 
+- `packages/source-control-gitlab/src/server/driver.ts` — exports: driver
+- `packages/source-control-gitlab/src/server/gitLabAuthStatus.ts` — exports: GitLabAuthStatusHost, findAuthenticatedGitLabHost, parseGitLabAuthStatusHosts
+- `packages/source-control-gitlab/src/server/gitLabChangeRequestTemplate.ts` — exports: 
+- `packages/source-control-gitlab/src/server/gitLabMergeRequestJson.ts` — exports: AWARD_EMOJI_GRAPHQL_QUERY, GitLabAwardEmojiPage, GitLabDiffRefs, GitLabDiscussions, GitLabMergeRequestDetail, GitLabMergeRequestListBatch, GitLabMergeRequestListItem, GitLabMergeRequestPatch, GitLabProjectUsers, REPOSITORY_BLOBS_GRAPHQL_QUERY, decodeAwardEmojiJson, decodeCommitDiffRefsJson, decodeCommitsJson, decodeDiffRefsJson, decodeDiscussionsJson, decodeMergeRequestChangesJson, decodeMergeRequestDetailJson, decodeMergeRequestDiffsJson, decodeMergeRequestListJson, decodeNotesJson, decodeOwnAwardIdJson, decodeProjectMergeCapabilitiesJson, decodeProjectUsersJson, decodeRepositoryBlobsJson, decodeViewerJson, gitLabAwardName
+- `packages/source-control-gitlab/src/server/gitLabMergeRequests.ts` — exports: NormalizedGitLabMergeRequestRecord, decodeGitLabMergeRequestJson, decodeGitLabMergeRequestListJson
+- `packages/source-control-testing/src/TestSourceControlHost.ts` — exports: TestSourceControlHostOptions, TestSourceControlHostSettings
+- `packages/ssh/src/auth.ts` — exports: SshAskpassHelperDescriptor, SshAuthOptions, SshChildEnvironmentOptions, SshPasswordPrompt, SshPasswordPromptShape, SshPasswordRequest, isSshAuthFailure
+- `packages/ssh/src/command.ts` — exports: RunSshCommandOptions, SshCommandResult, SshInvalidTargetError, baseSshArgs, buildSshHostSpecEffect, getLastNonEmptyOutputLine, parseSshResolveOutput, resolveSshCommand, targetConnectionKey
+- `packages/ssh/src/config.ts` — exports: parseKnownHostsHostnames
+- `packages/ssh/src/errors.ts` — exports: SshCommandError, SshHostDiscoveryError, SshHttpBridgeError, SshInvalidTargetError, SshLaunchError, SshPairingError, SshPasswordPromptError, SshReadinessError
+- `packages/ssh/src/tunnel.ts` — exports: RemoteT3RunnerOptions, SshEnvironmentManager, SshEnvironmentManagerOptions, SshEnvironmentManagerShape
+- `packages/tailscale/src/index.ts` — exports: 
+- `packages/tailscale/src/tailscale.ts` — exports: DEFAULT_TAILSCALE_SERVE_PORT, TailscaleCommandError, TailscaleCommandExitError, TailscaleCommandSpawnError, TailscaleCommandTimeoutError, TailscaleExitNode, TailscaleStatus, TailscaleStatusJson, TailscaleStatusParseError, TailscaleStderrDiagnostic, buildTailscaleHttpsBaseUrl, isTailscaleIpv4Address, parseTailscaleExitNode, parseTailscaleSshEnabled, parseTailscaleStatus, readTailscaleExitNode, readTailscaleSshEnabled, readTailscaleStatus
+- `scripts/apply-web-brand-assets.ts` — exports: applyWebBrandAssetsCommand
+- `scripts/build-cli-archive.ts` — exports: CliArchiveCommandFailedError, CliArchiveInputMissingError, cliArchiveFileName, cliArchivePlatformKey, cliArchiveStem
+- `scripts/build-desktop-artifact.ts` — exports: BuildCommandFailedError, BundleNotSelfContainedError, BundledClientAssetsMissingError, ClerkPasskeyNativeArtifact, ClerkPasskeyNativePackageMissingError, DESKTOP_ELECTRON_LANGUAGES, DESKTOP_EXTRA_RESOURCES, DESKTOP_FILE_EXCLUSIONS, DesktopBuildAlreadyRunningError, DesktopBuildDependencyResolutionError, DesktopBuildDistDirectoryMissingError, DesktopBuildManifestRestoreError, DesktopBuildNoArtifactsProducedError, DesktopDmgBackgroundSourceMissingError, DesktopIconSourceMissingError, ExternalizedBundleError, InlinedExternalPackageError, InlinedNativePackageError, InvalidAppleTeamIdError, InvalidMacPasskeyPublishableKeyError, InvalidMacPasskeyRpDomainError, InvalidMacPasskeyRpDomainReason, InvalidMockUpdateServerPortError, KeyringNativePackageMissingError, LINUX_BROWSER_SECRET_EXTRA_RESOURCES, LINUX_CAPTURE_EXTRA_RESOURCES, LINUX_DESKTOP_BUILD_PREREQUISITES, LINUX_FILE_EXCLUSIONS, LinuxBrowserSecretHostError, LinuxDesktopBuildPrerequisitesMissingError, LinuxIconResizeError, MAC_FILE_EXCLUSIONS, MacDesktopBuildPrerequisitesMissingError, MacPasskeySigningConfiguration, MacPasskeySigningConfigurationError, MacPasskeySigningConfigurationResolutionError, MacProvisioningProfileNotFoundError, MacWebAuthnEntitlements, MissingDesktopBuildInputError, MissingMacPasskeyDomainConfigurationError, MissingMacPasskeyProvisioningProfileError, MissingMacPasskeyRpDomainError, MissingServerProductionDependenciesError, ResourceMonitorBuildOutputMissingError, STAGE_INSTALL_ARGS, UnsupportedDesktopBuildArchitectureError, UnsupportedDesktopBuildPlatformError, UnsupportedHostBuildPlatformError, WINDOWS_NATIVE_ASAR_UNPACK_GLOB, WINDOWS_SERVER_ASAR_RESOURCE, WINDOWS_SERVER_ASAR_UNPACK_GLOBS, WSL_RUNTIME_ARCHIVE_EXTRA_RESOURCE, WSL_RUNTIME_ARCHIVE_HASH_EXTRA_RESOURCE, WSL_RUNTIME_ARCHIVE_HASH_NAME, WSL_RUNTIME_ARCHIVE_NAME, WSL_RUNTIME_EXTRA_RESOURCES, WindowsDesktopBuildPrerequisitesMissingError, WindowsPackagedPayloadValidationError, WindowsPrimaryNativeProbeError, WindowsServerSidecarPackError, WslRuntimeArchiveMissingError, ancestorNodeModulesPaths, buildDesktopBundles, createStagePatchedDependencies, createStageWorkspaceConfig, isDesktopPreviewVersion, isMacPasskeySigningConfigurationError, parseWslRuntimeArchiveMembers, renderMacPasskeyEntitlements, resolveClerkPasskeyNativeArtifacts, resolveDesktopBuildIconAssets, resolveDesktopProductName, resolveDesktopRuntimeDependencies, resolveDesktopUpdateChannel, resolveDesktopWebAssetBrand, resolveFffNativeDependencies, resolveKeyringNativeArtifacts, resolveMacFileExclusions, resolveMacPasskeySigningConfiguration, resolveMacWebAuthnEntitlements, resolveMergedStageDependencies, resolveMockUpdateServerUrl, resolvePackageManagerUserAgent, resolveResourceMonitorRustTargets, resolveWindowsServerAsarIgnoreGlobs, resourceMonitorExecutableName, stageLinuxIconSize, wslRuntimeArchiveStem
+- `scripts/build-npm-launcher.ts` — exports: NPM_LAUNCHER_PACKAGE_NAME, NpmLauncherCommandFailedError, npmLauncherPackageManifest
+- `scripts/check-changed.ts` — exports: 
+- `scripts/convert-device-model.py` — exports: 
+- `scripts/dev-runner.ts` — exports: DEFAULT_T3_HOME, DevRunnerBuiltNeedsShareError, DevRunnerConfigurationError, DevRunnerHostNotProxiableError, DevRunnerInvalidPortOffsetError, DevRunnerPortExhaustedError, DevRunnerProcessError, DevRunnerProcessExitError, devPortProbeHosts, isBrowserAllowedPort, isProxiableBindHost, resolveOffset
+- `scripts/export-android-icons.ts` — exports: AndroidIconRenderError
+- `scripts/export-brand-icons.ts` — exports: IconExportAssetsStaleError, IconExportCommandFailedError, IconExportEncodingError, IconExportFileSystemError, IconExportProcessError, IconExportRenditionError, IconExportSourceMissingError, IconExportToolResolutionError, exportBrandIconsCommand
+- `scripts/knip-schemas.ts` — exports: default
+- `scripts/lib/brand-assets.ts` — exports: BRAND_ASSET_PATHS, DEVELOPMENT_ICON_OVERRIDES, DEVELOPMENT_PUBLIC_ICON_OVERRIDES, IconOverride, WEB_ASSET_CHANNELS, WebAssetBrand, WebAssetChannel, resolveWebAssetBrandForChannel, resolveWebAssetBrandForPackageVersion, resolveWebIconOverrides
+- `scripts/lib/build-target-arch.ts` — exports: BuildArch, BuildPlatform
+- `scripts/lib/cli-executable-imports.ts` — exports: findEsmImportsOfExternalPackages
+- `scripts/lib/cli-external-packages.ts` — exports: CLI_RUNTIME_EXTERNAL_PREFIXES, findInlinedExternalPackages, isExternalCliDependency, isRuntimeExternalCliDependency, selectCliRuntimeExternalDependencies, shouldBundleCliDependency
+- `scripts/lib/desktop-external-packages.ts` — exports: DESKTOP_RUNTIME_EXTERNAL_PREFIXES, isDesktopRuntimeExternalDependency, selectDesktopRuntimeExternalDependencies
+- `scripts/lib/dev-share.ts` — exports: DevServeFailedError, DevShareError, DevShareResult, TailnetNameMissingError, TailscaleUnavailableError
+- `scripts/lib/icon-export.ts` — exports: PngIconImage, WINDOWS_ICON_SIZES, encodePngIco, readPngDimensions
+- `scripts/lib/public-config.ts` — exports: T3CodePublicConfig, loadRepoEnv, resolvePublicConfig
+- `scripts/lib/reference-repos.ts` — exports: ReferenceRepo, referenceReposReadonlyArrayReferenceRepo
+- `scripts/lib/resolve-catalog.ts` — exports: resolveCatalogDependencies
+- `scripts/lib/third-party-licenses.ts` — exports: THIRD_PARTY_LICENSES_FILE_NAME, ThirdPartyLicenseEntry, ThirdPartyLicenseManifest, ThirdPartyLicensePackageManifest, ThirdPartyLicensesPluginOptions, generateThirdPartyLicenseManifest, syncThirdPartyLicenseNotices, thirdPartyLicensesPlugin
+- `scripts/lib/update-manifest.ts` — exports: UpdateManifest, UpdateManifestFile, UpdateManifestScalar, mergeUpdateManifests, parseUpdateManifest, serializeUpdateManifest
+- `scripts/lib/windows-jsign.ts` — exports: JsignFailedError, default, sign
+- `scripts/lib/windows-tar.ts` — exports: windowsSystemTar
+- `scripts/merge-update-manifests.ts` — exports: UpdateManifestPlatform, mergePlatformUpdateManifests, mergeUpdateManifestsCommand, parsePlatformUpdateManifest, serializePlatformUpdateManifest
+- `scripts/mobile-native-client.ts` — exports: NativeClientError, NativeClientRecord, NativeClientStatus, NativePlatform, clientStatus
+- `scripts/mobile-native-static-check.ts` — exports: NativeStaticCheckCommandError, NativeStaticCheckMissingToolError, NativeStaticCheckProcessError, NativeStaticCheckSourceDiscoveryError
+- `scripts/mobile-showcase-environment.ts` — exports: RemoteHandoffCard, SHOWCASE_ENVIRONMENTS, SHOWCASE_PROJECTS, SHOWCASE_PROJECT_ID, SHOWCASE_SCENES, SHOWCASE_TERMINAL_ID, SHOWCASE_THREADS, SHOWCASE_THREAD_ID, ShowcaseScene, environmentLabel, seedShowcaseEnvironment
+- `scripts/mobile-showcase.config.ts` — exports: SHOWCASE_SCENES, SHOWCASE_THEMES, ShowcaseAndroidDevice, ShowcaseAppearance, ShowcaseConfig, ShowcaseDevice, ShowcaseIosDevice, ShowcaseScene, ShowcaseStoreAssetSpec, ShowcaseTheme, default, resolveShowcaseAndroidAbi
+- `scripts/mobile-showcase.ts` — exports: PngMetadata, ShowcaseCapture, encodeAndroidPairingUrls, normalizeStorePng, parsePairingCredentialOutput, parseShowcaseCliArgs, planShowcaseCaptures, readPngDimensions, readPngMetadata, resolveAndroidSdkRoot, selectLanIpv4Address, showcaseCaptureDirectory, validateStoreAsset, validateStoreAssetCount
+- `scripts/mock-update-server.ts` — exports: 
+- `scripts/notify-discord-release.ts` — exports: DiscordReleaseAnnouncementOptions, DiscordReleaseTarget, DiscordReleaseWebhookConfigurationError, DiscordReleaseWebhookRequestError, DiscordReleaseWebhookResponseError
+- `scripts/npm-launcher/bin.mjs` — exports: 
+- `scripts/npm-launcher/t3.mjs` — exports: 
+- `scripts/release-smoke.ts` — exports: 
+- `scripts/resolve-nightly-release.ts` — exports: InvalidDesktopPackageVersionError, NightlyReleaseDesktopPackageError, NightlyReleaseGitHubOutputAppendError, NightlyReleaseGitHubOutputConfigError, NightlyReleaseMetadata, PrereleaseChannel, resolveNightlyBaseVersion
+- `scripts/resolve-previous-release-tag.ts` — exports: InvalidReleaseTagError, PreviousReleaseTagGitHubOutputAppendError, PreviousReleaseTagGitHubOutputConfigError, ReleaseTagListProcessError, ReleaseTagListProcessExitError
+- `scripts/setup-worktree.ts` — exports: 
+- `scripts/sign-macos.ts` — exports: default, sign
+- `scripts/smoke-cli-archive.ts` — exports: CliArchiveSmokeError
+- `scripts/sync-reference-repos.ts` — exports: ReferenceRepoGitSubtreeError, ReferenceRepoSelectionError, ReferenceRepoSyncAction, ReferenceRepoSyncError, ReferenceRepoSyncOptions, ReferenceRepoSyncPlan, ReferenceRepoVersionResolutionError, ReferenceRepoVersionSourceError, syncReferenceReposCommand
+- `scripts/sync-third-party-license-notices.ts` — exports: 
+- `scripts/update-release-package-versions.ts` — exports: ReleaseGitHubOutputConfigurationError, ReleaseGitHubOutputWriteError, ReleasePackageManifestError, releasePackageFiles, updateReleasePackageVersionsCommand
+- `scripts/verify-windows-desktop-artifact.ts` — exports: 
+<!-- legion-cli:generated:end -->
+
+## Notes
+
+These human-maintained notes describe architectural constraints. The generated region above remains the source of truth for the engine's module inventory and fingerprints.
+
+### Execution belongs to an environment
+
+An environment owns the workspace, provider processes, terminals, Git operations, credentials, and durable state. Web, desktop, and mobile clients control that environment; the desktop renderer follows the same boundary even when its shell bundles the server. Direct access, Tailscale, SSH, and T3 Connect change the route to an environment, not where work executes. Repository identity can correlate checkouts but does not transfer project or thread ownership. See the [architecture overview](../../docs/internals/overview.md) and [remote architecture](../../docs/internals/remote.md).
+
+The hosted web app connects directly to environments; its hosting origin does not proxy their traffic. Serving the UI over HTTPS therefore does not make a plain HTTP LAN environment reachable from that browser context.
+
+### Durable intent precedes side effects
+
+The [orchestrator](../../apps/server/src/orchestration-v2/Orchestrator.ts) serializes commands and plans events and effects. [EventSink](../../apps/server/src/orchestration-v2/EventSink.ts) commits events, persisted projections, command receipts, and outbox effects together. Publication follows the commit, so a command acknowledgement means intent is durable; it does not mean external work has finished.
+
+```mermaid
+flowchart LR
+  C[Client command] --> O[Orchestrator]
+  O --> S[EventSink transaction]
+  S --> D[Events, projections, receipts, outbox]
+  D -->|committed outbox| W[Effect worker]
+  W --> X[Provider or workspace operation]
+  X -->|normalized result command| O
+  S -->|after commit| U[Client subscriptions]
+```
+
+The [effect worker](../../apps/server/src/orchestration-v2/EffectWorker.ts) claims durable outbox work and handles execution, cancellation, and retry. Provider and filesystem operations stay outside command decisions and the database transaction. Recovery must account for effects whose original provider process no longer exists; durable intent alone does not make every external operation safe to replay.
+
+### Shared clients, destination-specific authority
+
+Web and mobile compose the shared connection and state services with their own platform layers: [web runtime](../../apps/web/src/connection/runtime.ts) and [mobile runtime](../../apps/mobile/src/connection/runtime.ts). The desktop renderer shares this client boundary. Transport retry ownership, cached state, and subscription lifetime belong to the [connection runtime](../../docs/internals/connection-runtime.md), preventing individual views from introducing competing reconnect loops. Transport readiness and synchronized thread data are separate states.
+
+The [RPC boundary](../../packages/client-runtime/src/rpc/client.ts) resolves requests against the current session and moves durable subscriptions to replacement sessions. Reconnection does not automatically replay mutations; each operation owns its retry and idempotency rules.
+
+[Environment commands](../../packages/client-runtime/src/state/runtime.ts) select an explicit environment and expose permission state for the UI. Routed commands check current grants on both the origin environment (consent to route) and the actual destination (permission to execute). The [server authorization layer](../../apps/server/src/auth/RpcAuthorization.ts) independently enforces method and payload scopes; client permission state is a preflight, not the authority.
+
+### Provider completion and checkpoint completion differ
+
+Provider-specific behavior is resolved through the [adapter registry](../../apps/server/src/orchestration-v2/ProviderAdapterRegistry.ts), keeping native protocols behind the provider boundary. [Run execution](../../apps/server/src/orchestration-v2/RunExecutionService.ts) records provider completion and schedules checkpoint capture. Successful provider completion leaves the run waiting for that follow-up; [checkpoint capture](../../apps/server/src/orchestration-v2/CheckpointCaptureService.ts) persists the checkpoint before marking the run completed. [Run finalization](../../apps/server/src/orchestration-v2/RunFinalizationService.ts) remains a separate orchestration boundary. A late checkpoint must not inflate provider duration or make the client report active provider work. The [checkpoint store](../../apps/server/src/checkpointing/CheckpointStore.ts) uses hidden Git refs; reverting workspace state also requires a compatible provider-conversation rollback.
+
+### Compatibility and delivery bounds cross components
+
+The [RPC contracts](../../packages/contracts/src/rpc.ts) connect clients and environments that upgrade independently. Changes must preserve negotiated capabilities and decoding of persisted orchestration events, as described in the [architecture overview](../../docs/internals/overview.md). A live-client schema change can also affect startup replay of old history.
+
+[Shell streams](../../apps/server/src/orchestration-v2/ShellStream.ts) carry project and thread summaries separately from [thread detail streams](../../apps/server/src/orchestration-v2/ThreadStream.ts). Bounded thread snapshots, history cursors, and replay limits keep an open thread from requiring every conversation's history. Preserve these boundaries when adding state that is sent to clients.
